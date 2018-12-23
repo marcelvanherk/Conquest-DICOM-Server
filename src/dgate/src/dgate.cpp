@@ -1085,10 +1085,23 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20181115	mvh     Fixed default of ImportExportDragAndDrop to 1
 20181117	mvh     Added luasocket to linux compile
 20181124	mvh     Made it 1.4.19c1
+20181215	mvh     Adjusted and simplified servercommand to allow return of long strings
+20181215	mvh     Version to 1.4.19d; added Serialize for DicomObject and DicomArray
+20181216	mvh     Improved Serialize to escape and ignore unknowns; added sequences; comment if too long
+20181216	mvh     Changed callback to progress port of dicommove to conform to key=value standard
+20181216	mvh     Added PATIENTP and STUDYP levels to dicomquery for PatientStudyOnly queries
+20181217	mvh     Added AddToSequence, DicomArray:Add() and dicomprint; 
+			better callback and return error string in dicommove
+20181218	mvh     Silence conquest ImportConverters run from Lua; added callback to dicomprint
+20181220	mvh     Added \n after all Progress.printf output; Progress port uses lossless TCP
+20181221	mvh     Send printer information [lua]printserver or to Progress port 
+20181222	mvh     Added luadicomget; removed superfluous DCO from luadicomquery
+20181223	mvh     Put progress port back to TCP until new GUI committed
+
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.4.19c1"
+#define DGATE_VERSION "1.4.19d"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -2460,7 +2473,7 @@ DICOMDataObject *LoadForGUI(char *filename)
 			{
 			delete vr;
 			if (*VirtualServerFor[0])
- 			{ SystemDebug.printf("Attempting to locate %s on virtualservers", Filename);
+ 			{ SystemDebug.printf("Attempting to locate %s on virtualservers\n", Filename);
 			  DcmMove("", (char *)MYACRNEMA, (char *)MYACRNEMA, stud, ser, "", "", "", sop, "", "", 7, "", 0);
 			}
 
@@ -2480,7 +2493,7 @@ DICOMDataObject *LoadForGUI(char *filename)
 			SetStringVR(&vr, 0x0008, 0x0018, sop); 
 			if(!GetFileName(vr, Filename, Device, TRUE, NULL, stud, ser))
  				{
- 				SystemDebug.printf("Object %s is still not in database", filename);
+ 				SystemDebug.printf("Object %s is still not in database\n", filename);
  				delete vr;
 				return NULL;	// still not in database
 				}
@@ -2601,7 +2614,7 @@ DICOMDataObject *LoadForBridge(char *stsesop, char *ae)
 		*sop++= 0;
 		*ser++= 0;
                 stud  = stsesop;
- 		SystemDebug.printf("Attempting to locate %s for bridge from %s", stsesop, ae);
+ 		SystemDebug.printf("Attempting to locate %s for bridge from %s\n", stsesop, ae);
 		DcmMove("", ae, (char *)MYACRNEMA, stud, ser, "", "", "", sop, "", "", 0x2bad, "", 0);
 		char szTemp[256], szRootSC[256];
 		MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile);
@@ -3108,7 +3121,7 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 	if(fdHandle == INVALID_HANDLE_VALUE)
 		return ( FALSE );
 
-	if (Thread) Progress.printf("Process=%d, Type='loadanddeletedir', Active=1", Thread);
+	if (Thread) Progress.printf("Process=%d, Type='loadanddeletedir', Active=1\n", Thread);
 	while ( TRUE )
 		{
 		if (FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -3145,7 +3158,7 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 						int rc = CallImportConverterN(&DDO, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 						}
 					unlink(TempPath);
-					if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d", Thread, 100, count++);
+					if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, 100, count++);
 					}
 				}
 			}
@@ -3156,7 +3169,7 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 
 		FindClose(fdHandle);
 
-	if (Thread) Progress.printf("Process=%d, Active=0", Thread);
+	if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 	return TRUE;
 	}
 
@@ -3648,7 +3661,7 @@ int	ModifyData(char *pat, char *study, char *series, char *sop, char *script, Ex
 	FILE *f;
 	int count=0, current=0;
 
-	if (Thread) Progress.printf("Process=%d, Type='modifydata', Active=1", Thread);
+	if (Thread) Progress.printf("Process=%d, Type='modifydata', Active=1\n", Thread);
 	NewTempFile(tempfile, ".txt");
 
         f = fopen(tempfile, "wt");
@@ -3664,11 +3677,11 @@ int	ModifyData(char *pat, char *study, char *series, char *sop, char *script, Ex
         while(fgets(temp, sizeof(temp), f) != NULL)
   	{ if (temp[strlen(temp)-1]=='\n') temp[strlen(temp)-1]=0;
 	  ModifyImageFile(temp, script, PDU, DeleteFile);
-  	  if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d", Thread, count, current++);
+  	  if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, count, current++);
 	}
 	fclose(f);
 	unlink(tempfile);
-  	if (Thread) Progress.printf("Process=%d, Active=0", Thread);
+  	if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 
 	return TRUE;
 	}
@@ -6077,21 +6090,21 @@ void CallExportConverters(char *pszFileName, char *pszModality, char *pszStation
 }
 */
 
-static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, int con, char *buf=NULL, BOOL html=TRUE, BOOL upload=FALSE);
-
-#ifndef VirtualQuery
-int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDataObject  *> *pADDO, char *ae=NULL);
-#endif
-
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // lua integration
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "lua.hpp"
+
 char *heapinfo( void );
-static BOOL DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, int id, DICOMDataObject *DDO, const char *callback);
+char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, int id, DICOMDataObject *DDO, lua_State *L=NULL);
 DICOMDataObject *dummyddo;
 
-#include "lua.hpp"
+static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, int con, char *buf=NULL, BOOL html=TRUE, BOOL upload=FALSE, lua_State *L=NULL);
+
+#ifndef VirtualQuery
+int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDataObject  *> *pADDO, char *ae=NULL);
+#endif
 
 extern "C"
 { struct scriptdata *getsd(lua_State *L)
@@ -6122,41 +6135,28 @@ int console;
 
   static int luaservercommand(lua_State *L)
   { int n=lua_gettop(L);
-    char buf[5120];
-    char tempfile[128] = "temp.dat";
-    buf[0]=0;
-    char *b = buf;
-    char *t = NULL;
-    int c   = 0;
-    BOOL html=FALSE;
-    BOOL upload=FALSE;
-    BOOL binary=FALSE;
-    struct stat st;
+    lua_State *L2=NULL;
+    char *b = NULL; // buffer to SendServerCommand (only used to pass filename for upload)
+    char *t = NULL; // mode
+    int c   = 0;     // filehandle or console
+    BOOL html=FALSE; // convert to html
+    BOOL upload=FALSE; // upload
+    BOOL download=FALSE; // download
     if (lua_isstring(L,2)) 
     { t = (char *)lua_tostring(L,2);
-      if      (strcmp(t, "cgi"      )==0) {c=console; b=NULL;}
-      else if (strcmp(t, "cgibinary")==0) {c=console; b=NULL;}
-      else if (strcmp(t, "cgihtml"  )==0) {c=console; b=NULL; html=TRUE;}
-      else if (strcmp(t, "binary"   )==0) {c=open(t+1, O_CREAT | O_TRUNC | O_BINARY | O_RDWR, 0666); b=NULL; html=FALSE; binary=TRUE;}
+      if      (strcmp(t, "cgi"      )==0) {c=console; }
+      else if (strcmp(t, "cgibinary")==0) {c=console; }
+      else if (strcmp(t, "cgihtml"  )==0) {c=console; html=TRUE;}
       else if (t[0]=='<') {b=t+1; html=FALSE; upload=TRUE;}
-      else if (t[0]=='>') {c=open(t+1, O_CREAT | O_TRUNC | O_BINARY | O_RDWR, 0666); html=FALSE; }
+      else if (t[0]=='>') {c=open(t+1, O_CREAT | O_TRUNC | O_BINARY | O_RDWR, 0666); html=FALSE; download=FALSE;}
+      else { L2=L; }
     }
+    else
+      L2=L;
     if (lua_isstring(L,1)) 
-      SendServerCommand("", lua_tostring(L,1), c, b, html, upload);
-    if (buf[0]) { lua_pushstring(L, buf); return 1; }
-    if (binary)
-    { close(c);
-      unsigned int len = DFileSize(tempfile);
-      if (len)
-      {	b = (char *)malloc(len);
-        FILE *f = fopen(tempfile, "rb");
-	fread(b, 1, len, f);
-        fclose(f);
-        lua_pushlstring(L, b, len);
-	free((void *)b);
-        return 1;
-      }
-    }
+      SendServerCommand("", lua_tostring(L,1), c, b, html, upload, L2);
+    if (download) close(c);
+    if (L2) return 1;
     return 0;
   }
   static int luadictionary(lua_State *L)
@@ -6282,7 +6282,7 @@ int console;
     }
     if (n>1 && lua_isstring(L,2)) 
       strcpy(cmd, lua_tostring(L,2));
-    sd->rc = CallImportConverterN(pDDO, -1, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
+    sd->rc = CallImportConverterN(pDDO, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
     return 0;
   }
   static int luadestroy(lua_State *L)
@@ -6426,6 +6426,8 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
   }
 
   static int luadicomquery(lua_State *L);
+  static int luadicomprint(lua_State *L);
+  static int luadicomget(lua_State *L);
   
   static int luadicommove(lua_State *L)
   { const char *source = lua_tostring(L,1);
@@ -6437,8 +6439,13 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       lua_pop(L, 1);
       if (O)
       { DICOMDataObject *P = MakeCopy(O);
-        DcmMove2((char *)source, dest, lua_tointeger(L,4), 0x555, P, lua_tostring(L,5));
+        char *r = DcmMove2((char *)source, dest, lua_tointeger(L,4), 0x555, P, L);
         delete P;
+	if (r[0])
+	{ lua_pushstring(L, r);
+	  return 1;
+	}
+	return 0;
       }
     }
     return 0;
@@ -6954,6 +6961,30 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     return 0;
   }
 
+  // Object:AddToSequence(name, item)
+  // Array:Add(item)
+  static int luaaddtosequence(lua_State *L)
+  { struct scriptdata *sd = getsd(L);
+    
+    if (lua_isuserdata(L,1) && lua_isuserdata(L,2)) 
+    { DICOMDataObject *O = NULL;
+      Array < DICOMDataObject * > *A = NULL;
+      lua_getmetatable(L, 1);
+        lua_getfield(L, -1, "ADDO");  A = (Array < DICOMDataObject * > *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+      lua_getmetatable(L, 2);
+        lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+
+      if (A && O)
+      { DICOMDataObject *dd = MakeCopy(O); 
+	A->Add(dd);
+        return 0;
+      }
+    }
+    return 0;
+  }
+
   // compressdicom(source, string), Data:Compress(string)
   static int luacompressdicom(lua_State *L)
   { struct scriptdata *sd = getsd(L);
@@ -6969,7 +7000,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       { DICOMDataObject *pDDO = MakeCopy(O);
         char cmd[512];
 	sprintf(cmd, "compression %s", name);
-        CallImportConverterN(pDDO, -1, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
+        CallImportConverterN(pDDO, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
 	//BOOL StripGroup2 = memicmp(name, "as", 2)!=0 && memicmp(name, "is", 2)!=0;
 	//recompress(&pDDO, name, "", StripGroup2, sd->PDU);
         luaCreateObject(L, pDDO, NULL, TRUE);
@@ -7056,6 +7087,194 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
         lua_pushstring(L, elements);
       	return 4;
       }
+    }
+    return 0;
+  }
+
+  // serialize dicom object; does not do pixel data, truncates large elements
+  #define MAXLEN 1000000 // total length, one element is max 1/10 of that
+
+  static int luaserialize(lua_State *L)
+  { struct scriptdata *sd = getsd(L);
+
+    if (lua_isuserdata(L,1)) 
+    { char *result=(char *)malloc(MAXLEN);
+      result[0]=0;
+      DICOMDataObject *O = NULL;
+      Array < DICOMDataObject * > *A=NULL;
+      unsigned int Index=0;
+      int nUN=0;
+      BOOL truncated = FALSE;
+
+      lua_getmetatable(L, 1);
+        lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
+        lua_getfield(L, -1, "ADDO");  A = (Array < DICOMDataObject * > *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+
+      if (A) Index+=sprintf(result+Index, "{");
+
+      for (int j=0; j<(A!=NULL?A->GetSize():1); j++) 
+      { if (A) O=(DICOMDataObject *)(A->Get(j));
+        if (O==NULL) break;
+
+        DICOMObject	DO2;
+	VR		*vr;
+	int		i;
+		
+        Index+=sprintf(result+Index, "{");
+	while((vr=O->Pop()))
+	{ char s[128];
+          UINT16 c2 = VRType.RunTimeClass(vr->Group, vr->Element, s);
+	  if (c2==0) nUN++;
+	  if (Index>=MAXLEN*9/10) truncated=TRUE;
+	  
+	  if (vr->Element!=0 && *s!=0 && c2!=0 && Index<MAXLEN*9/10)
+	  { if (c2=='UL' && vr->Length==4)
+            { Index+=sprintf(result+Index, "%s=%d,", s, ((UINT32 *)(vr->Data))[0]);
+	    }
+	    else if (c2=='UL' && vr->Length>4)
+            { Index+=sprintf(result+Index, "%s={", s);
+              for (i=0; (i<vr->Length/4) && (i<MAXLEN/130); i++)
+                Index+=sprintf(result+Index, "%d,", ((UINT32 *)(vr->Data))[i]);
+	      if ((vr->Length/4) >= (MAXLEN/130)) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "},");
+	    }
+	    else if (c2=='US' && vr->Length==2)
+            { Index+=sprintf(result+Index, "%s=%d,", s, ((UINT16 *)(vr->Data))[0]);
+	    }
+	    else if (c2=='US' && vr->Length>2)
+            { Index+=sprintf(result+Index, "%s={", s);
+              for (i=0; (i<vr->Length/2) && (i<MAXLEN/60); i++)
+                Index+=sprintf(result+Index, "%d,", ((UINT16 *)(vr->Data))[i]);
+	      if ((vr->Length/5) >= (MAXLEN/60)) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "},");
+	    }
+	    else if (c2=='SL' && vr->Length==4)
+            { Index+=sprintf(result+Index, "%s=%d,", s, ((INT32 *)(vr->Data))[0]);
+	    }
+	    else if (c2=='SL' && vr->Length>4)
+            { Index+=sprintf(result+Index, "%s={", s);
+              for (i=0; (i<vr->Length/4) && (i<MAXLEN/130); i++)
+                Index+=sprintf(result+Index, "%d,", ((INT32 *)(vr->Data))[i]);
+	      if ((vr->Length/4) >= (MAXLEN/130)) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "},");
+	    }
+	    else if (c2=='SS' && vr->Length==2)
+            { Index+=sprintf(result+Index, "%s=%d,", s, ((INT16 *)(vr->Data))[0]);
+	    }
+	    else if (c2=='SS' && vr->Length>2)
+            { Index+=sprintf(result+Index, "%s={", s);
+              for (i=0; (i<vr->Length/2) && (i<MAXLEN/60); i++)
+                Index+=sprintf(result+Index, "%d,", ((INT16 *)(vr->Data))[i]);
+	      if ((vr->Length/2) >= (MAXLEN/60)) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "},");
+	    }
+	    else if (c2=='FD' && vr->Length==8)
+            { Index+=sprintf(result+Index, "%s=%f,", s, ((double *)(vr->Data))[0]);
+	    }
+	    else if (c2=='FD' && vr->Length>8)
+            { Index+=sprintf(result+Index, "%s={", s);
+              for (i=0; (i<vr->Length/8) && (i<MAXLEN/400); i++)
+                Index+=sprintf(result+Index, "%f,", ((double *)(vr->Data))[i]);
+	      if ((vr->Length/8) >= (MAXLEN/400)) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "},");
+	    }
+	    else if (c2=='FL' && vr->Length==4)
+            { Index+=sprintf(result+Index, "%s=%f,", s, ((float *)(vr->Data))[0]);
+	    }
+	    else if (c2=='FL' && vr->Length>4)
+            { Index+=sprintf(result+Index, "%s={", s);
+              for (i=0; (i<vr->Length/4) && (i<MAXLEN/200); i++)
+                Index+=sprintf(result+Index, "%f,", ((float *)(vr->Data))[i]);
+	      if ((vr->Length/4) >= (MAXLEN/200)) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "},");
+	    }
+  	    else if (c2 == 'OF')
+            { Index+=sprintf(result+Index, "%s=nil --[[OF not serialized]],", s);
+	    }
+  	    else if (c2 == 'OW')
+            { Index+=sprintf(result+Index, "%s=nil --[[OW not serialized]],", s);
+	    }
+  	    else if (c2 == 'SQ')
+            { // Index+=sprintf(result+Index, "%s=nil --[[SQ not serialized]],", s);
+              if (vr->SQObjectArray)
+              { lua_getglobal(L, "serialize");
+	        luaCreateObject(L, NULL, (Array < DICOMDataObject * > *)vr->SQObjectArray, FALSE);
+                lua_call(L, 1, 1);
+		if (lua_strlen(L, -1)>=MAXLEN/10)
+                   Index+=sprintf(result+Index, "%s=nil --[[long SQ not serialized]],", s);
+	        else
+                  Index+=sprintf(result+Index, "%s=%s,", s, lua_tostring(L, -1));
+	        lua_pop(L, 1);
+	      }
+	    }
+	    else if (vr->Length>0)
+            { unsigned int len = vr->Length;
+    
+              // remove trailing zero or space
+	      if (c2 == 'UI' && ((unsigned char *)(vr->Data))[len-1]==0) len--;
+              else if (c2 == 'LO' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
+              else if (c2 == 'CS' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
+              else if (c2 == 'SH' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
+              else if (c2 == 'TM' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
+              else if (c2 == 'DA' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
+              else if (c2 == 'PN' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
+              else if (c2 == 'LT' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
+
+	      if (len>MAXLEN/10) 
+	      { len = MAXLEN/10; // keep to safe limit
+      	        Index+=sprintf(result+Index, " --[[truncated]] ");
+	      }
+
+              char *t = (char *)malloc(len*4+1); // generate escape characters where needed
+              int k=0;
+              for (int i=0; i<len; i++)
+              { unsigned char c= ((unsigned char *)(vr->Data))[i];
+                if (c=='\'' || c=='\\') 
+		{ t[k++] = c;
+	          t[k++] = c;
+		}
+		else if (c<32) // Lua escapes are e.g. \n and \nnn where nnn is Decimal!
+		{ static char escapes[] = "0123456abtnvfr456789012345678901";
+	          if (escapes[c]>='a')
+		  { t[k++]='\\';
+	            t[k++]=escapes[c];
+		  }
+		  else
+		  { t[k++]='\\';
+	            t[k++]=((c/100)%10)+'0';
+	            t[k++]=((c/ 10)%10)+'0';
+	            t[k++]=( c     %10)+'0';
+		  }
+		}
+                else		
+	          t[k++] = c;
+	      }
+	      t[k++] = 0;
+              Index+=sprintf(result+Index, "%s='%s',", s, t);
+	      free(t);
+	    }
+	    else if (vr->Length==0)
+            { Index+=sprintf(result+Index, "%s='',", s);
+	    }
+	  }
+	  DO2.Push(vr);
+	}
+	Index+=sprintf(result+Index, "}");
+	O->Reset();
+	while((vr=DO2.Pop()))
+	{ O->Push(vr);
+	}
+	if (A) Index+=sprintf(result+Index, ",");
+      }
+      if (A) Index+=sprintf(result+Index, "}");
+      if (truncated) 
+	Index+=sprintf(result+Index, " --[[truncated]] ");
+      if (nUN) 
+	Index+=sprintf(result+Index, " --[[skipped %d UN elements]] ", nUN);
+      lua_pushlstring(L, result, Index);
+      free(result);
+      return 1;
     }
     return 0;
   }
@@ -7401,7 +7620,9 @@ static int CGI(char *out, const char *name, const char *def);
     if (strcmp(s, "Copy")==0)     return luacopydicom(L);
     if (strcmp(s, "Compress")==0) return luacompressdicom(L);
     if (strcmp(s, "ListItems")==0) return lualistitems(L);
+    if (strcmp(s, "Serialize")==0) return luaserialize(L);
     if (strcmp(s, "DeleteFromSequence")==0) return luadeletefromsequence(L);
+    if (strcmp(s, "AddToSequence")==0) return luaaddtosequence(L);
     if (strcmp(s, "new")==0)      return luanewdicomobject(L);
     if (strcmp(s, "newarray")==0) return luanewdicomarray(L);
     if (strcmp(s, "free")==0)     return luadeletedicomobject(L);
@@ -7431,7 +7652,7 @@ static int CGI(char *out, const char *name, const char *def);
     // write into Data.Storage
     if (O==sd->DDO && strcmp(lua_tostring(L,2), "Storage")==0)
     { sprintf(script, "storage %s", lua_tostring(L,3));
-      CallImportConverterN(O, -1, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, script);
+      CallImportConverterN(O, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, script);
     }
     // write into Data.Item, Data.Sequence.Item, or Data.Sequence[N].Item
     else if (O) 
@@ -7460,7 +7681,7 @@ static int CGI(char *out, const char *name, const char *def);
 	script[j++] = 0;
       }
 	    
-      CallImportConverterN(O, -1, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, script);
+      CallImportConverterN(O, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, script);
     }
     return 0;
   }
@@ -7483,6 +7704,16 @@ static int CGI(char *out, const char *name, const char *def);
 	lua_pushcclosure(L, luaSeqClosure, 1);
 	return 1;
       }
+      if (strstr("Add", lua_tostring(L,2))) 
+      { lua_pushstring(L, "AddToSequence");
+	lua_pushcclosure(L, luaSeqClosure, 1);
+	return 1;
+      }
+      if (strstr("Serialize", lua_tostring(L,2))) 
+      { lua_pushvalue(L, 2);
+	lua_pushcclosure(L, luaSeqClosure, 1);
+	return 1;
+      }     
       if (isdigit(*lua_tostring(L,2))) 
       { int N = lua_tonumber(L, 2);
         if (N >A->GetSize()) 
@@ -7509,7 +7740,7 @@ static int CGI(char *out, const char *name, const char *def);
       { lua_pushstring(L, sd->Storage);
         return 1;
       }
-      else if (strstr("Write|Read|Dump|GetVR|SetVR|GetPixel|SetPixel|GetRow|SetRow|GetColumn|SetColumn|GetImage|SetImage|Script|new|newarray|free|AddImage|Copy|Compress|ListItems|DeleteFromSequence", lua_tostring(L,2))) 
+      else if (strstr("Write|Read|Dump|GetVR|SetVR|GetPixel|SetPixel|GetRow|SetRow|GetColumn|SetColumn|GetImage|SetImage|Script|new|newarray|free|AddImage|Copy|Compress|ListItems|Serialize|DeleteFromSequence", lua_tostring(L,2))) 
       { lua_pushvalue(L, 2);
 	lua_pushcclosure(L, luaSeqClosure, 1);
 	return 1;
@@ -7968,6 +8199,10 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     lua_register      (*L, "mkdir",         luamkdir);
     lua_register      (*L, "tempfile",      luatempfile);
     lua_register      (*L, "ConvertBinaryData", luaConvertBinaryData);
+    lua_register      (*L, "listitems",     lualistitems);
+    lua_register      (*L, "serialize",     luaserialize);
+    lua_register      (*L, "dicomprint",    luadicomprint);
+    lua_register      (*L, "dicomget",      luadicomget);
     
     lua_createtable   (*L, 0, 0); 
     lua_createtable   (*L, 0, 0);
@@ -8117,6 +8352,7 @@ void Startimport_forward_PDU_close_thread(void)
 // operates synchronously on image BEFORE it is stored in the database
 // For general scripting use:
 // CallImportConverterN (pDDO,                 -1,    NULL,              NULL,                 NULL,         NULL,        NULL,                     NULL,          script);
+// use -2 to suppress status printing, -3 to also suppress error printing
 
 int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage, char *Script)
 { char		szRootSC[64];
@@ -8618,12 +8854,12 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     }
 
     if (skipping)	// {} block being skipped
-    { SystemDebug.printf("%sconverter%d.%d skipped\n", ininame, N, part);
+    { if (N >= -1) SystemDebug.printf("%sconverter%d.%d skipped\n", ininame, N, part);
     }
 
     else if (rc==4)	// ifxxxx statement causes a skip
     { rc = 0;
-      SystemDebug.printf("%sconverter%d.%d not executed because of previous statement\n", ininame, N, part);
+      if (N >= -1) SystemDebug.printf("%sconverter%d.%d not executed because of previous statement\n", ininame, N, part);
     }
 
     /* IMPORT converter: direct forward of received object */
@@ -8717,7 +8953,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
 	if (offset!=28) strcpy(compress, "UN");
       }
 
-      OperatorConsole.printf("%sConverter%d.%d: forwarded object to %s\n", ininame, N, channel, line+offset);
+      if (N >= -1) OperatorConsole.printf("%sConverter%d.%d: forwarded object to %s\n", ininame, N, channel, line+offset);
 
       // get UID at selected ForwardAssociationLevel into szTemp
       vr = NULL;
@@ -8742,7 +8978,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       // get sopclass (to check whether it is accepted at the current connection)
       vr = pDDO -> GetVR(0x0008, 0x0016);
       if (!vr)
-      { OperatorConsole.printf("*** %sConverter%d.%d: Forward failed because SopClass is missing\n", ininame, N, channel);
+      { if (N >= -2) OperatorConsole.printf("*** %sConverter%d.%d: Forward failed because SopClass is missing\n", ininame, N, channel);
       }
 
       if (import_c_init[N][channel]==FALSE)
@@ -8760,7 +8996,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       if (PDU[channel].Link.Connected)
       { SetUID ( iUID, vr );
         if (!PDU[channel].IsAbstractSyntaxAccepted(iUID) || strcmp(ForwardLastUID+channel*66, szTemp)!=0 )
-        { //OperatorConsole.printf("!!! ExportConverter%d.%d: attempt to reconnect %s \n", N, channel, szTemp);
+        { //if (N >= -1) OperatorConsole.printf("!!! ExportConverter%d.%d: attempt to reconnect %s \n", N, channel, szTemp);
           MyGetPrivateProfileString(szRootSC, "ForwardAssociationRelease", "1", Temp, 64, ConfigFile);
           if (atoi(Temp)) PDU[channel].Close();
 	  else            PDU[channel].Link.Close();
@@ -8791,13 +9027,13 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         PDU[channel].AddAbstractSyntax(uid);		// assures connect will not return FALSE because image is not accepted
   
         if (!PDU[channel].Connect((unsigned char *)&host, (unsigned char *)&port))
-        { OperatorConsole.printf("*** %sConverter%d.%d: Forward failed to connect to host %s\n", ininame, N, channel, line+offset);
+        { if (N >= -2) OperatorConsole.printf("*** %sConverter%d.%d: Forward failed to connect to host %s\n", ininame, N, channel, line+offset);
         }
 	else
 	{ vr = pDDO -> GetVR(0x0008, 0x0016);
 	  SetUID ( iUID, vr );
 	  if (!PDU[channel].IsAbstractSyntaxAccepted(iUID))
-	  { OperatorConsole.printf("*** %sConverter%d.%d: DICOM server %s does not accept type of forwarded image\n", ininame, N, channel, line+offset);
+	  { if (N >= -2) OperatorConsole.printf("*** %sConverter%d.%d: DICOM server %s does not accept type of forwarded image\n", ininame, N, channel, line+offset);
 	    PDU[channel].Close();
 	  }
 	}
@@ -8818,7 +9054,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
 	RTCStorage.SetUID(iUID);
 
 	if (!RTCStorage.Write(PDU+channel, pDDO))
-	{ OperatorConsole.printf("*** %sConverter%d.%d: Forward failed to send DICOM image to %s\n", ininame, N, channel, line+offset);
+	{ if (N >= -2) OperatorConsole.printf("*** %sConverter%d.%d: Forward failed to send DICOM image to %s\n", ininame, N, channel, line+offset);
   	  PDU[channel].Close();
 	}
 	else
@@ -8853,7 +9089,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       if (p1)
       { *p1=0;
 
-        OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+        if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
 
         file = p1+5;
         f = fopen(file, "wt");
@@ -8862,7 +9098,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
           fclose(f);
         }
         else
-          OperatorConsole.printf("*** %sconverter%d.%d: Failed to write to file %s\n", ininame, N, part, file);
+          if (N >= -2) OperatorConsole.printf("*** %sconverter%d.%d: Failed to write to file %s\n", ininame, N, part, file);
       }
     }
 
@@ -8879,7 +9115,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       if (p1)
       { *p1=0;
 
-        OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+        if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
 
         file = p1+5;
         f = fopen(file, "at");
@@ -8888,7 +9124,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
           fclose(f);
         }
         else
-          OperatorConsole.printf("*** Importconverter%d.%d: Failed to append to file %s\n", N, part, file);
+          if (N >= -2) OperatorConsole.printf("*** Importconverter%d.%d: Failed to append to file %s\n", N, part, file);
       }
     }
 
@@ -9080,7 +9316,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
 		  vrs->SQObjectArray = (void*) SQE;
 		  //SQE->Add(D);
                   DDO->Push(vrs);
-                  SystemDebug.printf("%sconverter%d.%d created sequence: %04x,%04x\n", ininame, N, part, g, e);
+                  if (N >= -1) SystemDebug.printf("%sconverter%d.%d created sequence: %04x,%04x\n", ininame, N, part, g, e);
                   vr = NULL;
                 }
                 else
@@ -9094,11 +9330,11 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
   
   	    if (vr) 
             { memcpy(vr->Data, string, len);
-              SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+              if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
             }
           }
           else
-            SystemDebug.printf("%sconverter%d.%d executes void: %s\n", ininame, N, part, line);
+            if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes void: %s\n", ininame, N, part, line);
         }
       }
       else if (memicmp(line+offset, " to nil", 7)==0)
@@ -9106,7 +9342,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         { VR *vr = DDO->GetVR(g, e);
           if (vr) 
           { DDO->DeleteVR(vr);
-            SystemDebug.printf("%sconverter%d.%d deletes: %04x,%04x\n", ininame, N, part, g, e);
+            if (N >= -1) SystemDebug.printf("%sconverter%d.%d deletes: %04x,%04x\n", ininame, N, part, g, e);
           }
         }
       }
@@ -9157,18 +9393,18 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
   	    { vr = new VR(g, e, len, (BOOL)TRUE);
               memcpy(vr->Data, string, len);
   	      DDO->Push(vr);
-              OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+              if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
             }
             else if (vr->Length==0)
             { vr->ReAlloc(len);
               memcpy(vr->Data, string, len);
-              OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+              if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
             }
             else
-              SystemDebug.printf("%sconverter%d.%d executes void: %s\n", ininame, N, part, line);
+              if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes void: %s\n", ininame, N, part, line);
           }
           else
-            SystemDebug.printf("%sconverter%d.%d executes void: %s\n", ininame, N, part, line);
+            if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes void: %s\n", ininame, N, part, line);
         }
       }
     }
@@ -9182,10 +9418,10 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       pVR = DDO->GetVR(g, e);
       if (pVR) 
       { DDO->DeleteVR(pVR);
-        OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+        if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
       }
       else
-        SystemDebug.printf("%sconverter%d.%d executes void: %s\n", ininame, N, part, line);
+        if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes void: %s\n", ininame, N, part, line);
     }
 
     /* converter: newuids except g,e|uid and newuids */
@@ -9195,17 +9431,17 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       strcpy(tmp, line+15);
       strcat(tmp, "|");
       NewUIDsInDICOMObject(DDO, tmp);
-      OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     else if (memicmp(line, "newuids stage ", 14)==0)
     { NewUIDsInDICOMObject(DDO, "", NULL, line+14);
-      OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     else if (memicmp(line, "newuids", 7)==0)
     { NewUIDsInDICOMObject(DDO, "");
-      OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     /* converter: olduids except g,e|uid and newuids */
@@ -9215,29 +9451,29 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       strcpy(tmp, line+15);
       strcat(tmp, "|");
       OldUIDsInDICOMObject(DDO, tmp, NULL);
-      OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     else if (memicmp(line, "olduids stage ", 14)==0)
     { OldUIDsInDICOMObject(DDO, "", line+14);
-      OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     else if (memicmp(line, "olduids", 7)==0)
     { OldUIDsInDICOMObject(DDO, "", NULL);
-      OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     /* converters: fixkodak (remove leading 0 in 8 digit PATID), unfixkodak (add leading 0 in 8 digit PATID) */
 
     else if (memicmp(line, "fixkodak", 8)==0)
     { KodakFixer(DDO, FALSE);
-      OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     else if (memicmp(line, "unfixkodak", 10)==0)
     { KodakFixer(DDO, TRUE);
-      OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     /* import converter: copy file to file; copy file to directory */
@@ -9254,8 +9490,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       if (p)
       { *p=0;
   
-        OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
-  
+        if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
         file = p+4;
   
   	/* if the destination a directory then append the source filename to it */
@@ -9271,7 +9506,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         }
   
         if (!DFileCopy2(string, file, 0))
-          OperatorConsole.printf("*** Exportconverter%d.%d: Failed to copy %s to %s\n", N, part, string, file);
+          if (N >= -2) OperatorConsole.printf("*** Exportconverter%d.%d: Failed to copy %s to %s\n", N, part, string, file);
   	else
   	  ImagesCopied++;
       }
@@ -9282,7 +9517,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     else if (memicmp(line, "save to ", 8)==0)
     { char *file = line+8;
 
-      OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
 
       DICOMDataObject *pDDO = MakeCopy(DDO);
       SaveDICOMDataObject(file, pDDO);
@@ -9297,7 +9532,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       int frame = atoi(line+11);
 
       if (p2)
-      { OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
 
         DICOMDataObject *pDDO = MakeCopy(DDO);
         ExtractFrame(pDDO, frame);
@@ -9331,7 +9566,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       if (size<10) size = 4096;
 
       if (file)
-      { SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+      { if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
 
 	     if (memicmp(line + 5, "bmp ", 4)==0) ToBMP(DDO, file, size, 0, level, window, frame, gamma);
 	else if (memicmp(line + 5, "gif ", 4)==0) ToGif(DDO, file, size, 0, level, window, frame, gamma);
@@ -9354,7 +9589,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       if (cline[strlen(cline)-1]!=' ') strcat(cline, " ");
       strcat(cline, tempfile);
 
-      OperatorConsole.printf("%sconverter%d.%d executes: process with %s\n", ininame, N, part, cline);
+      if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: process with %s\n", ininame, N, part, cline);
 
       SaveDICOMDataObject(tempfile, DDO);
       DDO->Reset();
@@ -9371,7 +9606,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     /* converter: tomono */
     else if (memicmp(line, "tomono", 6)==0)
     { DcmConvertPixelData(DDO, TRUE, FALSE, 0, 0, 0, 0, 0.0, 0.0, 0.0);
-      SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
+      if (N >= -1) SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
     }
 
     /* converter: crop */
@@ -9379,7 +9614,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     { int startx=0, endx=9999, starty=0, endy=9999;
       sscanf(line+5, "%d,%d,%d,%d", &startx, &starty, &endx, &endy);
       DcmConvertPixelData(DDO, FALSE, TRUE, startx, endx, starty, endy, 0.0, 0.0, 0.0);
-      SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
+      if (N >= -1) SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
     }
 
     /* converter: system (command line can be generated using all % tricks) */
@@ -9389,7 +9624,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       strcpy(cline, line+7);
       // BackgroundExec(cline, "");
       system(cline);
-      SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
+      if (N >= -1) SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
     }
 
     /* converter: mkdir (command line can be generated using all % tricks) */
@@ -9404,7 +9639,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
 	  mkdir(s);
 	}
       mkdir(cline); // 20120829
-      SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
+      if (N >= -1) SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
     }
 
     /* converter: rm (command line can be generated using all % tricks) */
@@ -9413,7 +9648,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     { char cline[512];
       strcpy(cline, line+3);
       unlink(cline);
-      SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
+      if (N >= -1) SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
     }
 
     /* converter: destroy (will prevent the image from being stored in the database) */
@@ -9423,22 +9658,22 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     }
 
     else if (memicmp(line, "destroy", 7)==0 && calling && called)
-    { OperatorConsole.printf("%sconverter%d.%d: destroyed received image\n", ininame, N, part);
+    { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: destroyed received image\n", ininame, N, part);
       rc = 2;	
     }
 
     else if (memicmp(line, "reject", 6)==0 && calling && called)
-    { OperatorConsole.printf("%sconverter%d.%d: rejected received image\n", ininame, N, part);
+    { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: rejected received image\n", ininame, N, part);
       rc = 6;	
     }
 
     else if (memicmp(line, "retry", 6)==0 && (N==2100 || N==2200))
-    { OperatorConsole.printf("%sconverter%d.%d: retry storing rejected image\n", ininame, N, part);
+    { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: retry storing rejected image\n", ininame, N, part);
       rc = 7;	
     }
 
     else if (memicmp(line, "defer", 5)==0)
-    { OperatorConsole.printf("%sconverter%d.%d: defer for exportconverter\n", ininame, N, part);
+    { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: defer for exportconverter\n", ininame, N, part);
       rc = 8;	
     }
 
@@ -9446,37 +9681,37 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     /* disabled for general scripting */
 
     else if (memicmp(line, "storage ", 8)==0 && called && calling)
-    { if (Storage) OperatorConsole.printf("%sconverter%d.%d: sets preferred storage to %s\n", ininame, N, part, line+8);
+    { if (Storage && N >= -1) OperatorConsole.printf("%sconverter%d.%d: sets preferred storage to %s\n", ininame, N, part, line+8);
       if (Storage) strcpy(Storage, line+8);
     }
 
     else if (memicmp(line, "testmode ", 9)==0)
-    { OperatorConsole.printf("%sconverter%d.%d: sets testmode to %s\n", ininame, N, part, line+9);
+    { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: sets testmode to %s\n", ininame, N, part, line+9);
       strcpy(TestMode, line+9);
     }
 
     /* converter: virtualservermask (only useful to insert into queries, moves) */
 
     else if (memicmp(line, "virtualservermask ", 18)==0 && called && calling)
-    { OperatorConsole.printf("%sconverter%d.%d: sets virtual server mask to %d\n", ininame, N, part, atoi(line+18));
+    { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: sets virtual server mask to %d\n", ininame, N, part, atoi(line+18));
       DDO->ChangeVR(0x9999, 0x0802, (UINT16) atoi(line+18), 0);
     }
 
     /* converter: virtualserver (only useful to insert into queries, moves) */
 
     else if (memicmp(line, "virtualserver ", 14)==0 && called && calling)
-    { OperatorConsole.printf("%sconverter%d.%d: enables virtual server %d\n", ininame, N, part, atoi(line+14));
+    { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: enables virtual server %d\n", ininame, N, part, atoi(line+14));
       DDO->ChangeVR(0x9999, 0x0802, (UINT16)(DDO->GetUINT16(0x9999, 0x0802) | (1 << atoi(line+14))), 0);
     }
 
     /* converter: compression (sets preferred compression for storing image, e.g, COMPRESSION un) */
 
     else if (memicmp(line, "compression ", 12)==0)
-    { OperatorConsole.printf("%sconverter%d.%d: compression to %s\n", ininame, N, part, line+12);
+    { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: compression to %s\n", ininame, N, part, line+12);
       
       DICOMDataObject *DO2 = MakeCopy(DDO);
       if (!recompress(&DO2, line+12, "", line[12]=='n' || line[12]=='N', PDU))
-        OperatorConsole.printf("**** %sconverter%d.%d: compression to %s failed\n", ininame, N, part, line+12);
+        if (N >= -2) OperatorConsole.printf("**** %sconverter%d.%d: compression to %s failed\n", ininame, N, part, line+12);
       
       DDO->Reset();
       while (( pVR = DO2->Pop() ))
@@ -9491,7 +9726,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     { char pat[256];
       SearchDICOMObject(DDO, "0010,0020", pat);
       if (prefetch_queue("prefetch", pat, "", "", "", "", "", "", "", "", "", 0, ""))
-        OperatorConsole.printf("%sconverter%d.%d: queued prefetch %s\n", ininame, N, part, pat);
+        if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: queued prefetch %s\n", ininame, N, part, pat);
     }
 
     /* converter: preretrieve */
@@ -9500,7 +9735,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     { char pat[256];
       SearchDICOMObject(DDO, "0010,0020", pat);
       if (prefetch_queue("preretrieve", pat, line+12, "", "", "", "", "", "", "", "", 0, ""))
-        OperatorConsole.printf("%sconverter%d.%d: queued preretrieve of patient %s from %s\n", ininame, N, part, pat, line+12);
+        if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: queued preretrieve of patient %s from %s\n", ininame, N, part, pat, line+12);
     }
 
     else if (memicmp(line, "forward patient ",  16)==0  ||
@@ -9718,13 +9953,13 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       char pat[256];
       SearchDICOMObject(DDO, "0010,0020", pat);
       if (prefetch_queue(line, pat, dest, studyuid, seriesuid, compress, modality, date, sop, imagetype, seriesdesc, delay, script))
-        OperatorConsole.printf("%sconverter%d.%d: queued %s - (%s %s %s of %s) to %s\n", ininame, N, part, line, level, modality, date, pat, dest);
+        if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: queued %s - (%s %s %s of %s) to %s\n", ininame, N, part, line, level, modality, date, pat, dest);
     }
 
     /* converter: stop and silentstop (will prevent further converters from running for this image) */
 
     else if (memicmp(line, "stop", 4)==0)
-    { SystemDebug.printf("%sconverter%d.%d: stop\n", ininame, N, part);
+    { if (N >= -1) SystemDebug.printf("%sconverter%d.%d: stop\n", ininame, N, part);
       rc = 3;	
     }
 
@@ -9733,7 +9968,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     }
 
     else if (memicmp(line, "return", 6)==0)
-    { SystemDebug.printf("%sconverter%d.%d: return\n", ininame, N, part);
+    { if (N >= -1) SystemDebug.printf("%sconverter%d.%d: return\n", ininame, N, part);
       rc = 5;	
     }
 
@@ -9749,7 +9984,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       else
       { f = fopen(line+5, "rt");
         if (f)
-        { SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
+        { if (N >= -1) SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
           while(fgets(cmd, sizeof(cmd), f) != NULL)
           { if (cmd[strlen(cmd)-1]=='\n') cmd[strlen(cmd)-1]=0;
 	    if (cmd[0]!='#' && cmd[0]!=';')
@@ -9761,7 +9996,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
 	  fclose(f);
         }
         else
-          OperatorConsole.printf("*** %sconverter%d.%d script not found: %s\n", ininame, N, part, line+5);
+          if (N >= -2) OperatorConsole.printf("*** %sconverter%d.%d script not found: %s\n", ininame, N, part, line+5);
       }
       rc = ret;
     }
@@ -9798,7 +10033,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       if (p)
       { *p=0;
 
-        SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+        if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
 
         int len = strlen(string);
         if (len==0) rc = 4;
@@ -9816,7 +10051,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       if (p)
       { *p=0;
 
-        SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+        if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
 
         int len = strlen(string);
         if (len!=0) rc = 4;
@@ -9839,7 +10074,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         if (p) 
         { string2 = strchr(p+1, '"')+1;
           *p=0;
-          SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+          if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
           int cmp = strcmp(string, string2);
           if (cmp!=0) rc = 4;
         }
@@ -9862,7 +10097,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         if (p) 
         { string2 = strchr(p+1, '"')+1;
           *p=0;
-          SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+          if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
           int cmp = strcmp(string, string2);
           if (cmp==0) rc = 4;
         }
@@ -9885,7 +10120,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         if (p) 
         { string2 = strchr(p+1, '"')+1;
           *p=0;
-          SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+          if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
           if (!match(string, string2)) rc = 4;
         }
       }
@@ -9907,7 +10142,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         if (p) 
         { string2 = strchr(p+1, '"')+1;
           *p=0;
-          SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+          if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
           if (match(string, string2)) rc = 4;
         }
       }
@@ -9929,7 +10164,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         if (p) 
         { string2 = strchr(p+1, '"')+1;
           *p=0;
-          SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+          if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
           if (atoi(string)!=atoi(string2)) rc = 4;
         }
       }
@@ -9951,7 +10186,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         if (p) 
         { string2 = strchr(p+1, '"')+1;
           *p=0;
-          SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+          if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
           if (atoi(string)==atoi(string2)) rc = 4;
         }
       }
@@ -9973,7 +10208,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         if (p) 
         { string2 = strchr(p+1, '"')+1;
           *p=0;
-          SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+          if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
           if (atoi(string)<=atoi(string2)) rc = 4;
         }
       }
@@ -9995,7 +10230,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         if (p) 
         { string2 = strchr(p+1, '"')+1;
           *p=0;
-          SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+          if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
           if (atoi(string)>=atoi(string2)) rc = 4;
         }
       }
@@ -10025,7 +10260,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
         { string2 = strchr(p+1, '"')+1;
           *p=0;
           h2 = atoi(string2);
-          SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
+          if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
           if (h2>=h1 && (h <h1 || h>=h2)) rc = 4;	// between "9", "17": skip if h<9 or h>=17
           if (h2< h1 && (h <h1 && h>=h2)) rc = 4;	// between "17", "9": skip if h<=17 and h>=9
         }
@@ -10035,7 +10270,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     /* converter: nop (no operation) */
 
     else if (memicmp(line, "nop", 3)==0)
-    { OperatorConsole.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
+    { if (N >= -1) OperatorConsole.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
     }
 
     /* unrecognized command: assume call line or file */
@@ -10090,13 +10325,13 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
             
 	    // note; threadnum and dco not implemented
             struct scriptdata sd = {PDU, NULL, DDO, N, pszModality, pszStationName, pszSop, patid, Storage, 0, 0};
-    	    SystemDebug.printf("Importconverter%d.%d: %s\n", N, part, script);
+    	    if (N >= -1) SystemDebug.printf("Importconverter%d.%d: %s\n", N, part, script);
     	    sd.rc = 1;
             do_lua(&(PDU->L), script, &sd);
             ret = sd.rc;
           }
 	  else
-	  { SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
+	  { if (N >= -1) SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
             while(fgets(cmd, sizeof(cmd), f) != NULL)
             { if (cmd[strlen(cmd)-1]=='\n') cmd[strlen(cmd)-1]=0;
 	      if (cmd[0]!='#' && cmd[0]!=';' && cmd[0]!=0)
@@ -10108,7 +10343,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
 	  }
         }
         else
-          OperatorConsole.printf("*** %sconverter%d.%d error: %s\n", ininame, N, part, line);
+          if (N >= -2) OperatorConsole.printf("*** %sconverter%d.%d error: %s\n", ininame, N, part, line);
       }
       rc = ret;
     }
@@ -10660,7 +10895,7 @@ PrefetchPatientData(char *PatientID, unsigned int MaxRead, int Thread)
 		return FALSE;
 		}
 
-	if (Thread) Progress.printf("Process=%d, Type='prefetchpatientdata', Active=1", Thread);
+	if (Thread) Progress.printf("Process=%d, Type='prefetchpatientdata', Active=1\n", Thread);
 	aDB.BindField (1, SQL_C_CHAR, DeviceName, 255, &SQLResultLength);
 	aDB.BindField (2, SQL_C_CHAR, ObjectFile, 255, &SQLResultLength);
 
@@ -10688,12 +10923,12 @@ PrefetchPatientData(char *PatientID, unsigned int MaxRead, int Thread)
 				Status = FALSE;
 				}
 			}
-		if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d", Thread, 100, count++);
+		if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, 100, count++);
 		}
 
 	aDB.Close();	
 	strcpy(LastPrefetch, PatientID);
-	if (Thread) Progress.printf("Process=%d, Active=0", Thread);
+	if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 
 	return Status;
 	}
@@ -10761,7 +10996,7 @@ static int DcmMove(const char *patid, char* pszSourceAE, char* pszDestinationAE,
 	else 
           sprintf((char*) SOP, "1.2.840.10008.5.1.4.1.2.1.2"); // patient-root move
 	
-	if (Thread) Progress.printf("Process=%d, Type='dicommove', Active=1", Thread);
+	if (Thread) Progress.printf("Process=%d, Type='dicommove', Active=1\n", Thread);
 
 	vr = new VR (0x0000, 0x0002, strlen((char*)SOP), (void*) SOP, FALSE);
 	DCO.Push(vr);
@@ -10884,7 +11119,7 @@ static int DcmMove(const char *patid, char* pszSourceAE, char* pszDestinationAE,
 			int iNbSent = DCOR.GetUINT16(0x0000, 0x1021);
 			int iNbToGo = DCOR.GetUINT16(0x0000, 0x1020);
 			DCOR.Reset();
-			if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d", Thread, iNbSent+iNbToGo, iNbSent);
+			if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, iNbSent+iNbToGo, iNbSent);
 			continue;
 			}
 		else
@@ -10903,13 +11138,13 @@ static int DcmMove(const char *patid, char* pszSourceAE, char* pszDestinationAE,
 		}
 EXIT:
 	PDU.Close();
-  	if (Thread) Progress.printf("Process=%d, Active=0", Thread);
+  	if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 	return rc;
 }
 
-// move data from this to other server controlled by DICOMDataObject
+// move data from this to other server controlled by DICOMDataObject, returns error string
 
-static BOOL DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, int id, DICOMDataObject *DDO, const char *callback)
+char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, int id, DICOMDataObject *DDO, lua_State *L)
 {	ExtendedPDU_Service	PDU;
 	DICOMCommandObject	DCO;
 	DICOMCommandObject	DCOR;
@@ -10919,6 +11154,8 @@ static BOOL DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patro
 	LE_UINT16		command, datasettype, messageid, priority;
 	BYTE			SOP[64], AppTitle[64], host[64], port[64], compr[64];
 	BOOL			rc = FALSE;
+	const char		*callback = NULL;
+	static char		retvalue[80]="";
 
 	if (strcmp(pszSourceAE, "(local)")==0)
   	  pszSourceAE = (char *)MYACRNEMA;
@@ -10936,13 +11173,22 @@ static BOOL DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patro
 	uid.Set("1.2.840.10008.5.1.4.1.2.2.2");	// studyrootmove
 	PDU.AddAbstractSyntax(uid);
 
+	callback = "none";
+	if (lua_isnumber(L, 5)) callback = lua_tostring(L, 5);
+	if (lua_isstring(L, 5)) callback = lua_tostring(L, 5);
+	if (lua_isfunction(L, 5)) callback = "function";
+
+	if (atoi(callback)) 
+	   Progress.printf("Process=%d, Type='dicommove', Active=1\n", atoi(callback));
+
 	if (strcmp(pszSourceAE, (char *)MYACRNEMA)==0)
 		{
 		if(!PDU.Connect((BYTE *)"127.0.0.1", Port)) 
 			{
 			OperatorConsole.printf("***dicommove: local server not working\n");
 			sprintf(StatusString, "***dicommove: local server not working");
-			return FALSE;	// self not working: no retry
+			strcpy(retvalue, StatusString);
+			return retvalue;
 			}
 		messageid = id;
 		}
@@ -10952,13 +11198,15 @@ static BOOL DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patro
 			{
 			OperatorConsole.printf("***dicommove: AE not found: %s\n", pszSourceAE);
 			sprintf(StatusString, "***dicommove: AE not found: %s", pszSourceAE);
-			return FALSE; 	// wrong address no retry
+			strcpy(retvalue, StatusString);
+			return retvalue;
 			}
 		if(!PDU.Connect(host, port)) 
 			{
 			OperatorConsole.printf("***dicommove: could not connect to AE: %s\n", pszSourceAE);
 			sprintf(StatusString, "***dicommove: could not connect to AE: %s", pszSourceAE);
-			return TRUE;	// remote not working: retry
+			strcpy(retvalue, StatusString);
+			return retvalue;
 			}
 		messageid = id;	// special to indicate move to itself - no import/exportconverters
 		}
@@ -10998,15 +11246,17 @@ static BOOL DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patro
 			{
 			OperatorConsole.printf("***dicommove: association lost\n");
 			sprintf(StatusString, "***dicommove: association lost");
-			return TRUE;	// associate lost: may retry
+			strcpy(retvalue, StatusString);
+			return retvalue;
 			}
 
 		if(DCOR.GetUINT16(0x0000, 0x0100)!=0x8021)
 			{
 			OperatorConsole.printf("***dicommove: invalid C-move response\n");
 			sprintf(StatusString, "***dicommove: invalid C-move response");
-			rc = FALSE;
-			goto EXIT; 	// not a C-MOVE-RSP ? no retry
+			strcpy(retvalue, StatusString);
+			PDU.Close();
+			return retvalue;
 			}
 		
 		if(DCOR.GetUINT16(0x0000, 0x0800)!=0x0101)
@@ -11027,17 +11277,16 @@ static BOOL DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patro
 			int iNbToGo = DCOR.GetUINT16(0x0000, 0x1020);
 			sprintf(StatusString, "dicommove: %d of %d images transferred", iNbSent, iNbSent+iNbToGo);
 
-			if (callback && *callback)
+			if (atoi(callback))
+				Progress.printf("Process=%d, Total=%d, Current=%d\n", atoi(callback), iNbSent+iNbToGo, iNbSent);
+			else if (strcmp(callback, "function")==0)
 				{
-				if (atoi(callback))
-					Progress.printf("dicommove job %d: %d of %d images transferred", atoi(callback), iNbSent, iNbSent+iNbToGo);
-				else
-					{
-					struct scriptdata sd = {&PDU, &DCOR, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
-					do_lua(&(PDU.L), (char *)callback, &sd);
-					if (sd.DDO) delete sd.DDO;
-					}
 				}
+			else if (strcmp(callback, "none")==0)
+				{
+				}
+			else 
+				luaL_dostring(L, callback);
 
 			DCOR.Reset();
 			continue;
@@ -11047,14 +11296,18 @@ static BOOL DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patro
 			OperatorConsole.printf("***dicommove: remote DICOM error\n");
 			sprintf(StatusString, "***dicommove: remote DICOM error");
 			NonDestructiveDumpDICOMObject(&DCOR);
-			rc = FALSE;
-			goto EXIT;
+			strcpy(retvalue, StatusString);
+			PDU.Close();
+			return retvalue;
 			}
 		DCOR.Reset();
 		}
 EXIT:
+  	if (atoi(callback)) Progress.printf("Process=%d, Type='dicommove', Active=0\n", atoi(callback));
+	StatusString[0]=0;
+	strcpy(retvalue, StatusString);
 	PDU.Close();
-	return rc;
+	return retvalue;
 }
 
 // delete patient data from this server: always returns FALSE
@@ -13704,7 +13957,7 @@ class	StorageApp	:
 	public:
 		BOOL	ServerChild ( int );
 		void FailSafeStorage(CheckedPDU_Service *PDU);
-		BOOL PrinterSupport( CheckedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *PrintData[]);
+		BOOL PrinterSupport( ExtendedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *PrintData[], int Thread, char *lua);
 		BOOL StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject **CommitData);
 	};
 
@@ -15368,7 +15621,7 @@ int	DcmSubmitData(char *pat, char *study, char *series, char *sop, char *script,
 
 	UNUSED_ARGUMENT(portsubmit);
 
-	if (Thread) Progress.printf("Process=%d, Type='export', Active=1", Thread);
+	if (Thread) Progress.printf("Process=%d, Type='export', Active=1\n", Thread);
 
 	NewTempFile(tempfile,  ".txt");
 	NewTempFile(tempfile2, ".txt");
@@ -15392,7 +15645,7 @@ int	DcmSubmitData(char *pat, char *study, char *series, char *sop, char *script,
 	  { if (temp[strlen(temp)-1]=='\n') temp[strlen(temp)-1]=0;
 
 	    sprintf(StatusString, "Processing image %d of %d", current++, count);
-  	    if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d", Thread, count+10, current);
+  	    if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, count+10, current);
 
 	    DICOMDataObject *pDDO;
             pDDO = LoadForGUI(temp);
@@ -15434,7 +15687,7 @@ int	DcmSubmitData(char *pat, char *study, char *series, char *sop, char *script,
 	  NewTempFile(archfile, ".zip");
 
 	sprintf(StatusString, "Zipping processed images");
-	if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d", Thread, count+10, current+1);
+	if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, count+10, current+1);
 
 #ifdef WIN32
 	sprintf(temp, "-y a \"%s\" -t%s @%s", archfile, ziptype, tempfile);
@@ -15447,7 +15700,7 @@ int	DcmSubmitData(char *pat, char *study, char *series, char *sop, char *script,
 	}
 #endif
 
-	if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d", Thread, count+10, current+5);
+	if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, count+10, current+5);
 	if (script)
 	{ sprintf(StatusString, "Deleting processed images");
 	  f = fopen(tempfile, "rt");
@@ -15487,8 +15740,8 @@ int	DcmSubmitData(char *pat, char *study, char *series, char *sop, char *script,
 	  }
 	}
 
-	if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d", Thread, count+10, current+9);
-	if (Thread) Progress.printf("Process=%d, Type='export', Active=0", Thread);
+	if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, count+10, current+9);
+	if (Thread) Progress.printf("Process=%d, Type='export', Active=0\n", Thread);
 	return rc;
 	}
 
@@ -18766,7 +19019,19 @@ class GPCRSP : public NGetRSP
 
 static int pcount=0;
 
-BOOL StorageApp ::	PrinterSupport( CheckedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *PrintData[])
+void lua_printserver(ExtendedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO, char *lua, char *cmd)
+	{
+	if (lua[0])
+		{
+		lua_setvar(PDU, "version",      DGATE_VERSION);
+		lua_setvar(PDU, "command_line", cmd);
+		struct scriptdata sd = {PDU, DCO, DDO, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
+		do_lua(&(PDU->L), lua, &sd);
+		}
+	}
+	
+
+BOOL StorageApp ::	PrinterSupport( ExtendedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *PrintData[], int Thread, char *lua)
 	{
 	DICOMDataObject		*DDO;
 	char			uid[65], Filename[1024];
@@ -18828,8 +19093,13 @@ EPRSP	EventReportPrinterResponse;
 			{
 			if (GetPrinterRequest.Read(DCO, PDU, DDO))
 				{
-				OperatorConsole.printf("getting Printer\n");
-				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				if (lua[0]) 
+				  lua_printserver(PDU, DCO, DDO, lua, "gettingprinter"); 
+				else 
+				{ OperatorConsole.printf("getting Printer\n");
+				  if (Thread) Progress.printf("Process=%d, Type='gettingprinter'\n", Thread);
+				  if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				}
 
 				// open up PDU for class UIDs used by printer objects
 				PDU->AddAbstractSyntaxAlias(aBasicGrayscalePrintManagementMetaSOPClass,
@@ -18868,8 +19138,13 @@ EPRSP	EventReportPrinterResponse;
 
 			if (EventReportPrinterRequest.Read(DCO, PDU, DDO))
 				{
-				OperatorConsole.printf("N-event Printer\n");
-				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				if (lua[0])
+				  lua_printserver(PDU, DCO, DDO, lua, "neventprinter"); 
+				else
+				{ OperatorConsole.printf("N-event Printer\n");
+				  if (Thread) Progress.printf("Process=%d, Type='neventprinter'\n", Thread);
+				  if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				}
 				delete DDO;
 				return EventReportPrinterResponse.Write(PDU, DCO, &aPrinter, 0, PrintData[0]);
 				}
@@ -18879,8 +19154,18 @@ EPRSP	EventReportPrinterResponse;
 			{
 			if (CreateBasicFilmSessionRequest.Read(DCO, PDU, DDO))
 				{
-				OperatorConsole.printf("Creating Basic Film Session\n");
-				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				GenUID(uid); 
+				Uid.Set(uid);
+				VR *aVR = new VR(0x0000, 0x1000, strlen(uid), (void *)uid, FALSE);
+				DDO->Push(aVR);
+
+				if (lua[0])
+				  lua_printserver(PDU, DCO, DDO, lua, "creatingbasicfilmsession"); 
+				else
+				{ OperatorConsole.printf("Creating Basic Film Session\n");
+				  if (Thread) Progress.printf("Process=%d, Type='creatingbasicfilmsession'\n", Thread);
+				  if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				}
 				PrintData[1] = DDO;
 
 				// open up PDU for class UIDs used by printer objects
@@ -18902,9 +19187,6 @@ EPRSP	EventReportPrinterResponse;
 				PDU->AddAbstractSyntaxAlias(aBasicColorPrintManagementMetaSOPClass,
 				aBasicPrinterSOPClassUID);
 
-				GenUID(uid); 
-				Uid.Set(uid);
-
 				CreateBasicFilmSession++;
 				BOOL r = CreateBasicFilmSessionResponse.Write(PDU, DCO, &Uid, 0, DDO);
 				delete DDO;
@@ -18912,7 +19194,12 @@ EPRSP	EventReportPrinterResponse;
 				}
 			if (DeleteBasicFilmSessionRequest.Read(DCO, PDU))
 				{
-				OperatorConsole.printf("Deleting Basic Film Session\n");
+				if (lua[0])
+				  lua_printserver(PDU, DCO, DDO, lua, "deletebasicfilmsession"); 
+				else
+				{ OperatorConsole.printf("Deleting Basic Film Session\n");
+				  if (Thread) Progress.printf("Process=%d, Type='deletebasicfilmsession'\n", Thread);
+				}
 				//delete PrintData[1];
 				//PrintData[1] = NULL;
 				DeleteBasicFilmSession++;
@@ -18922,8 +19209,13 @@ EPRSP	EventReportPrinterResponse;
 
 			if (ActionBasicFilmSessionRequest.Read(DCO, PDU, DDO))
 				{
-				OperatorConsole.printf("Printing Basic Film Session\n");
-				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				if (lua[0])
+				  lua_printserver(PDU, DCO, DDO, lua, "printbasicfilmsession"); 
+				else
+				{ OperatorConsole.printf("Printing Basic Film Session\n");
+				  if (Thread) Progress.printf("Process=%d, Type='printbasicfilmsession'\n", Thread);
+				  if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				}
 				ActionBasicFilmSession++;
 				delete DDO;
 				return ActionBasicFilmSessionResponse.Write(PDU, DCO, NULL, 0, 0, NULL);
@@ -18932,8 +19224,13 @@ EPRSP	EventReportPrinterResponse;
 			if (SetBasicFilmSessionRequest.Read(DCO, PDU, DDO))
 				{
 				PrintData[1] = DDO;
-				OperatorConsole.printf("Set Basic Film Session\n");
-				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				if (lua[0])
+				  lua_printserver(PDU, DCO, DDO, lua, "setbasicfilmsession"); 
+				else
+				{ OperatorConsole.printf("Set Basic Film Session\n");
+				  if (Thread) Progress.printf("Process=%d, Type='setbasicfilmsession'\n", Thread);
+				  if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				}
 				SetBasicFilmSession++;
 				delete DDO;
 				return SetBasicFilmSessionResponse.Write(PDU, DCO, NULL, 0, NULL);
@@ -18951,6 +19248,8 @@ EPRSP	EventReportPrinterResponse;
 				PrintData[2] = DDO;
 				GenUID(uid); 
 				Uid.Set(uid);
+				VR *aVR = new VR(0x0000, 0x1000, strlen(uid), (void *)uid, FALSE);
+				DDO->Push(aVR);
 
 				VR *avr = DDO->GetVR(0x2010, 0x0010);
 				if (avr)
@@ -18976,9 +19275,6 @@ EPRSP	EventReportPrinterResponse;
 					memcpy(text, avr->Data, avr->Length);
 					}
 
-				OperatorConsole.printf("Creating Basic Film Box with %d Image boxes - %s - Film# %d\n", n, text, pcount);
-				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
-
 				Array < DICOMDataObject * > *SQE = new Array < DICOMDataObject * >;
 				vrs = new VR(0x2010, 0x0510, 0, (void *)NULL, FALSE);
 				vrs->SQObjectArray = (void*) SQE;
@@ -19002,6 +19298,14 @@ EPRSP	EventReportPrinterResponse;
 				pcount++;
 				DDO->Push(vrs);
 
+				if (lua[0])
+				  lua_printserver(PDU, DCO, DDO, lua, "createbasicfilmbox"); 
+				else
+				{ OperatorConsole.printf("Creating Basic Film Box with %d Image boxes - %s - Film# %d\n", n, text, pcount);
+				  if (Thread) Progress.printf("Process=%d, Type='createbasicfilmbox'\n, Nbox=%d, Orientation='%s', Film=%d", Thread, n, text, pcount);
+				  if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				}
+
 				CreateBasicFilmBox++;
 				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
 				BOOL r = CreateBasicFilmBoxResponse.Write(PDU, DCO, &Uid, 0, DDO);
@@ -19011,8 +19315,13 @@ EPRSP	EventReportPrinterResponse;
 
 			if (ActionBasicFilmBoxRequest.Read(DCO, PDU, DDO))
 				{
-				OperatorConsole.printf("Printing Basic Film Box\n");
-				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				if (lua[0])
+				  lua_printserver(PDU, DCO, DDO, lua, "printbasicfilmbox"); 
+				else
+				{ OperatorConsole.printf("Printing Basic Film Box\n");
+				  if (Thread) Progress.printf("Process=%d, Type='printbasicfilmbox'\n", Thread);
+				  if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				}
 				ActionBasicFilmBox++;
 				delete DDO;
 				return ActionBasicFilmBoxResponse.Write(PDU, DCO, NULL, 0, 0, NULL);
@@ -19021,8 +19330,13 @@ EPRSP	EventReportPrinterResponse;
 			if (SetBasicFilmBoxRequest.Read(DCO, PDU, DDO))
 				{
 				PrintData[2] = DDO;
-				OperatorConsole.printf("Set Basic Film Box\n");
-				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				if (lua[0])
+				  lua_printserver(PDU, DCO, DDO, lua, "setbasicfilmbox"); 
+				else
+				{ OperatorConsole.printf("Set Basic Film Box\n");
+				  if (Thread) Progress.printf("Process=%d, Type='setbasicfilmbox'\n", Thread);
+				  if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
+				}
 				SetBasicFilmBox++;
 				delete DDO;
 				return SetBasicFilmBoxResponse.Write(PDU, DCO, NULL, 0, NULL);
@@ -19030,7 +19344,12 @@ EPRSP	EventReportPrinterResponse;
 
 			if (DeleteBasicFilmBoxRequest.Read(DCO, PDU))
 				{
-				OperatorConsole.printf("Deleting Basic Film Box\n");
+				if (lua[0])
+				  lua_printserver(PDU, DCO, DDO, lua, "deletebasicfilmbox"); 
+				else
+				{ OperatorConsole.printf("Deleting Basic Film Box\n");
+				  if (Thread) Progress.printf("Process=%d, Type='deletebasicfilmbox'\n", Thread);
+				}
 				//delete PrintData[2];
 				//PrintData[2] = NULL;
 				DeleteBasicFilmBox++;
@@ -19067,8 +19386,13 @@ EPRSP	EventReportPrinterResponse;
 					aSQArray = (Array < DICOMDataObject * > *) vr->SQObjectArray;
 					if ( aSQArray->GetSize() )
 						{
-					 	PDU->SaveDICOMDataObject(Filename, DICOM_CHAPTER_10_EXPLICIT, aSQArray->Get(0));
-						OperatorConsole.printf("Print file: %s\n", Filename);
+							if (lua[0])
+							  lua_printserver(PDU, DCO, DDO, lua, Filename); 
+							else
+							{ PDU->SaveDICOMDataObject(Filename, DICOM_CHAPTER_10_EXPLICIT, aSQArray->Get(0));
+							  OperatorConsole.printf("Print file: %s\n", Filename);
+							  if (Thread) Progress.printf("Process=%d, Type='printfile', File='%s'\n", Thread, Filename);
+							}
 						}
 					}
 
@@ -19106,8 +19430,13 @@ EPRSP	EventReportPrinterResponse;
 					aSQArray = (Array < DICOMDataObject * > *) vr->SQObjectArray;
 					if ( aSQArray->GetSize() )
 						{
-					 	PDU->SaveDICOMDataObject(Filename, DICOM_CHAPTER_10_EXPLICIT, aSQArray->Get(0));
-						OperatorConsole.printf("Print file: %s\n", Filename);
+							if (lua[0])
+							  lua_printserver(PDU, DCO, DDO, lua, Filename); 
+							else
+							{ PDU->SaveDICOMDataObject(Filename, DICOM_CHAPTER_10_EXPLICIT, aSQArray->Get(0));
+							  OperatorConsole.printf("Print file: %s\n", Filename);
+							  if (Thread) Progress.printf("Process=%d, Type='printfile', File='%s'\n", Thread, Filename);
+							}
 						}
 					}
 
@@ -22134,11 +22463,13 @@ BOOL StorageApp	::	ServerChild (int theArg )
   	char lua_command[1024];
 	char lua_endassociation[1024];
 	char lua_clienterror[1024];
+	char lua_printserver[1024];
 
 	MyGetPrivateProfileString("lua", "association",    "", lua_association, 1024, ConfigFile);
 	MyGetPrivateProfileString("lua", "command",        "", lua_command,     1024, ConfigFile);
 	MyGetPrivateProfileString("lua", "endassociation", "", lua_endassociation, 1024, ConfigFile);
 	MyGetPrivateProfileString("lua", "clienterror",    "", lua_clienterror, 1024, ConfigFile);
+	MyGetPrivateProfileString("lua", "printserver",    "", lua_printserver, 1024, ConfigFile);
 
         struct scriptdata sd1 = {&PDU, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, 0, ConnectedIP};
 	do_lua(&(PDU.L), lua_association, &sd1);
@@ -22590,7 +22921,7 @@ BOOL StorageApp	::	ServerChild (int theArg )
 			continue;
 			}
 
-		if(PrinterSupport (&PDU, &DCO, PrintData))
+		if(PrinterSupport (&PDU, &DCO, PrintData, ThreadNum, lua_printserver))
 			{
 			continue;
 			}
@@ -23255,7 +23586,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 
 	// Start a StudyRootQuery
 
-	if (Thread) Progress.printf("Process=%d, Type='grabimagesfromserver', Active=1", Thread);
+	if (Thread) Progress.printf("Process=%d, Type='grabimagesfromserver', Active=1\n", Thread);
 
 	strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.2.1"); // StudyRootQuery (C-Find SOP)
 	vr1 = new VR (0x0000, 0x0002, strlen((char*)SOP), (void*) SOP, FALSE);
@@ -23397,7 +23728,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 							{
 							PDU.Close();
 							OperatorConsole.printf("*** Grab - C-MOVE association lost\n");
-							if (Thread) Progress.printf("Process=%d, Active=0", Thread);
+							if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 							return ( FALSE );	// associate lost
 							}
 						if(DCOR2.GetUINT16(0x0000, 0x0100)!=0x8021)
@@ -23405,7 +23736,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 							PDU.Close();
 							PDU2.Close();
 							OperatorConsole.printf("*** Grab - C-MOVE got a wrong response\n");
-							if (Thread) Progress.printf("Process=%d, Active=0", Thread);
+							if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 							return(FALSE);
 							}
 						// ignore the data set
@@ -23429,7 +23760,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 							NonDestructiveDumpDICOMObject(&DCOR2);
 							PDU.Close();
 							PDU2.Close();
-							if (Thread) Progress.printf("Process=%d, Active=0", Thread);
+							if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 							return ( FALSE );
 							}
 						DCOR2.Reset();
@@ -23440,12 +23771,12 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 
 			delete vr1;
 			}
-		if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d", Thread, 100, count++);
+		if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, 100, count++);
 		}
 
 	PDU.Close();
 	PDU2.Close();
-	if (Thread) Progress.printf("Process=%d, Active=0", Thread);
+	if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 	return ( TRUE );
 	}
 
@@ -23467,7 +23798,7 @@ int processhtml(char *out, char *in, int len)
 	return outlen;
 	}
 
-static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, int con, char *buf, BOOL html, BOOL upload)
+static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, int con, char *buf, BOOL html, BOOL upload, lua_State *L)
 	{
 	PDU_Service		PDU;
 	DICOMCommandObject	DCO;
@@ -23545,6 +23876,13 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
                                 else      memcpy(buf, vr->Data, len = vr->Length);
 				buf[len]=0;
 				if (len>1 && buf[len-1]==' ') len--;
+				}
+			else if (L)
+				{
+				int len=vr->Length;
+				if (len>1 && ((char *)(vr->Data))[len-1]==' ') len--;
+				else if (len>1 && ((char *)(vr->Data))[len-1]==0) len--;
+                                lua_pushlstring(L, (char *)(vr->Data), len);
 				}
 			else
 				{
@@ -26171,17 +26509,19 @@ char *heapinfo( void )
         unsigned char 	ip[64], port[64], compress[64], SOP[66];
 	VR		*vr;
 	UID		uid;
-	DICOMCommandObject	DCO;
+	// DICOMCommandObject	DCO;
 	LE_UINT16	command, datasettype, messageid, priority;
 	DICOMDataObject	*DDOPtr;
 	int		level;
 		
 	level=0;
-	if      (strncmp(Level, "PATIENT", 7)==0) level=1;
-	else if (strncmp(Level, "STUDY",   5)==0) level=2;
-	else if (strncmp(Level, "SERIES",  6)==0) level=3;
-	else if (strncmp(Level, "IMAGE",   5)==0) level=4;
-	else if (strncmp(Level, "WORKLIST",8)==0) level=5;
+	if      (strncmp(Level, "PATIENTP", 8)==0) level=6;
+	else if (strncmp(Level, "STUDYP",   6)==0) level=7;
+	else if (strncmp(Level, "PATIENT",  7)==0) level=1;
+	else if (strncmp(Level, "STUDY",    5)==0) level=2;
+	else if (strncmp(Level, "SERIES",   6)==0) level=3;
+	else if (strncmp(Level, "IMAGE",    5)==0) level=4;
+	else if (strncmp(Level, "WORKLIST", 8)==0) level=5;
 
 	ExtendedPDU_Service PDU;
 	PDU.AttachRTC(&VRType);
@@ -26198,6 +26538,7 @@ char *heapinfo( void )
 
 	if      (level==1) uid.Set("1.2.840.10008.5.1.4.1.2.1.1"); // PatientRootQuery
 	else if (level==5) uid.Set("1.2.840.10008.5.1.4.31");      // WorkListQuery
+	else if (level>=6) uid.Set("1.2.840.10008.5.1.4.1.2.3.1");      // PatientStudyOnlyQuery
 	else               uid.Set("1.2.840.10008.5.1.4.1.2.2.1"); // StudyRootQuery
 	PDU.AddAbstractSyntax(uid);
 
@@ -26219,8 +26560,9 @@ char *heapinfo( void )
 
 	// Start a Patient/StudyRootQuery
 
-	if (level==1)      strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.1.1"); // PatientRootQuery
+	/* if (level==1)      strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.1.1"); // PatientRootQuery
 	else if (level==5) strcpy((char*) SOP, "1.2.840.10008.5.1.4.31");      // WorklistQuery
+	else if (level>=6) strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.3.1"); // PatientStudyOnlyQuery
 	else               strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.2.1"); // StudyRootQuery
 	vr = new VR (0x0000, 0x0002, strlen((char*)SOP), (void*) SOP, FALSE);
 	DCO.Push(vr);
@@ -26236,10 +26578,16 @@ char *heapinfo( void )
 	messageid = 0x0003;
 	vr = new VR (0x0000, 0x0110, 0x0002, &messageid, FALSE);
 	DCO.Push(vr);
+	*/
 
 	// Use passed data object and Level for query
 
-	P->ChangeVR(0x0008, 0x0052, Level, 'CS', TRUE);
+	if (strcmp(Level, "PATIENTP")==0)
+	  P->ChangeVR(0x0008, 0x0052, "PATIENT", 'CS', TRUE);
+	else if (strcmp(Level, "STUDYP")==0)
+	  P->ChangeVR(0x0008, 0x0052, "STUDY", 'CS', TRUE);
+	else if (level != 5)
+	  P->ChangeVR(0x0008, 0x0052, Level, 'CS', TRUE);
 
 	vr = P->GetVR(0x0002, 0x0010); // delete transfer syntax
 	if (vr) P->DeleteVR(vr);
@@ -26247,13 +26595,812 @@ char *heapinfo( void )
 	MyPatientRootQuery mq;
 	MyStudyRootQuery sq;
 	MyModalityWorkListQuery wq;
+	MyPatientStudyOnlyQuery psq;
 
 	if      (level==1) mq.Write(&PDU, P, A);
 	else if (level==5) wq.Write(&PDU, P, A);
+	else if (level>=6) psq.Write(&PDU, P, A);
 	else               sq.Write(&PDU, P, A);
 	
 	PDU.Close();
         delete P;
+	return 1;
+      }
+      return 1;
+    }
+    return 0;
+  }
+ 
+// lua DICOM printing support
+#include "printsop.hpp"
+ 
+class	PolaroidPDU_Service	:
+	public	PDU_Service
+	{
+	public:
+		BOOL	FixPolaroidConnection()
+			{
+			UINT	Index;
+			UID		uidbad("1.2.840.10008.1.1");
+			UID		uidgood("1.2.840.10008.1.2");
+			
+			Index = 0;
+			while ( Index < AcceptedPresentationContexts.GetSize() )
+				{
+					AcceptedPresentationContexts.Get(Index).TrnSyntax.TransferSyntaxName
+						= uidgood;
+				printf("FPC: %s\n",
+					AcceptedPresentationContexts.Get(Index).TrnSyntax.TransferSyntaxName.GetBuffer(1));
+				++Index;
+				}
+			return ( TRUE );
+			}					
+	};
+	
+		
+class MyGrayscalePrintManagement : public BasicGrayscalePrintManagementMeta
+{
+
+		// define stubs for missing SCP functions we don't need
+
+	private:
+
+		virtual BOOL    ActionPrint ( AbstractFilmSession *, DICOMDataObject * )
+		{
+			return FALSE;
+		}
+
+		virtual BOOL    ActionPrint ( AbstractFilmBox *, DICOMDataObject * )
+		{
+			return FALSE;
+		}
+
+		virtual void    HandlePrinterEvent ( DICOMDataObject *theDDO,
+			UID		&theUID,
+			UINT16 theEventTypeID,
+			void *theArg)
+		{
+			RTC *aRTC = (RTC *)theArg;
+			return;
+		}
+
+		virtual void    HandlePrintJobEvent ( DICOMDataObject *theDDO,
+			UID		&theUID,
+			UINT16 theEventTypeID,
+			void *theArg)
+		{
+			return;
+		}
+		virtual int		HandleError (
+				const	ErrorDescription	&theError ) const
+			{
+			OperatorConsole.printf("HandleError: (%s:%d) %s::%s Msg = %s\n", 
+			theError.GetFile(), theError.GetLine(), theError.GetClass(), 
+			theError.GetMethod(), theError.GetMessage());
+
+			return ( TRUE );
+			}
+};
+#define COLLATED FALSE
+
+static char* GetExtraOption(char* pszTextBlock, char* pszKey)
+{
+  static char*	pszValue = NULL;
+  char*		pcDelimiter;
+  char		szKey[100];
+
+  if (pszValue)
+  { free(pszValue);
+    pszValue = NULL;
+  }
+
+  if ((!pszTextBlock) || (!pszKey) || (pszKey[0] == 0))
+    return NULL;
+
+  /* Search the key */
+  strcpy(szKey, pszKey);
+  strcat(szKey, "=");
+  pszValue = strstr(pszTextBlock, szKey);
+  if (!pszValue)
+    return NULL;
+  pszValue = strdup(pszValue + strlen(szKey));
+
+  /* Terminate the string */
+  pcDelimiter = strchr(pszValue, '\r');
+  if (pcDelimiter)
+    *pcDelimiter = 0;
+  pcDelimiter = strchr(pszValue, '\n');
+  if (pcDelimiter)
+    *pcDelimiter = 0;
+  pcDelimiter = strchr(pszValue, '^');
+  if (pcDelimiter)
+    *pcDelimiter = 0;
+  pcDelimiter = strchr(pszValue, ';');
+  if (pcDelimiter)
+    *pcDelimiter = 0;
+
+  return pszValue;
+}
+
+BOOL
+StripDDOForPrinting (
+	DICOMDataObject	*DDO )
+	{
+	DICOMDataObject	TDDO;
+	VR				*vr;
+	
+	while ( vr = DDO->Pop() )
+		{	
+		if ( vr->Group == 0x0028 && vr->Element == 0x0002 )	{ TDDO.Push(vr);continue; }
+		if ( vr->Group == 0x0028 && vr->Element == 0x0004 )	{ TDDO.Push(vr);continue; }
+		if ( vr->Group == 0x0028 && vr->Element == 0x0010 )	{ TDDO.Push(vr);continue; }
+		if ( vr->Group == 0x0028 && vr->Element == 0x0011 )	{ TDDO.Push(vr);continue; }
+		if ( vr->Group == 0x0028 && vr->Element == 0x0034 )	{ TDDO.Push(vr);continue; }
+		if ( vr->Group == 0x0028 && vr->Element == 0x0100 )	{ TDDO.Push(vr);continue; }
+		if ( vr->Group == 0x0028 && vr->Element == 0x0101 )	{ TDDO.Push(vr);continue; }
+		if ( vr->Group == 0x0028 && vr->Element == 0x0102 )	{ TDDO.Push(vr);continue; }
+		if ( vr->Group == 0x0028 && vr->Element == 0x0103 )	{ TDDO.Push(vr);continue; }
+		if ( vr->Group == 0x7fe0 && vr->Element == 0x0010 )	{ TDDO.Push(vr);continue; }
+		
+		delete vr;
+		}
+	while ( vr = TDDO.Pop() )
+		DDO->Push(vr);
+
+	return ( TRUE );
+	}
+	
+static int PrintGrayScaleImages (
+	BYTE	*MyAE,
+	BYTE	*RemoteAE,
+	BYTE	*RemoteHost,
+	BYTE	*RemotePort,
+	Array < DICOMDataObject *>	*ADDO,
+	char	*FilmFormat,
+	char	*AnnotationText,
+	char	*FilmOrientation, 
+	lua_State *L)
+	{
+	UID	aBasicFilmSessionSOPClassUID("1.2.840.10008.5.1.1.1");
+	UID	aBasicFilmBoxSOPClassUID("1.2.840.10008.5.1.1.2");
+	UID	aBasicGrayscaleImageBoxSOPClassUID("1.2.840.10008.5.1.1.4");
+	UID	aPrintJobSOPClassUID("1.2.840.10008.5.1.1.14");
+	UID	aBasicGrayscalePrintManagementMetaSOPClass("1.2.840.10008.5.1.1.9");
+	UID	aBasicPrinterSOPClassUID("1.2.840.10008.5.1.1.16");
+	UID	aBasicAnnotationBoxSOPClassUID("1.2.840.10008.5.1.1.15");
+	UID	aAppuid("1.2.840.10008.3.1.1.1");
+	PolaroidPDU_Service	PDU;
+	int	ImagesPerRow, ImagesPerColumn;
+	char*	pTmp;
+	const char *callback = NULL;
+
+	/* Get ImagesPerRow and ImagesPerColumn from FilmFormat like:
+	   "STANDARD\\2,2"
+	*/
+	ImagesPerRow = ImagesPerColumn = 1;
+	pTmp = strchr(FilmFormat, '\\');
+	if (pTmp)
+	{ ImagesPerRow = atoi(pTmp + 1);
+	  pTmp = strchr(pTmp, ',');
+	  if (pTmp)
+	    ImagesPerColumn = atoi(pTmp + 1);
+	}
+
+	// create a run-time classer for the PDU_Service to use
+	// in making explicit VR's out of implicit ones
+	// tell RTC to keep descriptions and the dictionary name
+
+	PDU.AttachRTC(&VRType);
+
+
+	MyGrayscalePrintManagement aSession;  
+
+	// add the abstract syntaxes we need to use in the association
+
+	PDU.SetApplicationContext(aAppuid);
+	PDU.AddAbstractSyntax(aBasicGrayscalePrintManagementMetaSOPClass);
+	//                ^^^^ this the one accepted by the MIR print_server app !
+
+	PDU.AddAbstractSyntax(aPrintJobSOPClassUID);
+	PDU.AddAbstractSyntax(aBasicAnnotationBoxSOPClassUID);
+
+	// set application titles (MIR_PRINT_SCU for test with CTN)
+
+	PDU.SetLocalAddress((BYTE *)MyAE);
+	PDU.SetRemoteAddress((BYTE *)RemoteAE);
+
+	callback = "none";
+	if (lua_isnumber(L, 5)) callback = lua_tostring(L, 5);
+	if (lua_isstring(L, 5)) callback = lua_tostring(L, 5);
+	if (lua_isfunction(L, 5)) callback = "function";
+
+	if (atoi(callback)) 
+	   Progress.printf("Process=%d, Type='dicomprint', Active=1\n", atoi(callback));
+
+	if(!PDU.Connect((BYTE *)RemoteHost, (BYTE *)RemotePort))
+		{
+		if (atoi(callback)) 
+			Progress.printf("Process=%d Error='DCM_E_PRINT_CONNECT' Type='dicomprint', Active=0\n", atoi(callback));
+		return 1;
+		}
+	PDU.FixPolaroidConnection ();
+
+	// add the abstract syntaxes making up the
+	// BasicGrayscalePrintManagementMetaSOPClass
+	// as aliases so that PDU can find a presentation context to use for them
+
+	PDU.AddAbstractSyntaxAlias(aBasicGrayscalePrintManagementMetaSOPClass,
+		aBasicFilmSessionSOPClassUID);
+	PDU.AddAbstractSyntaxAlias(aBasicGrayscalePrintManagementMetaSOPClass,
+		aBasicFilmBoxSOPClassUID);
+	PDU.AddAbstractSyntaxAlias(aBasicGrayscalePrintManagementMetaSOPClass,
+		aBasicGrayscaleImageBoxSOPClassUID);
+	PDU.AddAbstractSyntaxAlias(aBasicGrayscalePrintManagementMetaSOPClass,
+		aBasicPrinterSOPClassUID);
+	PDU.FixPolaroidConnection ();
+ 
+	// set an argument for event handler callbacks to use
+
+	aSession.SetPrinterEventUserArg((void *)&VRType);
+	aSession.SetPrintJobEventUserArg((void *)&VRType);
+
+	// attempt to get printer status
+	DICOMDataObject aStatusDDO;
+
+	// all supposedly optional parameters
+
+	VR *aVR;
+
+	char *aString = "1";
+	aVR = new VR(0x2000, 0x0010, strlen(aString), (void *)aString, FALSE);
+	aSession.Push(aVR);
+
+	aString = "MED ";
+	aVR = new VR(0x2000, 0x0020, strlen(aString), (void *)aString, FALSE);
+	aSession.Push(aVR);
+
+	aString = "BLUE FILM ";
+	aVR = new VR(0x2000, 0x0030, strlen(aString), (void *)aString, FALSE);
+	aSession.Push(aVR);
+
+	aString = "MAGAZINE";
+	aVR = new VR(0x2000, 0x0040, strlen(aString), (void *)aString, FALSE);
+	aSession.Push(aVR);
+
+	aString = "QUIRT CqPrint ";
+	aVR = new VR(0x2000, 0x0050, strlen(aString), (void *)aString, FALSE);
+	aSession.Push(aVR);
+
+	// optional MemoryAllocation (not set)
+
+	// Film box parameters:
+	// Image display format STANDARD\2,1
+	// FilmOrientation = PORTRAIT
+	// FilmSizeID 8INX10IN
+	// MagnificationType = REPLICATE
+	// BorderDensity = BLACK
+	// EmptyImageDensity = BLACK
+	// print management object handles reference sequences for us...
+
+	BOOL aCollationFlag = COLLATED;
+	UINT aFilmBoxIndex=0;
+
+	UINT	ImageIndex = 0;
+	UINT	ImagesOnASheet = ImagesPerRow * ImagesPerColumn;
+		
+	while ( ImageIndex < ADDO->GetSize() )
+		{
+		if (atoi(callback))
+			Progress.printf("Process=%d, Total=%d, Current=%d\n", atoi(callback), ADDO->GetSize(), ImageIndex);
+		else if (strcmp(callback, "function")==0)
+			{
+			}
+		else if (strcmp(callback, "none")==0)
+			{
+			}
+		else 
+			luaL_dostring(L, callback);
+
+		// for each film
+		// create a new film box
+		AbstractFilmBox *aFilmBox = new AbstractFilmBox(aSession);
+
+
+		// set film box'es attributes
+		// when doing VR's with multiple values, don't forget
+		// to escape the \ or you won't have one in your string...
+		char	TempString[256];
+		strcpy(TempString, FilmFormat);
+		if (strlen(TempString) & 0x01)
+			strcat(TempString, " ");
+			
+//		aString = "STANDARD\\1,1";
+		aVR = new VR(0x2010, 0x0010, strlen(TempString), (BOOL)TRUE);
+		memcpy((void*)aVR->Data, (void*)TempString, strlen(TempString));
+		aFilmBox->Push(aVR);
+
+		strcpy(TempString, FilmOrientation);
+		if (strlen(TempString) & 0x01)
+			strcat(TempString, " ");
+
+//		aString = "PORTRAIT";
+		aVR = new VR(0x2010, 0x0040, strlen(TempString), (void *)TempString, FALSE);
+		aFilmBox->Push(aVR);
+
+		aString = "14INX17IN ";
+		aVR = new VR(0x2010, 0x0050, strlen(aString), (void *)aString, FALSE);
+		aFilmBox->Push(aVR);
+
+//		aString = "NONE";
+//		aString = "REPLICATE";
+		aString = "BILINEAR";
+//		aString = "CUBIC";
+		aVR = new VR(0x2010, 0x0060, strlen(aString), (void *)aString, FALSE);
+		aFilmBox->Push(aVR);
+
+/*		aString = "MAYBE";
+		aVR = new VR(0x2010, 0x0140, strlen(aString), (void*)aString, FALSE);
+		aFilmBox->Push(aVR);
+*/	
+
+		aString = "BLACK ";
+		aVR = new VR(0x2010, 0x0100, strlen(aString), (void *)aString, FALSE);
+		aFilmBox->Push(aVR);
+
+		aString = "BLACK ";
+		aVR = new VR(0x2010, 0x0110, strlen(aString), (void *)aString, FALSE);
+		aFilmBox->Push(aVR);
+
+/*		aString = "COMBINED";
+		aVR = new VR(0x2010, 0x0030, strlen(aString), (void *)aString, FALSE);
+		aFilmBox->Push(aVR);
+*/
+
+		// the combined annotation style means that
+		// annotation box at position 0 is a film label,
+		// and annotation boxes at positions corresponding to
+		// image positions are image labels -- this is printer
+		// dependent and specified in the conformance statement...
+
+		// add a film label
+
+		// for each image on a film create and add a new image box
+
+		UINT aImageBoxIndex=0;
+/*
+		AbstractAnnotationBox *aAnnotationBox =
+			new AbstractAnnotationBox(aSession);
+		
+		LE_UINT16 *aNumber = new LE_UINT16((UINT16)(0));
+		aVR = new VR(0x2030, 0x0010, sizeof(*aNumber), (void *)aNumber, TRUE);
+		aAnnotationBox->Push(aVR);
+		*/
+	
+/*		aString = "Sample Output";
+		aVR = new VR(DC3TagFromName(TextString), 
+        	strlen(AnnotationText)+1, (BOOL) TRUE );
+		strcpy((char*)aVR->Data, AnnotationText);
+		aAnnotationBox->Push(aVR);
+
+		aFilmBox->Add(aAnnotationBox);
+		*/
+
+		/*
+		AbstractImageBox *aImageBox = new AbstractImageBox(aSession);
+
+		LE_UINT16 *aNumber = new LE_UINT16((UINT16)(aImageBoxIndex + 1));
+		aVR = new VR(DC3TagFromName(ImageBoxPosition), 
+       		sizeof(*aNumber), (void *)aNumber, TRUE);
+   		aImageBox->Push(aVR);
+
+		// create the PreformattedGrayscaleImageSequence attribute
+			
+		aVR = new VR(0x2020, 0x0010, 0, FALSE);
+   		aImageBox->Push(aVR);
+		*/
+
+		UINT	ImageOnFilmIndex = 0;
+		while ( (ImageIndex < ADDO->GetSize()) && 
+				(ImageOnFilmIndex < ImagesOnASheet ))
+			{
+			if (atoi(callback))
+				Progress.printf("Process=%d, Total=%d, Current=%d\n", atoi(callback), ADDO->GetSize(), ImageIndex);
+			else if (strcmp(callback, "function")==0)
+				{
+				}
+			else if (strcmp(callback, "none")==0)
+				{
+				}
+			else 
+				luaL_dostring(L, callback);
+			DICOMDataObject	*DDO = ADDO->Get(ImageIndex);
+			ADDO->Get(ImageIndex) = NULL;
+			StripDDOForPrinting (DDO);
+
+// from dicomprn
+			AbstractImageBox *aImageBox = new AbstractImageBox(aSession);
+			LE_UINT16	*aNumber = new LE_UINT16((UINT16)(ImageOnFilmIndex + 1));
+			aVR = new VR(0x2020, 0x0010, sizeof(*aNumber), (void *)aNumber, TRUE);
+   			aImageBox->Push(aVR);
+
+			// create the PreformattedGrayscaleImageSequence attribute
+			aVR = new VR(0x2020, 0x0110, 0, FALSE);
+	   		aImageBox->Push(aVR);
+// end from dicomprn
+
+   			aImageBox->Push(DDO);
+			++ImageIndex;
+			++ImageOnFilmIndex;
+
+			aFilmBox->Add(aImageBox);
+
+			}
+			
+//		aFilmBox->Add(aImageBox);
+
+		/*
+		aAnnotationBox = new AbstractAnnotationBox(aSession);
+		
+		aNumber = new LE_UINT16((UINT16)(aImageBoxIndex + 1));
+		aVR = new VR(0x2030, 0x0010, sizeof(*aNumber), (void *)aNumber, TRUE);
+   		aAnnotationBox->Push(aVR);
+
+		aString = "Copyright 1996, UCDMC Radiology/MSU Radiology";
+		aVR = new VR(0x2030, 0x0020, strlen(aString), (void *)aString, FALSE);
+   		aAnnotationBox->Push(aVR);
+
+		aFilmBox->Add(aAnnotationBox);
+		*/
+
+		// add the film box to the current session
+
+		aSession.Add(aFilmBox);
+
+		// print film now and delete if NO collation...
+
+		if(!aCollationFlag)
+			{
+			UID aPrintJobUID("");
+
+			if(!aSession.PrintFilm(&PDU, &aPrintJobUID))
+				{
+				if (atoi(callback)) 
+					Progress.printf("Process=%d, Error='DCM_E_PRINT_FILM', Type='dicomprint', Active=0\n", atoi(callback));
+				return 2; // DCM_E_PRINT_FILM;
+				}
+
+
+			// do a Get on the print job...
+
+// mvh causes problem when working with MIR print_server
+#if 0
+			DICOMDataObject aPrintJobDDO;
+
+			aString = "";
+			aVR = new VR(0x2100, 0x0020, strlen(aString), (void *)aString, FALSE);
+			aPrintJobDDO.Push(aVR);
+			aString = "";
+			aVR = new VR(0x2100, 0x0030, strlen(aString), (void *)aString, FALSE);
+			aPrintJobDDO.Push(aVR);
+			aString = "";
+			aVR = new VR(0x2000, 0x0020, strlen(aString), (void *)aString, FALSE);
+			aPrintJobDDO.Push(aVR);
+			aString = "";
+			aVR = new VR(0x2100, 0x0040, strlen(aString), (void *)aString, FALSE);
+			aPrintJobDDO.Push(aVR);
+			aString = "";
+			aVR = new VR(0x2100, 0x0050, strlen(aString), (void *)aString, FALSE);
+			aPrintJobDDO.Push(aVR);
+			aString = "";
+			aVR = new VR(0x2110, 0030, strlen(aString), (void *)aString, FALSE);
+			aPrintJobDDO.Push(aVR);
+			aString = "";
+			aVR = new VR(0x2100, 0x0070, strlen(aString), (void *)aString, FALSE);
+			aPrintJobDDO.Push(aVR);
+
+			while( TRUE )
+				{
+				cerr << "Request print job status:" << endl;
+				if ( aSession.GetPrintJob( &PDU, aPrintJobUID, &aPrintJobDDO ) )
+					{
+					cerr << "Got print job status!" << endl;
+					DumpDDO(&aPrintJobDDO, 0, &aRTC);
+					}
+				else
+					{
+					cerr << "Can't get print job status!" << endl;
+					break;
+					}
+				cerr << endl;
+
+				aVR = aPrintJobDDO.GetVR(0x2100, 0x0020);
+
+				if( !aVR || !aVR->Data ||
+					(strncmp((const char *)aVR->Data,
+						"PENDING", strlen("PENDING")) &&
+					strncmp((const char *)aVR->Data, "PRINTING",
+						strlen("PRINTING"))))
+					{
+					break;
+					}
+#ifdef	WINDOWS
+				Sleep(5000);
+#else
+				sleep(5);
+#endif
+				aPrintJobDDO.Reset();
+				}
+#endif
+
+
+// mvh: deletes the MIR file from disk
+#if 0
+			if(!aSession.DeleteFilm(&PDU))
+				{
+				cerr << "DeleteFilm(" <<  aFilmBoxIndex << ") failed." << endl;
+				return ( FALSE );
+				}
+			cerr << "Film " << aFilmBoxIndex << " Deleted!" << endl;
+#endif
+			}
+		++aFilmBoxIndex;
+		}
+
+	// print the entire session if collation was requested
+
+	if(aCollationFlag)
+		{
+		UID aPrintJobUID("");
+
+		if(!aSession.PrintSession(&PDU))
+			{
+			return 2; // DCM_E_PRINT_SESSION;
+			}
+
+		// do a Get on the print job...
+		DICOMDataObject aPrintJobDDO;
+		aString = "";
+		aVR = new VR(0x2100, 0x0020, strlen(aString), (void *)aString, FALSE);
+		aPrintJobDDO.Push(aVR);
+		aString = "";
+		aVR = new VR(0x2100, 0x0030, strlen(aString), (void *)aString, FALSE);
+		aPrintJobDDO.Push(aVR);
+		aString = "";
+		aVR = new VR(0x2000, 0x0020, strlen(aString), (void *)aString, FALSE);
+		aPrintJobDDO.Push(aVR);
+		aString = "";
+		aVR = new VR(0x2100, 0x0040, strlen(aString), (void *)aString, FALSE);
+		aPrintJobDDO.Push(aVR);
+		aString = "";
+		aVR = new VR(0x2100, 0x0050, strlen(aString), (void *)aString, FALSE);
+		aPrintJobDDO.Push(aVR);
+		aString = "";
+		aVR = new VR(0x2110, 0x0030, strlen(aString), (void *)aString, FALSE);
+		aPrintJobDDO.Push(aVR);
+		aString = "";
+		aVR = new VR(0x2100, 0x0070, strlen(aString), (void *)aString, FALSE);
+		aPrintJobDDO.Push(aVR);
+
+		if ( aSession.GetPrintJob( &PDU, aPrintJobUID, &aPrintJobDDO ) )
+			{
+//			DumpDDO(&aPrintJobDDO, 0, &VRType);
+			}
+		else
+			{
+//			cerr << "Can't get print job status!" << endl;
+			}
+		}
+
+	// delete the film session
+
+// mvh: deletes the MIR file from disk
+#if 0
+	if(!aSession.Delete(&PDU))
+		{
+		cerr << "aSession.Delete() failed." << endl;
+		return ( FALSE );
+		}
+	cerr << "Film session deleted!" << endl;
+#endif
+
+	// terminate the association
+	PDU.Close();
+
+	if (atoi(callback)) 
+		Progress.printf("Process=%d Type='dicomprint', Active=0\n", atoi(callback));
+	return DCM_E_OK;
+	}
+	
+static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
+	char* pszRemoteAE, char* pszAnnotation, char* pszExtra, lua_State *L)
+{ int		rc;
+  char		szImageDisplayFormat[30];
+  char		szFilmOrientation[30] = "PORTRAIT";
+  char*		pszExtraOption;
+  unsigned char ip[64], port[64], compress[64];
+
+  if(!GetACRNema((char *)pszRemoteAE, (char *)ip, (char *)port, (char *)compress))
+	return 0;
+  
+  /* Create default ImageDisplayFormat */
+  switch (pADDO->GetSize())
+  { case 1:
+      strcpy(szImageDisplayFormat, "STANDARD\\1,1");
+      break;
+    case 2:
+      strcpy(szImageDisplayFormat, "STANDARD\\1,2");
+      break;
+    default:
+      strcpy(szImageDisplayFormat, "STANDARD\\2,2");
+      break;
+  }
+
+  /* Parse all extra options: maybe overrule some defaults */
+  if (pszExtra)
+  { pszExtraOption = GetExtraOption(pszExtra, "ImageDisplayFormat");
+    if (pszExtraOption)
+      strcpy(szImageDisplayFormat, pszExtraOption);
+
+    pszExtraOption = GetExtraOption(pszExtra, "FilmOrientation");
+    if (pszExtraOption)
+      strcpy(szFilmOrientation, pszExtraOption);
+
+    /* Free the static in GetExtraOption */
+    GetExtraOption(NULL, NULL);
+  }
+
+  /* Do the print job */
+  rc = PrintGrayScaleImages(MYACRNEMA,
+	(unsigned char*)pszRemoteAE, ip, port,
+	pADDO,
+	szImageDisplayFormat,
+	pszAnnotation,
+	szFilmOrientation, L);
+  if (rc != DCM_E_OK)
+  { /* The printing is destructive. When failed, clean the mess ourselves... */
+    while (pADDO->GetSize())
+    { delete pADDO->Get(0);
+      pADDO->RemoveAt(0);
+    }
+  }
+  return rc;
+}
+
+  static int luadicomprint(lua_State *L)
+  { if (lua_isuserdata(L,1)) 
+    { DICOMDataObject *O = NULL;
+      Array < DICOMDataObject * > *A=NULL;
+
+      lua_getmetatable(L, 1);
+        lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
+        lua_getfield(L, -1, "ADDO");  A = (Array < DICOMDataObject * > *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+
+      if (A) 
+	DcmPrintADDO(A, (char *)lua_tostring(L, 2), (char *)lua_tostring(L, 3), (char *)lua_tostring(L, 4), L);
+      if (O) 
+      { Array<DICOMDataObject*>	ADDO;
+        DICOMDataObject *O2 = MakeCopy(O);
+        ADDO.Add(O2);
+	DcmPrintADDO(&ADDO, (char *)lua_tostring(L, 2), (char *)lua_tostring(L, 3), (char *)lua_tostring(L, 4), L);
+      }
+      return 0;
+    }	      
+    return 0;
+  }
+
+  static int luadicomget(lua_State *L)
+  { const char *ae    = lua_tostring(L,1);
+    const char *Level = lua_tostring(L,2);
+    if (lua_isuserdata(L, 3)) 
+    { DICOMDataObject *O = NULL;
+      lua_getmetatable(L, 3);
+        lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+      Array < DICOMDataObject * > *A = new Array < DICOMDataObject * >;
+      luaCreateObject(L, NULL, A, TRUE); 
+      if (O) 
+      { DICOMDataObject *P = MakeCopy(O);
+
+        unsigned char 	ip[64], port[64], compress[64], SOP[66];
+	VR		*vr;
+	UID		uid;
+	LE_UINT16	command, datasettype, messageid, priority;
+	DICOMDataObject	*DDOPtr;
+	int		level;
+		
+	level=0;
+	if      (strncmp(Level, "PATIENTP", 8)==0) level=6;
+	else if (strncmp(Level, "STUDYP",   6)==0) level=7;
+	else if (strncmp(Level, "PATIENT",  7)==0) level=1;
+	else if (strncmp(Level, "STUDY",    5)==0) level=2;
+	else if (strncmp(Level, "SERIES",   6)==0) level=3;
+	else if (strncmp(Level, "IMAGE",    5)==0) level=4;
+
+	ExtendedPDU_Service PDU;
+	PDU.AttachRTC(&VRType);
+
+	if(!GetACRNema((char *)ae, (char *)ip, (char *)port, (char *)compress))
+		return 0;
+
+	// query to get list of SopClass UIDs
+
+	PDU.ClearAbstractSyntaxs();
+	PDU.SetLocalAddress(MYACRNEMA);
+	PDU.SetRemoteAddress((unsigned char *)ae);
+
+	uid.Set("1.2.840.10008.3.1.1.1");
+	PDU.SetApplicationContext(uid);
+
+	if      (level==1) uid.Set("1.2.840.10008.5.1.4.1.2.1.1"); // PatientRootQuery
+	else if (level>=6) uid.Set("1.2.840.10008.5.1.4.1.2.3.1");      // PatientStudyOnlyQuery
+	else               uid.Set("1.2.840.10008.5.1.4.1.2.2.1"); // StudyRootQuery
+	PDU.AddAbstractSyntax(uid);
+
+	PDU.SetTimeOut(TCPIPTimeOut);
+
+	// Make the association for the FIND on port/ip
+	if(!PDU.Connect(ip, port))
+		return ( 0 );
+
+	// Use passed data object and Level for query
+
+	if (strcmp(Level, "PATIENTP")==0)
+	  P->ChangeVR(0x0008, 0x0052, "PATIENT", 'CS', TRUE);
+	else if (strcmp(Level, "STUDYP")==0)
+	  P->ChangeVR(0x0008, 0x0052, "STUDY", 'CS', TRUE);
+	else if (level != 5)
+	  P->ChangeVR(0x0008, 0x0052, Level, 'CS', TRUE);
+
+	// get sopclass; needed for get
+	P->ChangeVR(0x0008, 0x0016, "", 'UI', TRUE);
+
+	vr = P->GetVR(0x0002, 0x0010); // delete transfer syntax
+	if (vr) P->DeleteVR(vr);
+
+	MyPatientRootQuery mq;
+	MyStudyRootQuery sq;
+	MyPatientStudyOnlyQuery psq;
+
+	DICOMDataObject *P2 = MakeCopy(P);
+
+        Array < DICOMDataObject * > *Q = new Array < DICOMDataObject * >;
+	if      (level==1) mq.Write(&PDU, P, Q);
+	else if (level>=6) psq.Write(&PDU, P, Q);
+	else               sq.Write(&PDU, P, Q);
+	PDU.Close();
+
+	// now execute the get
+
+	PDU.ClearAbstractSyntaxs();
+	  
+	if      (level==1) uid.Set("1.2.840.10008.5.1.4.1.2.1.3"); // PatientRootGet
+	else if (level>=6) uid.Set("1.2.840.10008.5.1.4.1.2.3.3");      // PatientStudyOnlyGet
+	else               uid.Set("1.2.840.10008.5.1.4.1.2.2.3"); // StudyRootGet
+	PDU.AddAbstractSyntax(uid);
+
+        for (int i=0; i<Q->GetSize(); i++)
+	{ UID iUID;
+	  SetUID ( iUID, Q->Get(i)->GetVR(0x0008, 0x0016) );
+          PDU.AddAbstractSyntax ( iUID );		// adds type of this image to presentation contexts
+	}
+
+	// Make the association for the GET on port/ip
+	if(!PDU.Connect(ip, port))
+		return ( 0 );
+
+	MyPatientRootGetGeneric mg;
+	MyStudyRootGetGeneric sg;
+	MyPatientStudyOnlyGetGeneric psg;
+
+	if      (level==1) mg.WriteGet(&PDU, P2, A);
+	else if (level>=6) psg.WriteGet(&PDU, P2, A);
+	else               sg.WriteGet(&PDU, P2, A);
+
+	PDU.Close();
+
+        delete P;
+        delete P2;
 	return 1;
       }
       return 1;

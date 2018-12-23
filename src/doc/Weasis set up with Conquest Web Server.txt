@@ -1,0 +1,148 @@
+A Guide to set up Weasis with Conquest Web Server Using Appserv as The Web Server (Wamp should also work fine) on a Windows PC
+
+These instructions are for complete beginers to Weasis and bring together information that is already available but not all in one place (that I could find). It assumes you are using the Appserv web server and assumes you have or can set it up to work with CONQUEST(should work fine with Wamp but I have no experience with Wamp). I used Appserv as WAMP will not run on Win XP.
+
+One of the main causes of problems is if you do not want to use the default listening port for the web server of :80. I had to change this port to :8080 to avoid conflicts with other programs on the Web server machine. If you are setting up with defaults much of the following maybe unnecessary. This example is inially using client and the server on the same machine which makes setting up and testing much easier- and assumes the server is set up to listen on port :8080
+                              
+1)	In the dicom.ini (c:\appserv\www\cgi-din\dicom.ini) edit  WebScriptAddress variable so reads  WebScriptAddress  =  127.0.0.1:8080
+2)	You will need to have up to date Java running – JRE at least greater than 1.0.6_10 – But the latest version 8 should be fine
+3)	You can check your version via the Java Control Panel in windows control panel. Open windows control panel and search for Java to find it. Run it and click on the 	        Java tab and click view
+4)	Download the most up to date version of Weasis. The filename will be weasis-protable.zip from http://sourceforge.net/projects/dcm4che/files/Weasis/
+5)	Currently select the version 2.0.5 link rather than the latest version? link that actually points to an older version
+6)	Open the zip and extract all files to c:\appserv\www\
+7)	You should now be able to open the Conquest webserver interface in your browser – search for an image and click view – which will download a dgate.jnlp file - and 		then run that 	(click or double click)
+8)	You may have to deal with  Java security issues requiring you to accept risks and possibly enetering the Java Control Panel again and selecting the Security tab. Here 	you can enter the web address of the server as a security exception – e.g  http://127.0.0.1:8080/
+9)	If the download you get is dgate.exe and not dgate.jnlp then it is a Java issue – go back and check 
+10)	But it’s a good chance that first time out this isn’t going to work anyway (especially if you use a non-standard port for your webserver)
+
+
+Trouble shooting 
+
+There are two possibilities here – weasis fails to open and you get a dialog box saying Unable to launch application or weasis opens but an image is not loaded
+
+Situation 1
+
+Initially when you run the dgate.jnlp you get a dialog box - Unable to launch application and down the bottom it will say From - http://127.0.0.1 but we know we want it to say from http://127.0.0.1:8080 
+
+Explanation of this Error
+
+In the dicom.ini file there is a section that reads (remember c:\appserv\www\cgi-bin\dicom.ini)
+
+[webdefaults]
+size     = 560
+dsize    = 0
+compress = un
+iconsize = 48
+graphic  = gif
+viewer   = serversideviewer
+studyviewer = studyweasis
+
+This means that when you click the view button in study mode the viewer that will be called is described in studyweasis
+
+Further down the dicom.ini studyweasis is defined 
+
+[studyweasis]
+source = viewers\LaunchWeasisStudy.cq
+header = Content-Type: application/x-java-jnlp-file\
+
+So when you click view the file LaunchWeasisStudy.cq is launched. This is where we have to head to sort out this first problem.
+
+Sort out : LaunchWeasisStudy.cq
+
+1)	Go to c:\appserv\www\cgi-bin\viewers
+2)	Open LaunchWeasisStudy.cq with notepad (notepad++ downloaded from the net will make life a lot easier. Wherever I have written notepad you can use either)
+3)	There is a variable %server_name% that gets its value from the dicom.ini file. But I couldn't work out where to get it to add the port details(:8080) so I used Edit - 	Replace in notepad and replaced every instance of %server_name% with   127.0.0.1:8080
+4)	Leave the %webscriptadress% variable alone – It is misspelt but that needs to be left like that!
+5)	Once this is done save the file 
+
+Situation 2
+
+a)	If you downloaded the latest version of Weasis the next error you will get is Unable to launch application – From http://127.0.0.1:8080 and if you click on details it 	will say at the top -either:
+        Error http://127.0.0.1:8080/weasis/substance.jnlp or
+        Error ....java.langNullPointerException
+b)	The first error is because the file substance.jnlp is in fact missing. I’ve no idea why, but you can get it either from an older version of weasis. Or open a blank 		notepad file copy the following code
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<jnlp spec="1.6+" version="7.0.0" href="substance.jnlp">
+  <information>
+    <title>Substance</title>
+    <vendor>Kirill Grouchnikov</vendor>
+    <offline-allowed/>
+  </information>
+  <offline-allowed/>
+  <security>
+    <all-permissions/>
+  </security>
+  <resources>
+  	<!-- Allows to get the file in pack200 compression -->
+    <property name="jnlp.packEnabled" value="true"/>
+    <jar href="substance.jar"/>
+  </resources>
+  <component-desc/>
+</jnlp>
+
+
+
+
+	and then save the file as substance.jnlp in c:\appserv\www\weasis\  (make sure notepad didn’t sneak a .txt on the end.)
+
+c)	The second error is because somehow all the %server_name% variables have not changed properly OR in the dicom.ini the 
+        WebScriptAddress       = http://127.0.0.1:8080/cgi-bin/dgate.exe  is not correct
+
+6)	Ok errors out of the way if you now fire up Conquest web page
+7)	http://127.0.0.1:8080/cgi-bin/dgate.exe?mode=top&key=aap:noot should do it
+8)	Search for a film
+9)	Click view and dgate.jnlp should be downloaded. Click or double click to open it with JAVA and weasis should be loaded  (accept all the risks and that it should not 		be used for diagnosis). Finally it should open and your film downloaded and displayed
+10)	If this doesn’t open then right click the .jnlp file – (find it in downloads) and open with notepad  - just check that all the references to 127.0.0.1:8080 look OK  		and nothing else seems amiss- Then save and try running again
+
+TIP
+
+If you are getting errors you can just open the downloaded dgate.jnlp file with notepad and see if you can see the error. You can try different changes in this file – save them and the double click the file to run it a see if everything works. The dgate.jnlp can be thought of as the instruction list to download and run weasis + DICOM image, once downloaded onto your computer it can be changed and trialled as much as you want.
+When everything is OK, go back to the LauchWeasisStudy.cq - c:\appser\www\cgi-bin\viewers\LaunchWeasisStudy.cq and implement the changes that you tested in the dgate.jnlp . They will then be incorporated into every dgate.jnlp you download from them on. If you stuff up ujr dgate.jnlp beyond repair just click view and download another one.
+
+Hopefully Congratulations – but wait there’s more
+
+It’s all very well doing this locally but we want to do it over the Web. Well there isn’t too much more to that, but once we start making the necessary changes, using the above method, you won’t be able run the system on the local machine. 
+
+Get this working on another machine – same network
+
+1)	First make sure this client machine has up to date Java
+2)	On the server machine go to c:\appserv\www\cgi-bin\viewers\ and open LaunchWeasisStudy.cq in Notepad++
+3)	You will need to know the IP address of your web server – We will use for example 192.168.1.10
+4)	Find and replace every instance of 127.0.0.1:8080 with 192.168.1.10:8080
+5)	Go to c:\appserv\www\cgi-bin\dicom.ini – open it and change the WebScriptAddress to http://192.168.0.10:8080
+6)	Now go to your other machine open google and enter http://192.168.2.101:8080/cgi-bin/dgate.exe?mode=top
+7)	Everything should work from here – if not trouble shoot as above in the same manner you did when using 127.0.0.1
+
+REMEMBER: the 8080 reference is because we are using a non standard prot on the webserver - If you are using Port 80 then change the :8080 to :80 or you can leave the :8080 out altogether
+
+Tip 
+
+The dgate.jnlp file, when run, is going to download the weasis program from the source referenced in the LaunchWeasisStudy.cq at line 4
+<jnlp spec="1.6+" codebase="http://192.168.2.101:8080/weasis" href=""> which is the server itself
+
+When you are working remotely you could also download weasis from a net location if your server connection is slow – you still have to download the films from your server
+
+To do this the above line is changed to 
+<jnlp spec="1.6+" codebase="http://dicom.vital-it.ch:8089/weasis" href="">
+
+I’m thinking that you can probably have weasis already on your local machine but I haven’t yet worked out how to change the dgate.jnlp file so the codebase line loads the local version – help anyone?
+
+Finally remote access
+
+1)	This is almost the same as Stage 4. You basically use the external IP address of the web server network and make the same changes
+2)	But you will probably also need to do some port forwarding to get from your external IP address at the location where the server resides to the sever’s internal IP 		address
+3)	It is essential you have a static IP address where the server is and the server has a fixed internal IP address
+4)	For example- if the server’s internal IP address is 192.168.0.10 and the network’s static IP address is 201.102.201.102 and you have forwarded external port 1234 to 		192.168.0.10 internal port 8080 on your router :-
+        You would change all the references in the LaunchWeasisStudy.cq from 127.0.0.1:8080 to 201.102.201.102:1234 
+5)	You also have to change the WebSriptAddress in dicom.ini to 201.102.201.102:1234
+
+Remember once you do this you will not be able to test on your local network - To test I used a laptop tethered to a phone hotspot that was not using the network wifi so that the laptop was on a totally diffferent access. I also set up RDP connection to the server so I could make changes and test from home
+
+Well that's it - good luck and please feel free to suggest changes or ask questions
+
+I also have a detailed explanation of how to set up Conquest and Appserv if anyone needs it
+
+Richard Lawrence - rl@bvp.com.au

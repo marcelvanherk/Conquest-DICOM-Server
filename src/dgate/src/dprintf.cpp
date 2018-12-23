@@ -24,6 +24,7 @@
 20100816	mvh	removed (a) from #ifndef EnterCriticalSection(a) etc
 20150902	mvh	Added Progress socket
 20160221	mvh	Made print buffer much larger
+20181219	mvh	Added OnTCP
 */
 
 #	include	<stdio.h>
@@ -77,8 +78,8 @@ static int CriticalFileExists=0;
 
 Debug::Debug()
 #ifdef __GNUC__ //Faster with member initialization.
-:BDebug(0),Debugfp(NULL),CloseOnOff(0), UseMessagePipe(0), UseUDP(0),
-bAddTimeStamps(0), SocketUDP(), DescribeSource(FALSE)
+:BDebug(0),Debugfp(NULL),CloseOnOff(0), UseMessagePipe(0), UseUDPTCP(0),
+bAddTimeStamps(0), DebugSocket(), DescribeSource(FALSE)
 #endif
 {
   if (!CriticalFileExists) 
@@ -90,7 +91,7 @@ bAddTimeStamps(0), SocketUDP(), DescribeSource(FALSE)
   Debugfp = NULL;
   CloseOnOff = 0;
   UseMessagePipe = 0;
-  UseUDP = 0;
+  UseUDPTCP = 0;
   bAddTimeStamps = 0;
 #endif
 }
@@ -191,16 +192,32 @@ void Debug::OnUDP(char* Host, const char* lPort)
   { CriticalFileExists=1;
     InitializeCriticalSection(&CriticalFile);
   }  
-  if(!SocketUDP.BindUDPClient(Host, lPort))
+  if(!DebugSocket.BindUDPClient(Host, lPort))
   { printf("FAILED TO BIND UDP CLIENT\n");
     return;
   }
-  UseUDP = 1;
+  UseUDPTCP = 1;
   BDebug = 1;
   CloseOnOff = 0;
   DescribeSource = TRUE;
 }
 	
+void Debug::OnTCP(char* Host, const char* lPort)
+{
+  Off();
+  if (!CriticalFileExists) 
+  { CriticalFileExists=1;
+    InitializeCriticalSection(&CriticalFile);
+  }  
+  if(!DebugSocket.Open(Host, (char *)lPort))
+  { printf("FAILED TO BIND TCP CLIENT\n");
+    return;
+  }
+  UseUDPTCP = 1;
+  BDebug = 1;
+  CloseOnOff = 0;
+  DescribeSource = TRUE;
+}
 
 /* One Debug 'OFF' function */
 
@@ -214,7 +231,7 @@ void Debug::Off()
     fclose(Debugfp);
   CloseOnOff = 0;
   UseMessagePipe = 0;
-  UseUDP = 0;
+  UseUDPTCP = 0;
 }
 
 
@@ -287,7 +304,7 @@ int Debug::printf(const char *fmt, ...)
   EnterCriticalSection(&CriticalFile);
 
   if(!UseMessagePipe)
-  { if(!UseUDP)
+  { if(!UseUDPTCP)
     { if (BDebug==3)
       { // append to a file that is opened/closed everytime
 #ifndef	UNIX
@@ -310,7 +327,7 @@ int Debug::printf(const char *fmt, ...)
     else
     { // Output to a UDP PORT
       rc = 1;
-      SocketUDP.SendBinary((BYTE*)s,(UINT)strlen(s));
+      DebugSocket.SendBinary((BYTE*)s,(UINT)strlen(s));
     }
   }
   else

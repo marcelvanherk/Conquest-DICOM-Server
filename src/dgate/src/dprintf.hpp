@@ -11,6 +11,7 @@
 20100111	mvh	Merged
 20100619	bcb	Fix gcc4.0 warnings and prevented coping of clases with pointers.
 20100717	mvh	Merged
+20181219	mvh	Added OnTCP
 */
 
 class	Debug
@@ -22,10 +23,10 @@ private:
 	int			CloseOnOff;
 	int			UseMessagePipe;
 	char			FilePipeName[256];
-	int			UseUDP;
+	int			UseUDPTCP;
 	char			bAddTimeStamps;
 public:
-	Socket			SocketUDP;	
+	Socket			DebugSocket;	
 public:
 	Debug();
 	~Debug();
@@ -37,6 +38,7 @@ public:
 	void	OnMsgPipe(char	*MsgPipeName);
 	void	OnMsgPipe(char	*MsgPipeName, BOOL);
 	void	OnUDP(char *Host, const char *IP);
+	void	OnTCP(char *Host, const char *IP);
 	void	Off();
 	int	printf(const char *, ...);
 #ifdef __GNUC__

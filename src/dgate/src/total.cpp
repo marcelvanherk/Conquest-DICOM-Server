@@ -26,6 +26,7 @@
 20160220        mvh     Allow build without jpeg support
 20160229        mvh     use LIBOPENJPEG2 define; add __iob_func to allow mixed VS2008/2015 compile
 20160306        mvh     Use OPJ_STATIC link all codecs statically
+20181217        mvh     Added printsop.cxx
 */
 
 /* Example to compile with BC55:
@@ -146,6 +147,7 @@
 #include "buffer.cxx"
 #include "odbci.cpp"
 #include "nkiqrsop.cpp"
+#include "printsop.cxx"
 
 #if defined(HAVE_LIBOPENJPEG2) || defined(HAVE_LIBJPEG) || defined(HAVE_LIBCHARLS)
 #define strnieq(a, b, c) stricmp(a,b)

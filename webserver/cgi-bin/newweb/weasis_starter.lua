@@ -4,7 +4,7 @@
 -- lines 18, 19
 -- viewer   = weasis_starter
 -- studyviewer = weasis_starter
--- line 26
+-- line 26 (for newweb only, not for the classical interface)
 -- exceptions=start,listpatients,liststudies,listseries,listimageswiththumbs,listimages,wadostudyviewer,wadoseriesviewer,wadoviewerhelp,slice,listtrials,listtrialpatient,weasis_starter
 --
 -- To update weasis version just replace the jnlp and xml text block indicated in the code
@@ -16,10 +16,13 @@
 -- dgate.exe?mode=weasis_starter&parameter=xml&series=patid:seriesuid
 --
 -- optional parameters:
---   compression: default un
+--   compress, WebScriptAddress and WebCodebase are taken from dicom.ini
 -------------------------------------------------------------------------------
 -- mvh 20181123 Created for 1.4.19c
 -- mvh 20181124 Fixed server links; Removed PatientID for study xml
+-- mvh 20181213 server_name does not copy port use relative link and WebScriptAddress;
+--              moved WadoTransferSyntaxUID to series level
+-- mvh 20181214 Made to work with help from lyakh92; uses compress and WebScriptAddress from dicom.ini
 
 local source_server = Global.WebCodeBase
 
@@ -136,8 +139,8 @@ end
 
 if parameter=='jnlp' then
 HTML("Content-Type: application/x-java-jnlp-file\n")
-  local xmlline = string.format([[<argument>$dicom:get -w "http://%s?mode=weasis_starter&parameter=xml&compress=%s&%s&dum=.xml"</argument>]],
-    server_name..script_name, (compression or 'un'), level..'='..ident)
+  local xmlline = string.format([[<argument>$dicom:get -w "%s?mode=weasis_starter&parameter=xml&compress=%s&%s&dum=.xml"</argument>]],
+    script_name, gpps('webdefaults', 'compress', 'un'), level..'='..ident)
   jnlp = split(jnlp, '\n')
   for k,v in ipairs(jnlp) do
     v = string.gsub(v, 'http://localhost:8080/', source_server)
@@ -259,7 +262,7 @@ if parameter=='xml' then
   xml = split(xml, '\n')
   for k,v in ipairs(xml) do
     if string.find(v, 'baseUrl=') then 
-      xml[k] = string.gsub(v, 'baseUrl=".-"', 'baseUrl="http://'..server_name..script_name..'"')
+      xml[k] = string.gsub(v, 'baseUrl=".-"', 'baseUrl="'..gpps('webdefaults', 'WebScriptAddress', '')..'"')
     end
     if string.find(v, '<Patient', 1, true) and paq==nil then
       paq = xmltoquery(v)
@@ -317,17 +320,18 @@ if parameter=='xml' then
         ser[k].QueryRetrieveLevel=nil
         ser[k].TransferSyntaxUID=nil
         ser[k].StudyInstanceUID=nil
-        xmlopen('SERIES', tablify(ser[k]))
-	      inq.SeriesInstanceUID=ser[k].SeriesInstanceUID
+	local r=tablify(ser[k])
+        if wt~='' then r.WadoTransferSyntaxUID = wt end
+        xmlopen('SERIES', r)
+	inq.SeriesInstanceUID=ser[k].SeriesInstanceUID
         inr = dicomquery(source, 'IMAGE', inq)
         for L=0, #inr-1 do
           local t = tablify(inr[L])
-          if wt~='' then t.WadoTransferSyntaxUID = wt end
-	      t.QueryRetrieveLevel=nil
+	  t.QueryRetrieveLevel=nil
           t.TransferSyntaxUID=nil
           t.SeriesInstanceUID=nil
           xmlopen('INSTANCE', t)
-	      xmlclose('INSTANCE')
+	  xmlclose('INSTANCE')
         end
         xmlclose('SERIES')
       end

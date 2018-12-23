@@ -30,6 +30,7 @@
 20110122	mvh	Added ExtendedPDU_Service destructor
 20160219	mvh	Removed jasper and openjpeg stuff here
 20180315	mvh	Started on C-GET
+20181222	mvh	Added WriteGet for C-GET client; results in image information in ADDO
 */
 
 #include "lua.hpp"
@@ -85,6 +86,7 @@ class	StandardRetrieveNKI	:
 						DICOMDataObject	* ) = 0;
 		BOOL	Read (	ExtendedPDU_Service *, DICOMCommandObject *, void *ExtraBytes, BOOL cget );
 		BOOL	Write ( PDU_Service	*, DICOMDataObject	*, BYTE	*);
+		BOOL	WriteGet ( PDU_Service	*, DICOMDataObject	*, Array < DICOMDataObject *> *);
 	};
 
 
@@ -223,7 +225,7 @@ class	PatientRootGetGeneric	:
 						DICOMDataObject	*DDO,
 						BYTE	*ACRNema)
 			{ return ( StandardRetrieveNKI :: Write ( PDU,
-						DDO, ACRNema )); };
+						DDO, ACRNema)); };
 	};
 
 
@@ -243,7 +245,7 @@ class	StudyRootGetGeneric	:
 						DICOMDataObject	*DDO,
 						BYTE	*ACRNema)
 			{ return ( StandardRetrieveNKI :: Write ( PDU,
-						DDO, ACRNema )); };
+						DDO, ACRNema)); };
 	};
 
 
@@ -263,7 +265,7 @@ class	PatientStudyOnlyGetGeneric	:
 						DICOMDataObject	*DDO,
 						BYTE	*ACRNema)
 			{ return ( StandardRetrieveNKI :: Write ( PDU,
-						DDO, ACRNema )); };
+						DDO, ACRNema)); };
 	};
 
 BOOL ProcessDDO(DICOMDataObject** pDDO, DICOMCommandObject* pDCO, ExtendedPDU_Service *PDU);

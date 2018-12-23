@@ -257,6 +257,7 @@
 20180316        mvh     Started on C-GET; in same routine as C-MOVE
 20181113	mvh	Fixed unsigned signed error in RGB conversion
 20181123	mvh	Changed TransferSyntaxUID back to IU (is in preamble)
+20181222	mvh	Added WriteGet for C-GET client; results in image information in ADDO
 */
 
 //#define bool BOOL
@@ -788,6 +789,18 @@ BOOL	StandardRetrieveNKI	::	Read (
 	return ( TRUE );
 	}
 
+class	MyUnknownGet	:	public UnknownStorage
+	{
+	public:
+				// called for each incoming DDO
+		UINT16 CheckObject(DICOMDataObject *DDO, PDU_Service *PDU) 
+			{
+			recompress(&DDO, "UN", "", FALSE, (ExtendedPDU_Service *)PDU);
+			return 0;
+			}
+	};
+
+
 BOOL	StandardRetrieveNKI	::	Write (
 	PDU_Service		*PDU,
 	DICOMDataObject		*DDO,
@@ -833,6 +846,69 @@ BOOL	StandardRetrieveNKI	::	Write (
 			}
 		CallBack ( DCO, RDDO );
 		delete RDDO;
+		delete DCO;
+		DCO = new DICOMCommandObject;
+		}
+
+	delete DCO;
+	return ( FALSE );
+	}
+
+BOOL	StandardRetrieveNKI	::	WriteGet (
+	PDU_Service		*PDU,
+	DICOMDataObject		*DDO,
+	Array < DICOMDataObject  *> *pADDO )
+	{
+	DICOMCommandObject	*DCO;
+	DICOMDataObject		*RDDO;
+	MyUnknownGet		SOPUnknownGet;
+
+	if ( ! PDU )
+		return ( FALSE );
+
+	if ( ! CGetRQ :: Write ( PDU, DDO) )
+		return ( FALSE );
+
+	CallBack ( NULL, DDO );
+
+	DCO = new DICOMCommandObject;
+
+	while ( PDU->Read ( DCO ) )
+		{
+		RDDO = new DICOMDataObject;
+
+		if ( (CGetRSP :: Read ( DCO, PDU, RDDO) ) )
+			{
+  			if ( DCO->GetUINT16(0x0000, 0x0900) != 0xFF00)
+				{
+				CallBack ( DCO, NULL );
+				delete RDDO;
+				if ( DCO->GetUINT16(0x0000, 0x0900) != 0x0000)
+					{
+					VR *vr;
+					while ((vr = DCO->Pop()))
+						{
+						delete vr;
+						}
+					delete DCO;
+					return ( FALSE );
+					}
+				delete DCO;
+				return ( TRUE );
+				}
+			delete RDDO;
+			}
+		else if(SOPUnknownGet.Read(PDU, DCO, RDDO))
+			{
+			pADDO->Add(RDDO);
+			}
+		else
+			{
+			delete RDDO;
+			return ( FALSE );
+			}
+
+		CallBack ( DCO, RDDO );
 		delete DCO;
 		DCO = new DICOMCommandObject;
 		}

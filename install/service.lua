@@ -27,6 +27,9 @@
 -- 20181124 Added readOnly and viewOnly web server config, make copyfile unconditional (!)
 --          Potential (not yet developed) viewers: wadoviewer_starter, dwvviewer_starter, 
 --          altviewer_starter, imagejviewer_starter, flexviewer_starter
+-- 20181125 Start and stop conquestdicomserver in windows mode; stop requires modification of GUI
+-- 20181126 Added config of Papaya viewer and Cornerstone viewer
+-- 20181129 Copy acrnema.map to web server to deal with SeLinux security; added Iframe viewer
 
 function errorpage(s)
   HTML('Content-type: text/html\n\n');
@@ -242,7 +245,7 @@ function create_newweb_dicomini()
   local list = {'start','listpatients','liststudies','listseries','listimageswiththumbs','listimages','listtrials','listtrialpatients',
                  'wadostudyviewer','wadoseriesviewer','wadoviewerhelp','slice','weasis_starter',
                  'wadoviewer_starter', 'dwvviewer_starter', 'altviewer_starter', 'imagejviewer_starter',
-	         'flexviewer_starter'}
+	         'flexviewer_starter', 'papaya_starter', 'cornerstone_starter, iframe_starter'}
   if true then -- not fileexists(cgiweb..'newweb'..sep..'dicom.ini') then
     sendservercommand('mkdir '..cgiweb..'newweb')
 
@@ -260,7 +263,7 @@ function create_newweb_dicomini()
 
 [sscscp]
 MicroPACS                = sscscp
-ACRNemaMap               = ]]..server..[[acrnema.map
+ACRNemaMap               = acrnema.map
 Dictionary               = dgate.dic
 WebServerFor             = 127.0.0.1
 TCPPort                  = ]]..CGI('PORT', '5678')..[[
@@ -289,6 +292,7 @@ source = start.lua
 ]]..s)
 
     copyfile(server..sep..'dgate.dic', cgiweb..'newweb'..sep..'dgate.dic')
+    copyfile(server..sep..'acrnema.map', cgiweb..'newweb'..sep..'acrnema.map')
     if cgiclient=='dgate.exe' then
       copyfile(server..'install32'..sep..cgiclient, cgiweb..'newweb'..sep..cgiclient)
     else
@@ -841,7 +845,11 @@ param = CGI('parameter', '')
 if param=='start' then
   if string.find(sendservercommand(server..dgate.." -w"..server.." "..[[--echo:]]..getfile(server..'dicom.ini', 'MyACRNema *= (.*)') or 'CONQUESTSRV1') or '', 'UP')==nil then
     HTML('Server is starting ...')
-    servercommand("luastart:os.execute([["..server..dgate.." -w"..server.." -v]]); return false")
+    if dgate=='dgate' then
+      servercommand("luastart:os.execute([["..server..dgate.." -w"..server.." -v]]); return false")
+	else
+      servercommand("luastart:os.execute([[start /D "..server.." conquestdicomserver.exe".."]]); return false")
+	end
   else
     HTML('Server was already running')
   end
@@ -849,7 +857,11 @@ if param=='start' then
 end
 -----------------------------------------
 if param=='stop' then
-  servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --quit:]]); return false")
+  if dgate=='dgate' then
+    servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --quit:]]); return false")
+  else
+    servercommand("lua:os.execute([["..server..dgate.." \"--lua:print('$ QUITGUI $')\"]]); return false")
+  end
   statuspage('Server stopped')
   return
 end
@@ -1550,6 +1562,15 @@ end
 if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'dwvviewer_starter.lua') then
   HTML("<option value=dwvviewer_starter"..selected("dwvviewer_starter", sel)..">DWV viewer</option>")
 end
+if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'papaya_starter.lua') then
+  HTML("<option value=papaya_starter"..selected("papaya_starter", sel)..">Papaya viewer</option>")
+end
+if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'cornerstone_starter.lua') then
+  HTML("<option value=cornerstone_starter"..selected("cornerstone_starter", sel)..">Cornerstone viewer</option>")
+end
+if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'iframe_starter.lua') then
+  HTML("<option value=iframe_starter"..selected("iframe_starter", sel)..">Iframe study viewer</option>")
+end
 if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'flexviewer_starter.lua') then
   HTML("<option value=flexviewer_starter"..selected("flexviewer_starter", sel)..">Flex viewer</option>")
 end
@@ -1574,6 +1595,12 @@ if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'altviewe
 end
 if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'dwvviewer_starter.lua') then
   HTML("<option value=dwvviewer_starter"..selected("dwvviewer_starter", ssel)..">DWV viewer</option>")
+end
+if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'papaya_starter.lua') then
+  HTML("<option value=papaya_starter"..selected("papaya_starter", ssel)..">Papaya viewer</option>")
+end
+if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'cornerstone_starter.lua') then
+  HTML("<option value=cornerstone_starter"..selected("cornerstone_starter", ssel)..">Cornerstone viewer</option>")
 end
 if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'flexviewer_starter.lua') then
   HTML("<option value=flexviewer_starter"..selected("flexviewer_starter", ssel)..">Flex viewer</option>")

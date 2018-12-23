@@ -1,0 +1,18 @@
+sudo: false
+language: node_js
+node_js:
+- 'lts/*'
+env:
+  global:
+  - secure: Sd63zOTWqG3Mmz+77FjkbG6cOJ4DgqdKCxCDNMJ7xkvTK0xB89eyX42g+PxblwvwSExbtdogI4Tb4NxKM1jGouc4VMcj/OPUJMQCV+RbmwPb+kAhIbO221nhvTdR5+Ohj7kDvjl1GV33Biz+h+F52Iwo5icgFTL4MXZ941qMRk3l/lH1VvaK+MYG/Gqi1OUBmljZOXnewcO1sMs/koxH5nrnasr/xUS+Spt0VT+1zO8zpnRxGf/GAFMaWpVco+dDdL9RVJYV3hbvzCgGPYhdjDpj6klqs3uHLDJTaLT3Gug6MuYjzpKb/GmEAHoRkPMTvN/miFqIYf1T0qL31679ouS1jYh2MBFNdrwXh554ibv2wdy7U1rCX0IFbD/9+KgquHVyQriwHhrqzfD5S430kahiOHEZ9gfrkw6CpqFGBkITK39gOebwEzrEU3n52v0wXCu6Jpt1GPXGdnd2PLRet9sz4i8k8UXQ1drSMZSgh/g5cpCbtJ0pmqjAseQBM6rls8vct8c+ILxoWE1plTkk8Q1Intki0o7/CXUDxzoWwqc1ztSWMB0tC+oGHNqXRTjz3zJI6ITQCqGPZhkxNZ2YtVIPwRhOsAHLleuT2w0Jz71DpHBGeeMNL4oMlfKE7VMZ6mBW1U2sXWhBK5rcH0JT98gJJsib555iIi3V05/1aIo=
+
+# greenkeeper lock file
+before_install: yarn global add greenkeeper-lockfile@1
+before_script: greenkeeper-lockfile-update
+after_script: greenkeeper-lockfile-upload
+
+after_success:
+# update gh-page only for master and not pull requests
+- if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
+    chmod +x ./resources/scripts/update-gh-pages.sh; "./resources/scripts/update-gh-pages.sh";
+  else echo "Not deploying artifacts for $TRAVIS_BRANCH"; fi

@@ -1,0 +1,53 @@
+html, body {
+    height: 100%;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #252525; color: #fff; }
+
+#dwv { height: 90%; }
+
+/* Layers */
+.layerContainer {
+    position: relative; padding: 0;
+    margin: auto; text-align: center; }
+.imageLayer {
+    position: absolute;
+    left: 0px; }
+
+/* drag&drop */
+.dropBox {
+    border: 5px dashed #ccc;
+    margin: auto; text-align: center;
+    padding: 5px; color: #ccc; }
+.dropBox.hover { border: 5px dashed #cc0; }
+
+.legend {
+  text-align: center;
+  font-size: 8pt;
+  margin: 1em;
+}
+.legend a {
+    color: #ccc;
+}
+
+/* toolbar */
+button {
+    margin: 5px; padding: 10px 10px;
+    border: 0 none; border-radius: 4px;
+    font-size: 14px; font-weight: 600;
+    color: #fff; background-color: #444; }
+button:hover { background-color: #555; }
+button:disabled { color: #aeaeae; }
+.toolbar { font: 14px arial, sans-serif; margin-bottom: 5px; text-align: center; }
+.wl-button, .reset-button { margin-right: 5px; }
+
+select {
+  margin: 5px; padding: 10px 10px;
+  border: 0 none; border-radius: 4px;
+  font-size: 14px; font-weight: 600;
+  color: #fff; background-color: #444;
+  text-align-last: center;}
+select:hover { background-color: #555; }
+select:disabled { color: #aeaeae; }

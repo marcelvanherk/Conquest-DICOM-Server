@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>DICOM Web Viewer</title>
+<meta charset="UTF-8">
+<meta name="description" content="Simplistic viewer using DICOM Web Viewer (DWV).">
+<meta name="keywords" content="DICOM,HTML5,JavaScript,medical,imaging,DWV">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="theme-color" content="#f86a2d"/>
+<link rel="manifest" href="resources/manifest.json">
+<link type="text/css" rel="stylesheet" href="css/style.css" />
+<!-- mobile web app -->
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="shortcut icon" sizes="16x16" href="resources/icons/dwv-16.png" />
+<link rel="shortcut icon" sizes="32x32" href="resources/icons/dwv-32.png" />
+<link rel="shortcut icon" sizes="64x64" href="resources/icons/dwv-64.png" />
+<link rel="shortcut icon" sizes="128x128" href="resources/icons/dwv-128.png" />
+<link rel="shortcut icon" sizes="256x256" href="resources/icons/dwv-256.png" />
+<!-- apple specific -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+<link rel="apple-touch-icon" sizes="16x16" href="resources/icons/dwv-16.png" />
+<link rel="apple-touch-icon" sizes="32x32" href="resources/icons/dwv-32.png" />
+<link rel="apple-touch-icon" sizes="64x64" href="resources/icons/dwv-64.png" />
+<link rel="apple-touch-icon" sizes="128x128" href="resources/icons/dwv-128.png" />
+<link rel="apple-touch-icon" sizes="256x256" href="resources/icons/dwv-256.png" />
+<!-- Third party (dwv) -->
+<script type="text/javascript" src="node_modules/i18next/i18next.min.js"></script>
+<script type="text/javascript" src="node_modules/i18next-xhr-backend/i18nextXHRBackend.min.js"></script>
+<script type="text/javascript" src="node_modules/i18next-browser-languagedetector/i18nextBrowserLanguageDetector.min.js"></script>
+<script type="text/javascript" src="node_modules/jszip/dist/jszip.min.js"></script>
+<!-- decoders -->
+<script type="text/javascript" src="node_modules/dwv/decoders/pdfjs/jpx.js"></script>
+<script type="text/javascript" src="node_modules/dwv/decoders/pdfjs/util.js"></script>
+<script type="text/javascript" src="node_modules/dwv/decoders/pdfjs/arithmetic_decoder.js"></script>
+<script type="text/javascript" src="node_modules/dwv/decoders/pdfjs/jpg.js"></script>
+<script type="text/javascript" src="node_modules/dwv/decoders/rii-mango/lossless-min.js"></script>
+<!-- dwv -->
+<script type="text/javascript" src="node_modules/dwv/dist/dwv.min.js"></script>
+<!-- Launch the app -->
+<script type="text/javascript" src="src/register-sw.js"></script>
+<script type="text/javascript" src="src/appgui.js"></script>
+<script type="text/javascript" src="src/applauncher.js"></script>
+</head>
+
+<body>
+
+<!-- DWV -->
+<div id="dwv">
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <select id="tools" name="tools" onChange="dwvAppGui.onChangeTool(this.value)" disabled>
+    <option value="Scroll" data-i18n="tool.Scroll.name">Scroll</option>
+    <option value="WindowLevel" data-i18n="tool.WindowLevel.name">WindowLevel</option>
+    <option value="ZoomAndPan" data-i18n="tool.ZoomAndPan.name">ZoomAndPan</option>
+  </select>
+  <select id="presets" name="presets" onChange="dwvAppGui.onChangePreset(this.value)" disabled>
+    <option value="">Preset...</option>
+  </select>
+  <button id="reset" value="Reset" onClick="dwvAppGui.onDisplayReset()" data-i18n="basics.reset" disabled>Reset</button>
+</div>
+<!-- Layer Container -->
+<div class="layerContainer">
+<div class="dropBox">Drag and drop data here.</div>
+<canvas class="imageLayer">Only for HTML5 compatible browsers...</canvas>
+</div><!-- /layerContainer -->
+
+<div id="legend" class="legend"><p>Powered by <a
+  href="https://github.com/ivmartel/dwv"
+  title="dwv on github">dwv</a> <span id="dwvVersion"></span>.</p></div>
+</div><!-- /dwv -->
+
+</body>
+</html>

@@ -4,35 +4,40 @@
 #                     install/dicom.ini
 # mvh 20170501 For 1.4.19a; dgate/dgatesmall mixup set rights to web folders
 # mvh 20181117 For 1.4.19c; add luasocket; copy of anonymize_script
+# mvh 20181115 For 1.4.19c; copy dgate.dic to install, use define for CGI
+# mvh 20181223 For 1.4.19d; Added luasocket; use sensible-browser
 
 SRC=../src/dgate;
+CGI=/usr/lib/cgi-bin; # /var/www/cgi-bin for Fedora
+
 sudo fuser -k 5912/tcp
 
+cp ../dgate.dic .
 mkdir lua
 cp ../lua/anonymize_script.lua lua
 
-chmod 777 ../src/dgate/luasocket/amake.sh;
-cd ../src/dgate/luasocket;
+chmod 777 $SRC/luasocket/amake.sh;
+pushd;
+cd $SRC/luasocket;
 ./amake.sh;
-cd ../../../install
+popd;
 
 gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DNOINTJPEG -Wno-write-strings $SRC/lua.o $SRC/luasocket/luasocket.a -o dgatesmall -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -I$SRC/lua_5.1.5 -Wno-multichar;
 
-chmod 777 ../src/dgate/jpeg-6c/configure;
+chmod 777 $SRC/jpeg-6c/configure;
 chmod 777 dgatesmall;
 rm -f nohup.out;
 nohup ./dgatesmall -v &
 
-sudo mkdir -p /usr/lib/cgi-bin/service;
-sudo chmod 777 /usr/lib/cgi-bin/service;
-sudo cp dgatesmall /usr/lib/cgi-bin/service/dgate;
-sudo cp service.lua /usr/lib/cgi-bin/service;
-sudo cp ../dgate.dic /usr/lib/cgi-bin/service;
-sudo cp dicom.ini /usr/lib/cgi-bin/service;
+sudo mkdir -p $CGI/service;
+sudo chmod 777 $CGI/service;
+sudo cp dgatesmall $CGI/service/dgate;
+sudo cp service.lua $CGI/service;
+sudo cp ../dgate.dic $CGI/service;
+sudo cp dicom.ini $CGI/service;
 
-sudo mkdir -p /usr/lib/cgi-bin/newweb;
-sudo chmod 777 /usr/lib/cgi-bin/newweb;
+sudo mkdir -p $CGI/newweb;
+sudo chmod 777 $CGI/newweb;
 
-firefox http://127.0.0.1/cgi-bin/service/dgate;
-
+sensible-browser http://127.0.0.1/cgi-bin/service/dgate;

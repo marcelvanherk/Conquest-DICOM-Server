@@ -1,0 +1,35 @@
+steps to make conquest compile on mint17.2
+
+sudo apt-get update
+sudo apt-get install g++
+
+sudo apt-get install apache2
+sudo a2enmod cgi
+sudo service apache2 restart
+
+cd dicomserver1419/dgate
+chmod 777 jpeg-6c/configure 
+chmod 777 maklinux
+
+cd jpeg-6c
+./configure
+make
+sudo make install
+cd ..
+
+sudo ./maklinux
+
+-- to compile postgres version:
+sudo apt-get install libpq-dev
+????
+sudo apt-get install postgres-xc
+sudo apt-get install pgadmin3
+
+--- zbs
+sudo ./ZeroBraneStudioEduPack-1.20-linux.sh
+sudo zbstudio
+run install script
+(copy socket/core.so is now part of the script)
+
+-- directory compare
+sudo apt-get install meld

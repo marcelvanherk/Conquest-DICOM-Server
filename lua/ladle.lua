@@ -14,6 +14,7 @@
 -- mvh 20181110 Release 1.4.19c
 -- mvh 20181115 Fix default of BaseDir
 -- mvh 20181117 Use / in folder for linux compatibility
+-- mvh 20181218 Added loadstring and DicomObject for new serialized data
 -----------------------------------------------------
 
 -- lfs = require('lfs')
@@ -426,6 +427,7 @@ function dgatecgi.handler(request, client, config)
   Env.pairs = pairs
   Env.string = string
   Env.io = io
+  Env.loadstring = loadstring
 
   -- conquest specific
   Env.get_amap = get_amap
@@ -435,6 +437,7 @@ function dgatecgi.handler(request, client, config)
   Env.newdicomobject = newdicomobject
   Env.Global = Global
   Env.servercommand = servercommand
+  Env.DicomObject = DicomObject
 
   Env.print = function(...) 
     Env.write(...) 

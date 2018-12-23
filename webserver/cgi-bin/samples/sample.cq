@@ -1,0 +1,29 @@
+<HEAD><TITLE>Conquest DICOM server - %variable% </TITLE></HEAD>
+<BODY BGCOLOR='CFDFCF'>
+<H2>Conquest DICOM server - %variable%</H2>
+
+<BR>
+#this is equivalent to: dgate "--display_status:"
+#where the output is sent to the web page (unquoted)
+<listing>
+--display_status:
+</listing>
+
+<?lua 
+HTML('this is a test written in LUA called "%s"', CGI('mode')); var = 'hoi ' .. CGI('mode'); HTML(var);
+for i=0,10 do HTML(i); end;
+?>
+
+<hr>
+#the format parameter of the dgate -- command is used to create HTML tags
+--get_amaps:<br>%s <strong>%s %s</strong>
+
+<hr>
+<h2>
+This is an embedded LUA expression --: <%= var .. ' ' .. 12 %> -- Done
+</h2>
+
+example of database query
+--query2:DICOMPatients|PatientID||<br>%s
+
+</BODY>

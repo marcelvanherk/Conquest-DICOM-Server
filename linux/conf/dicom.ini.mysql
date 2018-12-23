@@ -1,0 +1,45 @@
+# This file contains configuration information for the DICOM server
+# Example Linux version using MySQL
+# Copy this file to dicom.ini to use it
+# 20160425: Simplified for 1.4.19beta
+
+[sscscp]
+MicroPACS                = sscscp
+
+# Network configuration: server name and TCP/IP port#
+MyACRNema                = CONQUESTSRV1
+TCPPort                  = 5678
+
+# Host for postgres or mysql only, name, username and password for database
+SQLHost                  = localhost
+SQLServer                = conquest
+Username                 = root
+Password                 = user
+PostGres                 = 0
+MySQL                    = 1
+SQLite                   = 0
+UseEscapeStringConstants = 0
+DoubleBackSlashToDB      = 1
+
+# Configure server
+ImportExportDragAndDrop  = 1
+ZipTime                  = 05:
+UIDPrefix                = 99999.99999
+EnableComputedFields     = 1
+
+FileNameSyntax           = 4
+
+# Configuration of compression for incoming images and archival
+DroppedFileCompression   = un
+IncomingCompression      = un
+ArchiveCompression       = as
+
+# For debug information
+PACSName                 = CONQUESTSRV1
+OperatorConsole          = 127.0.0.1
+DebugLevel               = 0
+
+# Configuration of disk(s) to store images
+MAGDeviceFullThreshold   = 30
+MAGDevices               = 1
+MAGDevice0               = ./data/

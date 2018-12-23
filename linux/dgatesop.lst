@@ -1,0 +1,200 @@
+#
+# DICOM Application / sop / transfer UID list.
+#
+# This list is used by the CheckedPDU_Service ( "filename" ) service
+# class.  All incoming associations will be verified against this
+# file.
+#
+# Revision 2: disabled GEMRStorage and GECTStorage
+# Revision 3: extended with new sops and with JPEG transfer syntaxes
+# Revision 4: added Modality Worklist query
+# Revision 5: Erdenay added UIDS for CTImageStorageEnhanced, RawDataStorage, 
+#             SpatialRegistrationStorage, SpatialFiducialsStorage, DeformableSpatialRegistrationStorage, 
+#             SegmentationStorage, SurfaceSegmentationStorage, RTIonPlanStorage, RTIonBeamsTreatmentRecordStorage    
+# Revision 6: X-RayRadiationDoseSR, BreastTomosynthesisImageStorage and others
+# Revision 7: JpegLS and BigEndianExplicit enabled
+# Revision 8: Added C-GET
+#
+#None				none				RemoteAE
+#None				none				LocalAE
+#DICOM				1.2.840.10008.3.1.1.1		application
+Verification			1.2.840.10008.1.1		sop
+RETIRED_StoredPrintStorage                           1.2.840.10008.5.1.1.27		sop
+RETIRED_HardcopyGrayscaleImageStorage                1.2.840.10008.5.1.1.29		sop
+RETIRED_HardcopyColorImageStorage                    1.2.840.10008.5.1.1.30		sop
+ComputedRadiographyImageStorage                      1.2.840.10008.5.1.4.1.1.1		sop
+DigitalXRayImageStorageForPresentation               1.2.840.10008.5.1.4.1.1.1.1		sop
+DigitalXRayImageStorageForProcessing                 1.2.840.10008.5.1.4.1.1.1.1.1		sop
+DigitalMammographyXRayImageStorageForPresentation    1.2.840.10008.5.1.4.1.1.1.2		sop
+DigitalMammographyXRayImageStorageForProcessing      1.2.840.10008.5.1.4.1.1.1.2.1		sop
+DigitalIntraOralXRayImageStorageForPresentation      1.2.840.10008.5.1.4.1.1.1.3		sop
+DigitalIntraOralXRayImageStorageForProcessing        1.2.840.10008.5.1.4.1.1.1.3.1		sop
+CTImageStorage                                       1.2.840.10008.5.1.4.1.1.2		sop
+EnhancedCTImageStorage                               1.2.840.10008.5.1.4.1.1.2.1		sop
+RETIRED_UltrasoundMultiframeImageStorage             1.2.840.10008.5.1.4.1.1.3		sop
+UltrasoundMultiframeImageStorage                     1.2.840.10008.5.1.4.1.1.3.1		sop
+MRImageStorage                                       1.2.840.10008.5.1.4.1.1.4		sop
+EnhancedMRImageStorage                               1.2.840.10008.5.1.4.1.1.4.1		sop
+MRSpectroscopyStorage                                1.2.840.10008.5.1.4.1.1.4.2		sop
+EnhancedMRColorImageStorage                          1.2.840.10008.5.1.4.1.1.4.3		sop
+RETIRED_NuclearMedicineImageStorage                  1.2.840.10008.5.1.4.1.1.5		sop
+RETIRED_UltrasoundImageStorage                       1.2.840.10008.5.1.4.1.1.6		sop
+UltrasoundImageStorage                               1.2.840.10008.5.1.4.1.1.6.1		sop
+EnhancedUSVolumeStorage                              1.2.840.10008.5.1.4.1.1.6.2		sop
+SecondaryCaptureImageStorage                         1.2.840.10008.5.1.4.1.1.7		sop
+MultiframeSingleBitSecondaryCaptureImageStorage      1.2.840.10008.5.1.4.1.1.7.1		sop
+MultiframeGrayscaleByteSecondaryCaptureImageStorage  1.2.840.10008.5.1.4.1.1.7.2		sop
+MultiframeGrayscaleWordSecondaryCaptureImageStorage  1.2.840.10008.5.1.4.1.1.7.3		sop
+MultiframeTrueColorSecondaryCaptureImageStorage      1.2.840.10008.5.1.4.1.1.7.4		sop
+RETIRED_StandaloneOverlayStorage                     1.2.840.10008.5.1.4.1.1.8		sop
+RETIRED_StandaloneCurveStorage                       1.2.840.10008.5.1.4.1.1.9		sop
+DRAFT_WaveformStorage                                1.2.840.10008.5.1.4.1.1.9.1		sop
+TwelveLeadECGWaveformStorage                         1.2.840.10008.5.1.4.1.1.9.1.1		sop
+GeneralECGWaveformStorage                            1.2.840.10008.5.1.4.1.1.9.1.2		sop
+AmbulatoryECGWaveformStorage                         1.2.840.10008.5.1.4.1.1.9.1.3		sop
+HemodynamicWaveformStorage                           1.2.840.10008.5.1.4.1.1.9.2.1		sop
+CardiacElectrophysiologyWaveformStorage              1.2.840.10008.5.1.4.1.1.9.3.1		sop
+BasicVoiceAudioWaveformStorage                       1.2.840.10008.5.1.4.1.1.9.4.1		sop
+GeneralAudioWaveformStorage                          1.2.840.10008.5.1.4.1.1.9.4.2		sop
+ArterialPulseWaveformStorage                         1.2.840.10008.5.1.4.1.1.9.5.1		sop
+RespiratoryWaveformStorage                           1.2.840.10008.5.1.4.1.1.9.6.1		sop
+RETIRED_StandaloneModalityLUTStorage                 1.2.840.10008.5.1.4.1.1.10		sop
+RETIRED_StandaloneVOILUTStorage                      1.2.840.10008.5.1.4.1.1.11		sop
+GrayscaleSoftcopyPresentationStateStorage            1.2.840.10008.5.1.4.1.1.11.1		sop
+ColorSoftcopyPresentationStateStorage                1.2.840.10008.5.1.4.1.1.11.2		sop
+PseudoColorSoftcopyPresentationStateStorage          1.2.840.10008.5.1.4.1.1.11.3		sop
+BlendingSoftcopyPresentationStateStorage             1.2.840.10008.5.1.4.1.1.11.4		sop
+XAXRFGrayscaleSoftcopyPresentationStateStorage       1.2.840.10008.5.1.4.1.1.11.5		sop
+RETIRED_XASinglePlaneStorage                         1.2.840.10008.5.1.4.1.1.12	sop
+XRayAngiographicImageStorage                         1.2.840.10008.5.1.4.1.1.12.1		sop
+EnhancedXAImageStorage                               1.2.840.10008.5.1.4.1.1.12.1.1		sop
+XRayRadiofluoroscopicImageStorage                    1.2.840.10008.5.1.4.1.1.12.2		sop
+EnhancedXRFImageStorage                              1.2.840.10008.5.1.4.1.1.12.2.1		sop
+RETIRED_XRayAngiographicBiPlaneImageStorage          1.2.840.10008.5.1.4.1.1.12.3		sop
+XRay3DAngiographicImageStorage                       1.2.840.10008.5.1.4.1.1.13.1.1		sop
+XRay3DCraniofacialImageStorage                       1.2.840.10008.5.1.4.1.1.13.1.2		sop
+BreastTomosynthesisImageStorage                      1.2.840.10008.5.1.4.1.1.13.1.3		sop
+NuclearMedicineImageStorage                          1.2.840.10008.5.1.4.1.1.20		sop
+RawDataStorage                                       1.2.840.10008.5.1.4.1.1.66		sop
+SpatialRegistrationStorage                           1.2.840.10008.5.1.4.1.1.66.1		sop
+SpatialFiducialsStorage                              1.2.840.10008.5.1.4.1.1.66.2		sop
+DeformableSpatialRegistrationStorage                 1.2.840.10008.5.1.4.1.1.66.3		sop
+SegmentationStorage                                  1.2.840.10008.5.1.4.1.1.66.4		sop
+SurfaceSegmentationStorage                           1.2.840.10008.5.1.4.1.1.66.5		sop
+RealWorldValueMappingStorage                         1.2.840.10008.5.1.4.1.1.67		sop
+RETIRED_VLImageStorage                               1.2.840.10008.5.1.4.1.1.77.1		sop
+VLEndoscopicImageStorage                             1.2.840.10008.5.1.4.1.1.77.1.1		sop
+VideoEndoscopicImageStorage                          1.2.840.10008.5.1.4.1.1.77.1.1.1		sop
+VLMicroscopicImageStorage                            1.2.840.10008.5.1.4.1.1.77.1.2		sop
+VideoMicroscopicImageStorage                         1.2.840.10008.5.1.4.1.1.77.1.2.1		sop
+VLSlideCoordinatesMicroscopicImageStorage            1.2.840.10008.5.1.4.1.1.77.1.3		sop
+VLPhotographicImageStorage                           1.2.840.10008.5.1.4.1.1.77.1.4		sop
+VideoPhotographicImageStorage                        1.2.840.10008.5.1.4.1.1.77.1.4.1		sop
+OphthalmicPhotography8BitImageStorage                1.2.840.10008.5.1.4.1.1.77.1.5.1		sop
+OphthalmicPhotography16BitImageStorage               1.2.840.10008.5.1.4.1.1.77.1.5.2		sop
+StereometricRelationshipStorage                      1.2.840.10008.5.1.4.1.1.77.1.5.3		sop
+OphthalmicTomographyImageStorage                     1.2.840.10008.5.1.4.1.1.77.1.5.4		sop
+VLWholeSlideMicroscopyImageStorage                   1.2.840.10008.5.1.4.1.1.77.1.6		sop
+RETIRED_VLMultiFrameImageStorage                     1.2.840.10008.5.1.4.1.1.77.2		sop
+LensometryMeasurementsStorage                        1.2.840.10008.5.1.4.1.1.78.1		sop
+AutorefractionMeasurementsStorage                    1.2.840.10008.5.1.4.1.1.78.2		sop
+KeratometryMeasurementsStorage                       1.2.840.10008.5.1.4.1.1.78.3		sop
+SubjectiveRefractionMeasurementsStorage              1.2.840.10008.5.1.4.1.1.78.4		sop
+VisualAcuityMeasurementsStorage                      1.2.840.10008.5.1.4.1.1.78.5		sop
+SpectaclePrescriptionReportStorage                   1.2.840.10008.5.1.4.1.1.78.6		sop
+OphthalmicAxialMeasurementsStorage                   1.2.840.10008.5.1.4.1.1.78.7		sop
+IntraocularLensCalculationsStorage                   1.2.840.10008.5.1.4.1.1.78.8		sop
+MacularGridThicknessAndVolumeReportStorage           1.2.840.10008.5.1.4.1.1.79.1		sop
+OphthalmicVisualFieldStaticPerimetryMeasurementsSt.  1.2.840.10008.5.1.4.1.1.80.1		sop
+DRAFT_SRTextStorage                                  1.2.840.10008.5.1.4.1.1.88.1		sop
+DRAFT_SRAudioStorage                                 1.2.840.10008.5.1.4.1.1.88.2		sop
+DRAFT_SRDetailStorage                                1.2.840.10008.5.1.4.1.1.88.3		sop
+DRAFT_SRComprehensiveStorage                         1.2.840.10008.5.1.4.1.1.88.4		sop
+BasicTextSRStorage                                   1.2.840.10008.5.1.4.1.1.88.11		sop
+EnhancedSRStorage                                    1.2.840.10008.5.1.4.1.1.88.22		sop
+ComprehensiveSRStorage                               1.2.840.10008.5.1.4.1.1.88.33		sop
+ProcedureLogStorage                                  1.2.840.10008.5.1.4.1.1.88.40		sop
+MammographyCADSRStorage                              1.2.840.10008.5.1.4.1.1.88.50		sop
+KeyObjectSelectionDocumentStorage                    1.2.840.10008.5.1.4.1.1.88.59		sop
+ChestCADSRStorage                                    1.2.840.10008.5.1.4.1.1.88.65		sop
+XRayRadiationDoseSRStorage                           1.2.840.10008.5.1.4.1.1.88.67		sop
+ColonCADSRStorage                                    1.2.840.10008.5.1.4.1.1.88.69		sop
+ImplantationPlanSRDocumentStorage                    1.2.840.10008.5.1.4.1.1.88.70		sop
+EncapsulatedPDFStorage                               1.2.840.10008.5.1.4.1.1.104.1		sop
+EncapsulatedCDAStorage                               1.2.840.10008.5.1.4.1.1.104.2		sop
+PositronEmissionTomographyImageStorage               1.2.840.10008.5.1.4.1.1.128		sop
+RETIRED_StandalonePETCurveStorage                    1.2.840.10008.5.1.4.1.1.129		sop
+EnhancedPETImageStorage                              1.2.840.10008.5.1.4.1.1.130		sop
+BasicStructuredDisplayStorage                        1.2.840.10008.5.1.4.1.1.131		sop
+RTImageStorage                                       1.2.840.10008.5.1.4.1.1.481.1		sop
+RTDoseStorage                                        1.2.840.10008.5.1.4.1.1.481.2		sop
+RTStructureSetStorage                                1.2.840.10008.5.1.4.1.1.481.3		sop
+RTBeamsTreatmentRecordStorage                        1.2.840.10008.5.1.4.1.1.481.4		sop
+RTPlanStorage                                        1.2.840.10008.5.1.4.1.1.481.5		sop
+RTBrachyTreatmentRecordStorage                       1.2.840.10008.5.1.4.1.1.481.6		sop
+RTTreatmentSummaryRecordStorage                      1.2.840.10008.5.1.4.1.1.481.7		sop
+RTIonPlanStorage                                     1.2.840.10008.5.1.4.1.1.481.8		sop
+RTIonBeamsTreatmentRecordStorage                     1.2.840.10008.5.1.4.1.1.481.9		sop
+DRAFT_RTBeamsDeliveryInstructionStorage              1.2.840.10008.5.1.4.34.1		sop
+GenericImplantTemplateStorage                        1.2.840.10008.5.1.4.43.1		sop
+ImplantAssemblyTemplateStorage                       1.2.840.10008.5.1.4.44.1		sop
+ImplantTemplateGroupStorage                          1.2.840.10008.5.1.4.45.1		sop
+#GEMRStorage                                         1.2.840.113619.4.2		sop
+#GECTStorage                                         1.2.840.113619.4.3		sop
+GE3DModelObjectStorage                               1.2.840.113619.4.26		sop
+GERTPlanStorage                                      1.2.840.113619.5.249		sop
+GERTPlanStorage2                                     1.2.840.113619.4.5.249		sop
+GESaturnTDSObjectStorage                             1.2.840.113619.5.253		sop
+Philips3DVolumeStorage                               1.2.46.670589.5.0.1		sop
+Philips3DObjectStorage                               1.2.46.670589.5.0.2		sop
+PhilipsSurfaceStorage                                1.2.46.670589.5.0.3		sop
+PhilipsCompositeObjectStorage                        1.2.46.670589.5.0.4		sop
+PhilipsMRCardioProfileStorage                        1.2.46.670589.5.0.7		sop
+PhilipsMRCardioImageStorage                          1.2.46.670589.5.0.8		sop
+PatientRootQuery                                     1.2.840.10008.5.1.4.1.2.1.1	sop
+PatientRootRetrieve                                  1.2.840.10008.5.1.4.1.2.1.2	sop
+PatientRootGet                                       1.2.840.10008.5.1.4.1.2.1.3	sop
+StudyRootQuery                                       1.2.840.10008.5.1.4.1.2.2.1	sop
+StudyRootRetrieve                                    1.2.840.10008.5.1.4.1.2.2.2	sop
+StudyRootGet                                         1.2.840.10008.5.1.4.1.2.2.3	sop
+PatientStudyOnlyQuery                                1.2.840.10008.5.1.4.1.2.3.1	sop
+PatientStudyOnlyRetrieve                             1.2.840.10008.5.1.4.1.2.3.2	sop
+PatientStudyOnlyGet	                             1.2.840.10008.5.1.4.1.2.3.3	sop
+FindModalityWorkList                                 1.2.840.10008.5.1.4.31		sop
+PatientRootRetrieveNKI                               1.2.826.0.1.3680043.2.135.1066.5.1.4.1.2.1.2	sop
+StudyRootRetrieveNKI                                 1.2.826.0.1.3680043.2.135.1066.5.1.4.1.2.2.2	sop
+PatientStudyOnlyRetrieveNKI                          1.2.826.0.1.3680043.2.135.1066.5.1.4.1.2.3.2	sop
+BasicGrayscalePrintManagementMeta                    1.2.840.10008.5.1.1.9			sop
+BasicColorPrintManagementMeta                        1.2.840.10008.5.1.1.18			sop
+BasicFilmSession                                     1.2.840.10008.5.1.1.1			sop
+BasicFilmBox                                         1.2.840.10008.5.1.1.2			sop
+BasicGrayscaleImageBox                               1.2.840.10008.5.1.1.4			sop
+BasicColorImageBox                                   1.2.840.10008.5.1.1.4.1			sop
+BasicPrinter                                         1.2.840.10008.5.1.1.16			sop
+LittleEndianImplicit                                 1.2.840.10008.1.2	transfer
+LittleEndianExplicit                                 1.2.840.10008.1.2.1	transfer
+BigEndianExplicit                                    1.2.840.10008.1.2.2	transfer
+JPEGBaseLine1                                        1.2.840.10008.1.2.4.50	transfer	LittleEndianExplicit
+JPEGExtended2and4                                    1.2.840.10008.1.2.4.51	transfer	LittleEndianExplicit
+#JPEGExtended3and5                                   1.2.840.10008.1.2.4.52	transfer	LittleEndianExplicit
+JPEGSpectralNH6and8                                  1.2.840.10008.1.2.4.53	transfer	LittleEndianExplicit
+#JPEGSpectralNH7and9                                 1.2.840.10008.1.2.4.54	transfer	LittleEndianExplicit
+JPEGFulllNH10and12                                   1.2.840.10008.1.2.4.55	transfer	LittleEndianExplicit
+#JPEGFulllNH11and13                                  1.2.840.10008.1.2.4.56	transfer	LittleEndianExplicit
+JPEGLosslessNH14                                     1.2.840.10008.1.2.4.57	transfer	LittleEndianExplicit
+#JPEGLosslessNH15                                    1.2.840.10008.1.2.4.58	transfer	LittleEndianExplicit
+#JPEGExtended16and18                                 1.2.840.10008.1.2.4.59	transfer	LittleEndianExplicit
+#JPEGExtended17and19                                 1.2.840.10008.1.2.4.60	transfer	LittleEndianExplicit
+#JPEGSpectral20and22                                 1.2.840.10008.1.2.4.61	transfer	LittleEndianExplicit
+#JPEGSpectral21and23                                 1.2.840.10008.1.2.4.62	transfer	LittleEndianExplicit
+#JPEGFull24and26                                     1.2.840.10008.1.2.4.63	transfer	LittleEndianExplicit
+#JPEGFull25and27                                     1.2.840.10008.1.2.4.64	transfer	LittleEndianExplicit
+#JPEGLossless28                                      1.2.840.10008.1.2.4.65	transfer	LittleEndianExplicit
+#JPEGLossless29                                      1.2.840.10008.1.2.4.66	transfer	LittleEndianExplicit
+JPEGLossless                                         1.2.840.10008.1.2.4.70	transfer	LittleEndianExplicit
+JPEGLS_Lossless                                      1.2.840.10008.1.2.4.80	transfer	LittleEndianExplicit
+JPEGLS_Lossy                                         1.2.840.10008.1.2.4.81	transfer	LittleEndianExplicit
+#RLELossless                                         1.2.840.10008.1.2.5	transfer	LittleEndianExplicit
+#LittleEndianExplicitDeflated                        1.2.840.10008.1.2.1.99	transfer	LittleEndianExplicit
+JPEG2000LosslessOnly                                 1.2.840.10008.1.2.4.90	transfer	LittleEndianExplicit
+JPEG2000                                             1.2.840.10008.1.2.4.91	transfer	LittleEndianExplicit

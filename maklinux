@@ -1,0 +1,110 @@
+#!/bin/bash
+# mvh 20160425 for 1.4.19beta
+# mvh 20160516 use ln -s for shared server/webserver configs
+# mvh 20161117 back to cp, added chmod for src/dgate/jpeg-6c/configure 
+# mvh 20161122 Fixed order of newweb copy 
+# mvh 20170211 Fix include paths in mysql option 
+# mvh 20170504 Set rights for web folder; document mariadb lib link (but commented out)
+# mvh 20181117 Added luasocket to compile
+
+#DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+SRC=./src/dgate;
+CONF=./linux/conf;
+LINUX=./linux;
+
+chmod 777 src/dgate/jpeg-6c/configure
+cd src/dgate/jpeg-6c
+./configure
+make
+sudo make install
+cd ../../..
+
+chmod 777 src/dgate/luasocket/amake.sh;
+cd src/dgate/luasocket;
+./amake.sh;
+cd ../../..
+
+echo "Please choose DB type";
+
+options=("mysql" "postgres" "sqlite" "dbase" "Quit")
+select opt in "${options[@]}"
+do
+    case $opt in
+        "mysql")
+#			cd /usr/lib
+#			ln -s /usr/lib64/mysql .
+			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls
+			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
+			g++ -std=c++11 -I/usr/local/mysql/include -I/usr/include/mysql -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DUSEMYSQL -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/lua.o $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -L/usr/local/mysql/lib -L/usr/lib/mysql -lmysqlclient -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
+			break;
+			;;
+        "postgres")
+			export LD_LIBRARY_PATH="/usr/include/postgresql/";
+			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls
+			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
+			g++ -std=c++11 -I/usr/include/postgresql/ -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DPOSTGRES -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/lua.o $SRC/luasocket/luasocket.a $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -L/usr/local/pgsql/lib -lpq  -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
+			break;
+			;;
+        "sqlite")
+			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+			gcc -c -DTHREADSAFE=1 -DHAVE_USLEEP $SRC/sqlite3/sqlite3.c -I$SRC/sqlite3 -o $SRC/sqlite3.o;
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls
+			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
+			g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DUSESQLITE -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/sqlite3.o $SRC/lua.o $SRC/luasocket/luasocket.a $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -I$SRC/sqlite3 -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
+			rm $SRC/sqlite3.o;
+			break;
+			;;
+	"dbase")
+			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls
+			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
+			g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/lua.o $SRC/luasocket/luasocket.a $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
+			break;	
+			;;
+        "Quit")
+            break
+            ;;
+        *) echo invalid option;;
+    esac
+done
+
+if [ $opt != "Quit" ] 
+then
+
+	rm $SRC/lua.o;
+	rm $SRC/charls.o;
+	rm $SRC/openjpeg.o;
+
+	pkill -9 dgate;
+	sleep 0.2s;
+
+	cp $CONF/dicom.ini.$opt dicom.ini;
+	cp $CONF/dicom.sql.$opt dicom.sql;
+
+	cp $LINUX/acrnema.map acrnema.map;
+	cp $LINUX/dgatesop.lst dgatesop.lst;
+
+	sudo cp ./dgate /usr/lib/cgi-bin/dgate ;
+	sudo cp ./dicom.sql /usr/lib/cgi-bin/dicom.sql ;
+	sudo cp ./acrnema.map /usr/lib/cgi-bin/acrnema.map ;
+
+	sudo mkdir -p /usr/lib/cgi-bin ;
+	sudo chmod 777 /usr/lib/cgi-bin ;
+
+	sudo cp -r ./webserver/cgi-bin/* /usr/lib/cgi-bin;
+	sudo cp -r ./webserver/cgi-bin/.lua /usr/lib/cgi-bin;
+	sudo cp -r ./webserver/cgi-bin/.lua.linux /usr/lib/cgi-bin;
+	sudo cp /usr/lib/cgi-bin/dicom.ini.linux /usr/lib/cgi-bin/dicom.ini;
+	sudo cp /usr/lib/cgi-bin/newweb/dicom.ini.linux /usr/lib/cgi-bin/newweb/dicom.ini;
+	sudo cp /usr/lib/cgi-bin/.lua.linux /usr/lib/cgi-bin/.lua;
+
+	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate ;
+	sudo cp ./acrnema.map /usr/lib/cgi-bin/newweb/acrnema.map ;
+	
+	sudo cp -r ./webserver/htdocs/* /var/www;
+	sudo cp -r ./webserver/htdocs/* /var/www/html;
+	
+	mkdir data/dbase
+fi

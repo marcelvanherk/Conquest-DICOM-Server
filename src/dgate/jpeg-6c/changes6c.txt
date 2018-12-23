@@ -1,0 +1,4354 @@
+These are the changes I made to the files to allow bit changes "on the fly".
+8 bits is the default input and output for compatibility with most code.  There is an extra
+copy step to move the 8 bit data into the 16 bit buffers for decompression and for both
+compression and decompression of raw data.  All code should that use this should change
+to a 16 bit buffer.  Currently this supports 8 and 12 bit lossy and 2 - 16 bit lossless.
+
+Changes:
+-----------------------------------------------------------------------
+In jcdiffct.c, jcsample.c, jcscale.c, jdcolor.c, jddiffct.c, jdmaster.c, jdmerge.c, jdsample.c, jdscale.c, jidctflt.c, jidctfst.c, jidctint.c, jidctred.c, jmemmgr.c, jquant1.c, jquant2.c, and jutils.c, changed all JSAMPLEs to JSAMPLE16.
+
+In jcdctmgr.c, jcdiffct.c jcpred.c, jcprepct.c, jcsample.c, jcscale.c, jdcolor.c, jdmerge.c, jdsample.c, jdscale.c, jidctflt.c, jidctfst.c, jidctint.c, jidctred.c, jlossls.h, jmaintct.c, jmemmgr.c, jquant1.c, jquant2.c, and jutils.c, changed all JSAMPROWs to JSAMPROW16.
+
+In jcdctmgr.c, jcdiffct.c, jcmainct.c jcprepct.c, jcsample.c, jdapistd.c, jdcoefct.c, jdcolor.c, jdct.c, jddiffct.c jdmainct.c, jdpostct.c jdsample.c, jidctflt.c, jidctfst.c jidctint.c, jidctred.c, jlossy.h, jmemmgr.c, jdmerge.c, jquant1.c, jquant2.c, and jutils.c, changed all JSAMPARRAYs to JSAMPARRAY16.
+
+In jcapimin.c, jccoefct.c, jccolor.c, jcdiffct.c, cjprepct.c, jcsample.c, jctrans.c, jdapistd.c, jdcoefct.c, cdcolor.c, jddiffct.c, jdmainct.c jdmerge.c, jdpost.c, jdsample.c, jlossy.h, jpegint.h changed all JSAMPIMAGEs to JSAMPIMAGE16
+
+
+-----------------------------------------------------------------------
+cderror.h from:
+JMESSAGE(JERR_PPM_NOT, "Not a PPM/PGM file")
+to:
+JMESSAGE(JERR_PPM_NOT, "Not a PPM/PGM file")
+JMESSAGE(JERR_PPM_ONLY, "-width for use only width a PPM file")
+
+-----------------------------------------------------------------------
+cdjpeg.h (GCC4.1 Warning) from:
+#define write_stdout		WrStdout
+to:
+#define write_stdout		WrStdout
+#ifdef C_LOSSLESS_SUPPORTED
+#define  set_simple_lossless	SetSplLs
+#endif
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) from:
+EXTERN(boolean) set_sample_factors JPP((j_compress_ptr cinfo, char *arg));
+to:
+EXTERN(boolean) set_sample_factors JPP((j_compress_ptr cinfo, char *arg));
+#ifdef C_LOSSLESS_SUPPORTED
+EXTERN(boolean) set_simple_lossless JPP((j_compress_ptr cinfo, char *arg));
+#endif
+
+-----------------------------------------------------------------------
+cjpeg.c from:
+static boolean is_targa;	/* records user -targa switch */
+to:
+static boolean is_targa;	/* records user -targa switch */
+static boolean var_width;	/* sets variable width for ppm */
+static boolean loss_less;	/* Tells ppm to allow 16 bits */
+++++++++++++++++++++++++++++++++++++++++
+from:
+  case 'B':
+    return jinit_read_bmp(cinfo);
+#endif
+#ifdef GIF_SUPPORTED
+  case 'G':
+    return jinit_read_gif(cinfo);
+#endif
+#ifdef PPM_SUPPORTED
+  case 'P':
+    return jinit_read_ppm(cinfo);
+#endif
+#ifdef RLE_SUPPORTED
+  case 'R':
+    return jinit_read_rle(cinfo);
+#endif
+#ifdef TARGA_SUPPORTED
+  case 0x00:
+    return jinit_read_targa(cinfo);
+to:
+  case 'B':
+    if (cinfo->data_precision != 8)
+      ERREXIT(cinfo, JERR_PPM_ONLY);
+    return jinit_read_bmp(cinfo);
+#endif
+#ifdef GIF_SUPPORTED
+  case 'G':
+    if (cinfo->data_precision != 8)
+      ERREXIT(cinfo, JERR_PPM_ONLY);
+    return jinit_read_gif(cinfo);
+#endif
+#ifdef PPM_SUPPORTED
+  case 'P':
+    return jinit_read_ppm(cinfo);
+#endif
+#ifdef RLE_SUPPORTED
+  case 'R':
+    if (cinfo->data_precision != 8)
+      ERREXIT(cinfo, JERR_PPM_ONLY);
+    return jinit_read_rle(cinfo);
+#endif
+#ifdef TARGA_SUPPORTED
+  case 0x00:
+    if (cinfo->data_precision != 8)
+      ERREXIT(cinfo, JERR_PPM_ONLY);
+    return jinit_read_targa(cinfo);
+++++++++++++++++++++++++++++++++++++++++
+from:
+  fprintf(stderr, "  -grayscale     Create monochrome JPEG file\n");
+to:
+  fprintf(stderr, "  -grayscale     Create monochrome JPEG file\n");
+#ifdef PPM_SUPPORTED
+  fprintf(stderr, "  -width N       Output bit width for PPN to JPEG (N = 0 for same as input)\n");
+#endif
+++++++++++++++++++++++++++++++++++++++++
+from:
+  is_targa = FALSE;
+to:
+  is_targa = FALSE;
+  var_width = FALSE;
+  loss_less = FALSE;
+++++++++++++++++++++++++++++++++++++++++
+from:
+      losslsarg = argv[argn];
+      /* We must postpone execution until num_components is known. */
+to:
+      losslsarg = argv[argn];
+      /* We must postpone execution until num_components is known. */
+      loss_less = TRUE; /* Let ppm know. */
+++++++++++++++++++++++++++++++++++++++++
+from:
+      is_targa = TRUE;
+to:
+      is_targa = TRUE;
+    } else if (keymatch(arg, "width", 1)) {
+#ifdef PPM_SUPPORTED
+      int val;
+
+      if (++argn >= argc)	/* advance to next argument */
+        usage();
+      if (sscanf(argv[argn], "%d", &val) != 1)
+        usage();
+      if (val < 0 || val > JSAMPLEMAX)
+        usage();
+      if (!for_real) {/* Set ppm output width the first time. */
+        if (val == 0) {
+          val = 12;
+          var_width = TRUE;
+        }
+        cinfo->data_precision = val;
+      }
+#else
+      fprintf(stderr, "%s: sorry, ppm output was not compiled\n",
+	      progname);
+      exit(EXIT_FAILURE);
+#endif
+++++++++++++++++++++++++++++++++++++++++
+from:
+	/* Read the input file header to obtain file size & colorspace. */
+  (*src_mgr->start_input) (&cinfo, src_mgr);
+to:
+  /* If PPM and variable width, tell PPM with a 0 data precision. */
+  if (var_width) cinfo.data_precision = 0;
+
+	/* Read the input file header to obtain file size & colorspace. */
+  (*src_mgr->start_input) (&cinfo, src_mgr);
+	
+  if (cinfo.data_precision != 8) if (loss_less) cinfo.lossless = TRUE; /* Tell colorspace */
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) from:
+    (void) jpeg_write_scanlines(&cinfo, src_mgr->buffer, num_scanlines);
+to:
+    (void) jpeg_write_scanlines(&cinfo, (JSAMPARRAY)src_mgr->buffer, num_scanlines);
+
+-----------------------------------------------------------------------
+djpeg.c from:
+	FMT_PPM,		/* PPM/PGM (PBMPLUS formats) */
+to:
+	FMT_PPM,		/* PPM/PGM (PBMPLUS formats) */
+	FMT_PPMW,		/* PPM/PGM 12/16 bit (PBMPLUS formats) */
+++++++++++++++++++++++++++++++++++++++++
+from:
+#ifdef PPM_SUPPORTED
+  fprintf(stderr, "  -pnm           Select PBMPLUS (PPM/PGM) output format%s\n",
+	  (DEFAULT_FMT == FMT_PPM ? " (default)" : ""));
+#endif
+to:
+#ifdef PPM_SUPPORTED
+  fprintf(stderr, "  -pnm           Select PBMPLUS (PPM/PGM) output format%s\n",
+	  (DEFAULT_FMT == FMT_PPM ? " (default)" : ""));
+  fprintf(stderr, "  -widepnm       Select PBMPLUS (PPM/PGM) 12/16 bit output format\n");
+#endif
+++++++++++++++++++++++++++++++++++++++++
+from:
+    } else if (keymatch(arg, "pnm", 1) || keymatch(arg, "ppm", 1)) {
+      /* PPM/PGM output format. */
+      requested_fmt = FMT_PPM;
+to:
+    } else if (keymatch(arg, "pnm", 1) || keymatch(arg, "ppm", 1)) {
+      /* PPM/PGM output format. */
+      requested_fmt = FMT_PPM;
+
+    } else if (keymatch(arg, "widepnm", 1) || keymatch(arg, "wideppm", 1)) {
+      /* PPM/PGM 12/16 bit output format. */
+      requested_fmt = FMT_PPMW;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  switch (requested_fmt) {
+to:
+  cinfo.data_precision_other = 8;
+  cinfo.shft = 0;
+  switch (requested_fmt) {
+++++++++++++++++++++++++++++++++++++++++
+from:
+  case FMT_PPM:
+    dest_mgr = jinit_write_ppm(&cinfo);
+    break;
+to:
+  case FMT_PPMW:
+    cinfo.data_precision_other = cinfo.data_precision;
+  case FMT_PPM:
+    dest_mgr = jinit_write_ppm(&cinfo);
+    break;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  dest_mgr->output_file = output_file;
+to:
+  if (cinfo.data_precision_other <= 8)
+    if (cinfo.process != JPROC_LOSSLESS) /* Lossless scales itself. */
+      cinfo.shft = cinfo.data_precision - cinfo.data_precision_other;
+  dest_mgr->output_file = output_file;
+++++++++++++++++++++++++++++++++++++++++
+from:
+    num_scanlines = jpeg_read_scanlines(&cinfo, dest_mgr->buffer,
+to:
+    num_scanlines = jpeg_read_scanlines(&cinfo,(JSAMPARRAY) dest_mgr->buffer,
+
+-----------------------------------------------------------------------
+jcapimin.c from:
+  cinfo->input_gamma = 1.0;	/* in case application forgets */
+to:
+  cinfo->input_gamma = 1.0;	/* in case application forgets */
+  cinfo->data_precision = 8; /* defaults for backward compatibility */
+  cinfo->data_precision_other =8;
+++++++++++++++++++++++++++++++++++++++++
+from:
+      if (! (*cinfo->codec->compress_data) (cinfo, NULL))
+to:
+      if (! (*cinfo->codec->compress_data) (cinfo, (JSAMPIMAGE16) NULL))
+-----------------------------------------------------------------------
+jcapistd.c from:
+jpeg_write_scanlines (j_compress_ptr cinfo, JSAMPARRAY scanlines,
+(stays JSAMPARRAY)to:
+jpeg_write_scanlines (j_compress_ptr cinfo, JSAMPARRAY scanlines,
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) from:
+main
+to:
+mainp
+++++++++++++++++++++++++++++++++++++++++
+from:
+jpeg_write_raw_data (j_compress_ptr cinfo, JSAMPIMAGE data,
+		     JDIMENSION num_lines)
+(stays JSAMPIMAGE)to:
+jpeg_write_raw_data (j_compress_ptr cinfo, JSAMPIMAGE data,
+		     JDIMENSION num_lines)
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JDIMENSION lines_per_iMCU_row;
+to:
+  JDIMENSION lines_per_iMCU_row;
+  register JDIMENSION width, line, col;
+  register JSAMPLE16 *temp_buf_ptr;
+  register JSAMPLE *in_buf_row_ptr;
+  int cmp;
+++++++++++++++++++++++++++++++++++++++++
+from:
+ /* Directly compress the row. */
+  if (! (*cinfo->codec->compress_data) (cinfo, data)) {
+    /* If compressor did not consume the whole row, suspend processing. */
+    return 0;
+to:
+  if (cinfo->data_precision_other > 8) {
+  /* Directly compress the row if short. */
+    if (! (*cinfo->codec->compress_data) (cinfo, (JSAMPIMAGE16)data)) {
+    /* If compressor did not consume the whole row, suspend processing. */
+      return 0;
+    }
+  } else {
+  /* 8 or less, time for buffering. */
+    if (cinfo->raw_data_buffer == NULL) { /* Not output suspension */
+   /* Allocate space for image array and copy the data if */
+      cinfo->raw_data_buffer = (JSAMPIMAGE16)cinfo->mem->alloc_small((j_common_ptr)cinfo, JPOOL_IMAGE_BUF,
+				    (size_t) (cinfo->num_components));
+      for (cmp = 0; cmp < cinfo->num_components; cmp++) {
+        /* Allocate space for JSAMPARRAY16 arrays */
+        width = (JDIMENSION) (((long) cinfo->comp_info[cmp].width_in_data_units * cinfo->data_unit *
+			cinfo->max_h_samp_factor) / cinfo->comp_info[cmp].h_samp_factor);
+        
+ /*       (((cinfo->comp_info[cmp].h_samp_factor*cinfo->image_height)/DCTSIZE);*/
+        cinfo->raw_data_buffer[cmp] = (JSAMPARRAY16)(cinfo->mem->alloc_sarray)
+          ((j_common_ptr) cinfo, JPOOL_IMAGE_BUF,
+        width * SIZEOF(JSAMPLE16), (JDIMENSION)  num_lines);
+        for (line = 0; line < num_lines; line++) {
+          temp_buf_ptr = cinfo->raw_data_buffer[cmp][line];
+          in_buf_row_ptr = data[cmp][line];
+          for (col = 0; col < width; col++)
+            *temp_buf_ptr++ = (JSAMPLE16) *in_buf_row_ptr++;
+        }
+      }
+    }
+    if (! (*cinfo->codec->compress_data) (cinfo, cinfo->raw_data_buffer))
+    /* If compressor did not consume the whole row, suspend processing,
+      and keep the buffer. */
+      return 0;
+    /* Free the buffer */
+    cinfo->mem->free_pool ((j_common_ptr)cinfo, JPOOL_IMAGE_BUF);
+    cinfo->raw_data_buffer = NULL;
+  }
+
+  /* OK, we processed one iMCU row. */
+  cinfo->next_scanline += lines_per_iMCU_row;
+  return lines_per_iMCU_row;
+}
+
+
+-----------------------------------------------------------------------
+jccolor.c from:
+#define CBCR_OFFSET	((INT32) CENTERJSAMPLE << SCALEBITS)
+to:
+#define CBCR_OFFSET	((INT32) cinfo->centerjsample << SCALEBITS)
+++++++++++++++++++++++++++++++++++++++++
+from:
+#define G_Y_OFF		(1*(MAXJSAMPLE+1))	/* offset to G => Y section */
+#define B_Y_OFF		(2*(MAXJSAMPLE+1))	/* etc. */
+#define R_CB_OFF	(3*(MAXJSAMPLE+1))
+#define G_CB_OFF	(4*(MAXJSAMPLE+1))
+#define B_CB_OFF	(5*(MAXJSAMPLE+1))
+#define R_CR_OFF	B_CB_OFF		/* B=>Cb, R=>Cr are the same */
+#define G_CR_OFF	(6*(MAXJSAMPLE+1))
+#define B_CR_OFF	(7*(MAXJSAMPLE+1))
+#define TABLE_SIZE	(8*(MAXJSAMPLE+1))
+to:
+#define G_Y_OFF		(1*(cinfo->maxjsample+1))	/* offset to G => Y section */
+#define B_Y_OFF		(2*(cinfo->maxjsample+1))	/* etc. */
+#define R_CB_OFF	(3*(cinfo->maxjsample+1))
+#define G_CB_OFF	(4*(cinfo->maxjsample+1))
+#define B_CB_OFF	(5*(cinfo->maxjsample+1))
+#define R_CR_OFF	B_CB_OFF		/* B=>Cb, R=>Cr are the same */
+#define G_CR_OFF	(6*(cinfo->maxjsample+1))
+#define B_CR_OFF	(7*(cinfo->maxjsample+1))
+#define TABLE_SIZE	(8*(cinfo->maxjsample+1))
+++++++++++++++++++++++++++++++++++++++++
+from:
+  for (i = 0; i <= MAXJSAMPLE; i++) {
+to:
+  for (i = 0; i <= cinfo->maxjsample; i++) {
+++++++++++++++++++++++++++++++++++++++++
+from:
+rgb_ycc_convert (j_compress_ptr cinfo,
+		 JSAMPARRAY input_buf, JSAMPIMAGE output_buf,
+to:
+rgb_ycc_convert8 (j_compress_ptr cinfo,
+		 JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+++++++++++++++++++++++++++++++++++++++++
+from:
+  register JSAMPROW outptr0, outptr1, outptr2;
+to:
+  register JSAMPROW16 outptr0, outptr1, outptr2;
+++++++++++++++++++++++++++++++++++++++++
+from:
+      outptr0[col] = (JSAMPLE)
+		((ctab[r+R_Y_OFF] + ctab[g+G_Y_OFF] + ctab[b+B_Y_OFF])
+		 >> SCALEBITS);
+      /* Cb */
+      outptr1[col] = (JSAMPLE)
+		((ctab[r+R_CB_OFF] + ctab[g+G_CB_OFF] + ctab[b+B_CB_OFF])
+		 >> SCALEBITS);
+      /* Cr */
+      outptr2[col] = (JSAMPLE)
+to:
+      outptr0[col] = (JSAMPLE16)
+		((ctab[r+R_Y_OFF] + ctab[g+G_Y_OFF] + ctab[b+B_Y_OFF])
+		 >> SCALEBITS);
+      /* Cb */
+      outptr1[col] = (JSAMPLE16)
+		((ctab[r+R_CB_OFF] + ctab[g+G_CB_OFF] + ctab[b+B_CB_OFF])
+		 >> SCALEBITS);
+      /* Cr */
+      outptr2[col] = (JSAMPLE16)
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(void)
+rgb_ycc_convert16 (j_compress_ptr cinfo,
+		 JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+		 JDIMENSION output_row, int num_rows)
+{
+  my_cconvert_ptr cconvert = (my_cconvert_ptr) cinfo->cconvert;
+  register int r, g, b;
+  register INT32 * ctab = cconvert->rgb_ycc_tab;
+  register JSAMPROW16 inptr;
+  register JSAMPROW16 outptr0, outptr1, outptr2;
+  register JDIMENSION col;
+  JDIMENSION num_cols = cinfo->image_width;
+
+  while (--num_rows >= 0) {
+    inptr = (JSAMPROW16)*input_buf++;
+    outptr0 = output_buf[0][output_row];
+    outptr1 = output_buf[1][output_row];
+    outptr2 = output_buf[2][output_row];
+    output_row++;
+    for (col = 0; col < num_cols; col++) {
+      r = GETJSAMPLE(inptr[RGB_RED]);
+      g = GETJSAMPLE(inptr[RGB_GREEN]);
+      b = GETJSAMPLE(inptr[RGB_BLUE]);
+      inptr += RGB_PIXELSIZE;
+      /* If the inputs are 0..cinfo->maxjsample, the outputs of these equations
+       * must be too; we do not need an explicit range-limiting operation.
+       * Hence the value being shifted is never negative, and we don't
+       * need the general RIGHT_SHIFT macro.
+       */
+      /* Y */
+      outptr0[col] = (JSAMPLE16)
+		((ctab[r+R_Y_OFF] + ctab[g+G_Y_OFF] + ctab[b+B_Y_OFF])
+		 >> SCALEBITS);
+      /* Cb */
+      outptr1[col] = (JSAMPLE16)
+		((ctab[r+R_CB_OFF] + ctab[g+G_CB_OFF] + ctab[b+B_CB_OFF])
+		 >> SCALEBITS);
+      /* Cr */
+      outptr2[col] = (JSAMPLE16)
+		((ctab[r+R_CR_OFF] + ctab[g+G_CR_OFF] + ctab[b+B_CR_OFF])
+		 >> SCALEBITS);
+    }
+  }
+}
+++++++++++++++++++++++++++++++++++++++++
+from:
+rgb_gray_convert (j_compress_ptr cinfo,
+		  JSAMPARRAY input_buf, JSAMPIMAGE output_buf,
+to:
+rgb_gray_convert8 (j_compress_ptr cinfo,
+		  JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+++++++++++++++++++++++++++++++++++++++++
+from:
+  register JSAMPROW outptr;
+to:
+  register JSAMPROW16 outptr;
+++++++++++++++++++++++++++++++++++++++++
+from:
+      outptr[col] = (JSAMPLE)
+to:
+      outptr[col] = (JSAMPLE16)
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(void)
+rgb_gray_convert16 (j_compress_ptr cinfo,
+		  JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+		  JDIMENSION output_row, int num_rows)
+{
+  my_cconvert_ptr cconvert = (my_cconvert_ptr) cinfo->cconvert;
+  register int r, g, b;
+  register INT32 * ctab = cconvert->rgb_ycc_tab;
+  register JSAMPROW16 inptr;
+  register JSAMPROW16 outptr;
+  register JDIMENSION col;
+  JDIMENSION num_cols = cinfo->image_width;
+
+  while (--num_rows >= 0) {
+    inptr = (JSAMPROW16)*input_buf++;
+    outptr = output_buf[0][output_row];
+    output_row++;
+    for (col = 0; col < num_cols; col++) {
+      r = GETJSAMPLE(inptr[RGB_RED]);
+      g = GETJSAMPLE(inptr[RGB_GREEN]);
+      b = GETJSAMPLE(inptr[RGB_BLUE]);
+      inptr += RGB_PIXELSIZE;
+      /* Y */
+      outptr[col] = (JSAMPLE16)
+		((ctab[r+R_Y_OFF] + ctab[g+G_Y_OFF] + ctab[b+B_Y_OFF])
+		 >> SCALEBITS);
+    }
+  }
+}
+++++++++++++++++++++++++++++++++++++++++
+from:
+cmyk_ycck_convert (j_compress_ptr cinfo,
+		   JSAMPARRAY input_buf, JSAMPIMAGE output_buf,
+to:
+cmyk_ycck_convert8 (j_compress_ptr cinfo,
+		   JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+++++++++++++++++++++++++++++++++++++++++
+from:
+  register JSAMPROW outptr0, outptr1, outptr2, outptr3;
+to:
+  register JSAMPROW16 outptr0, outptr1, outptr2, outptr3;
+++++++++++++++++++++++++++++++++++++++++
+from:
+      r = MAXJSAMPLE - GETJSAMPLE(inptr[0]);
+      g = MAXJSAMPLE - GETJSAMPLE(inptr[1]);
+      b = MAXJSAMPLE - GETJSAMPLE(inptr[2]);
+to:
+      r = cinfo->maxjsample - GETJSAMPLE(inptr[0]);
+      g = cinfo->maxjsample - GETJSAMPLE(inptr[1]);
+      b = cinfo->maxjsample - GETJSAMPLE(inptr[2]);
+++++++++++++++++++++++++++++++++++++++++
+from:
+      outptr0[col] = (JSAMPLE)
+		((ctab[r+R_Y_OFF] + ctab[g+G_Y_OFF] + ctab[b+B_Y_OFF])
+		 >> SCALEBITS);
+      /* Cb */
+      outptr1[col] = (JSAMPLE)
+		((ctab[r+R_CB_OFF] + ctab[g+G_CB_OFF] + ctab[b+B_CB_OFF])
+		 >> SCALEBITS);
+      /* Cr */
+      outptr2[col] = (JSAMPLE)
+to:
+      outptr0[col] = (JSAMPLE16)
+		((ctab[r+R_Y_OFF] + ctab[g+G_Y_OFF] + ctab[b+B_Y_OFF])
+		 >> SCALEBITS);
+      /* Cb */
+      outptr1[col] = (JSAMPLE16)
+		((ctab[r+R_CB_OFF] + ctab[g+G_CB_OFF] + ctab[b+B_CB_OFF])
+		 >> SCALEBITS);
+      /* Cr */
+      outptr2[col] = (JSAMPLE16)
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(void)
+cmyk_ycck_convert16 (j_compress_ptr cinfo,
+		   JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+		   JDIMENSION output_row, int num_rows)
+{
+  my_cconvert_ptr cconvert = (my_cconvert_ptr) cinfo->cconvert;
+  register int r, g, b;
+  register INT32 * ctab = cconvert->rgb_ycc_tab;
+  register JSAMPROW16 inptr;
+  register JSAMPROW16 outptr0, outptr1, outptr2, outptr3;
+  register JDIMENSION col;
+  JDIMENSION num_cols = cinfo->image_width;
+
+  while (--num_rows >= 0) {
+    inptr = (JSAMPROW16)*input_buf++;
+    outptr0 = output_buf[0][output_row];
+    outptr1 = output_buf[1][output_row];
+    outptr2 = output_buf[2][output_row];
+    outptr3 = output_buf[3][output_row];
+    output_row++;
+    for (col = 0; col < num_cols; col++) {
+      r = cinfo->maxjsample - GETJSAMPLE(inptr[0]);
+      g = cinfo->maxjsample - GETJSAMPLE(inptr[1]);
+      b = cinfo->maxjsample - GETJSAMPLE(inptr[2]);
+      /* K passes through as-is */
+      outptr3[col] = inptr[3];	/* don't need GETJSAMPLE here */
+      inptr += 4;
+      /* If the inputs are 0..cinfo->maxjsample, the outputs of these equations
+       * must be too; we do not need an explicit range-limiting operation.
+       * Hence the value being shifted is never negative, and we don't
+       * need the general RIGHT_SHIFT macro.
+       */
+      /* Y */
+      outptr0[col] = (JSAMPLE16)
+		((ctab[r+R_Y_OFF] + ctab[g+G_Y_OFF] + ctab[b+B_Y_OFF])
+		 >> SCALEBITS);
+      /* Cb */
+      outptr1[col] = (JSAMPLE16)
+		((ctab[r+R_CB_OFF] + ctab[g+G_CB_OFF] + ctab[b+B_CB_OFF])
+		 >> SCALEBITS);
+      /* Cr */
+      outptr2[col] = (JSAMPLE16)
+		((ctab[r+R_CR_OFF] + ctab[g+G_CR_OFF] + ctab[b+B_CR_OFF])
+		 >> SCALEBITS);
+    }
+  }
+}
+++++++++++++++++++++++++++++++++++++++++
+from:
+grayscale_convert (j_compress_ptr cinfo,
+		   JSAMPARRAY input_buf, JSAMPIMAGE output_buf,
+to:
+grayscale_convert8 (j_compress_ptr cinfo,
+		   JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+++++++++++++++++++++++++++++++++++++++++
+from:
+  register JSAMPROW outptr;
+to:
+  register JSAMPROW16 outptr;
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(void)
+grayscale_convert16 (j_compress_ptr cinfo,
+		   JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+		   JDIMENSION output_row, int num_rows)
+{
+  register JSAMPROW16 inptr;
+  register JSAMPROW16 outptr;
+  register JDIMENSION col;
+  JDIMENSION num_cols = cinfo->image_width;
+  int instride = cinfo->input_components;
+
+  while (--num_rows >= 0) {
+    inptr = (JSAMPROW16)*input_buf++;
+    outptr = output_buf[0][output_row];
+    output_row++;
+    for (col = 0; col < num_cols; col++) {
+      outptr[col] = inptr[0];	/* don't need GETJSAMPLE() here */
+      inptr += instride;
+    }
+  }
+}
+++++++++++++++++++++++++++++++++++++++++
+from:
+null_convert (j_compress_ptr cinfo,
+	      JSAMPARRAY input_buf, JSAMPIMAGE output_buf,
+to:
+null_convert8 (j_compress_ptr cinfo,
+	      JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+++++++++++++++++++++++++++++++++++++++++
+from:
+  register JSAMPROW outptr;
+to:
+  register JSAMPROW16 outptr;
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(void)
+null_convert16 (j_compress_ptr cinfo,
+	      JSAMPARRAY input_buf, JSAMPIMAGE16 output_buf,
+	      JDIMENSION output_row, int num_rows)
+{
+  register JSAMPROW16 inptr;
+  register JSAMPROW16 outptr;
+  register JDIMENSION col;
+  register int ci;
+  int nc = cinfo->num_components;
+  JDIMENSION num_cols = cinfo->image_width;
+
+  while (--num_rows >= 0) {
+    /* It seems fastest to make a separate pass for each component. */
+    for (ci = 0; ci < nc; ci++) {
+      inptr = (JSAMPROW16)*input_buf;
+      outptr = output_buf[ci][output_row];
+      for (col = 0; col < num_cols; col++) {
+	outptr[col] = inptr[ci]; /* don't need GETJSAMPLE() here */
+	inptr += nc;
+      }
+    }
+    input_buf++;
+    output_row++;
+  }
+}
+++++++++++++++++++++++++++++++++++++++++
+from:
+  my_cconvert_ptr cconvert;
+to:
+  my_cconvert_ptr cconvert;
+  boolean inp8 = FALSE;
+  
+  if (cinfo->data_precision_other <= 8) inp8 = TRUE;
+++++++++++++++++++++++++++++++++++++++++
+from:
+    if (cinfo->in_color_space == JCS_GRAYSCALE)
+      cconvert->pub.color_convert = grayscale_convert;
+    else if (cinfo->in_color_space == JCS_RGB) {
+      cconvert->pub.start_pass = rgb_ycc_start;
+      cconvert->pub.color_convert = rgb_gray_convert;
+    } else if (cinfo->in_color_space == JCS_YCbCr)
+      cconvert->pub.color_convert = grayscale_convert;
+to:
+    if (cinfo->in_color_space == JCS_GRAYSCALE) {
+      if (inp8) cconvert->pub.color_convert = grayscale_convert8;
+	  else cconvert->pub.color_convert = grayscale_convert16; }
+    else if (cinfo->in_color_space == JCS_RGB) {
+      cconvert->pub.start_pass = rgb_ycc_start;
+      if (inp8) cconvert->pub.color_convert = rgb_gray_convert8;
+	  else cconvert->pub.color_convert = rgb_gray_convert16;
+    } else if (cinfo->in_color_space == JCS_YCbCr) {
+      if (inp8) cconvert->pub.color_convert = grayscale_convert8;
+	  else  cconvert->pub.color_convert = grayscale_convert16; }
+++++++++++++++++++++++++++++++++++++++++
+from:
+    if (cinfo->in_color_space == JCS_RGB && RGB_PIXELSIZE == 3)
+      cconvert->pub.color_convert = null_convert;
+to:
+    if (cinfo->in_color_space == JCS_RGB && RGB_PIXELSIZE == 3) {
+      if (inp8) cconvert->pub.color_convert = null_convert8;
+	  else cconvert->pub.color_convert = null_convert16; }
+++++++++++++++++++++++++++++++++++++++++
+from:
+      cconvert->pub.start_pass = rgb_ycc_start;
+      cconvert->pub.color_convert = rgb_ycc_convert;
+    } else if (cinfo->in_color_space == JCS_YCbCr)
+      cconvert->pub.color_convert = null_convert;
+to:
+      if (inp8) cconvert->pub.color_convert = rgb_ycc_convert8;
+	  else cconvert->pub.color_convert = rgb_ycc_convert16;
+    } else if (cinfo->in_color_space == JCS_YCbCr) {
+      if (inp8) cconvert->pub.color_convert = null_convert8;
+	  else cconvert->pub.color_convert = null_convert16; }
+++++++++++++++++++++++++++++++++++++++++
+from:
+    if (cinfo->in_color_space == JCS_CMYK)
+      cconvert->pub.color_convert = null_convert;
+to:
+    if (cinfo->in_color_space == JCS_CMYK) {
+      if (inp8) cconvert->pub.color_convert = null_convert8;
+	  else cconvert->pub.color_convert = null_convert16; }
+++++++++++++++++++++++++++++++++++++++++
+from:
+      cconvert->pub.color_convert = cmyk_ycck_convert;
+    } else if (cinfo->in_color_space == JCS_YCCK)
+      cconvert->pub.color_convert = null_convert;
+to:
+      if (inp8) cconvert->pub.color_convert = cmyk_ycck_convert8;
+	  else cconvert->pub.color_convert = cmyk_ycck_convert16;
+    } else if (cinfo->in_color_space == JCS_YCCK) {
+      if (inp8) cconvert->pub.color_convert = null_convert8;
+	  else cconvert->pub.color_convert = null_convert16; }
+++++++++++++++++++++++++++++++++++++++++
+from:
+    cconvert->pub.color_convert = null_convert;
+to:
+    if (inp8) cconvert->pub.color_convert = null_convert8;
+	else  cconvert->pub.color_convert = null_convert16;
+
+-----------------------------------------------------------------------
+jcdctmgr.c from:
+  JDIMENSION bi;
+to:
+  JDIMENSION bi;
+  boolean jpeg8 = FALSE;
+
+  if (cinfo->data_precision <= 8) jpeg8 = TRUE;
+++++++++++++++++++++++++++++++++++++++++
+from:
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - CENTERJSAMPLE;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - CENTERJSAMPLE;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - CENTERJSAMPLE;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - CENTERJSAMPLE;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - CENTERJSAMPLE;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - CENTERJSAMPLE;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - CENTERJSAMPLE;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - CENTERJSAMPLE;
+#else
+	{ register int elemc;
+	  for (elemc = DCTSIZE; elemc > 0; elemc--) {
+	    *workspaceptr++ = GETJSAMPLE(*elemptr++) - CENTERJSAMPLE;
+to:
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - cinfo->centerjsample;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - cinfo->centerjsample;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - cinfo->centerjsample;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - cinfo->centerjsample;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - cinfo->centerjsample;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - cinfo->centerjsample;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - cinfo->centerjsample;
+	*workspaceptr++ = GETJSAMPLE(*elemptr++) - cinfo->centerjsample;
+#else
+	{ register int elemc;
+	  for (elemc = DCTSIZE; elemc > 0; elemc--) {
+	    *workspaceptr++ = GETJSAMPLE(*elemptr++) - cinfo->centerjsample;
+++++++++++++++++++++++++++++++++++++++++
+in from:
+    (*do_dct) (workspace);
+to:
+    (*do_dct) (workspace, jpeg8);
+++++++++++++++++++++++++++++++++++++++++
+from:
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - CENTERJSAMPLE);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - CENTERJSAMPLE);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - CENTERJSAMPLE);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - CENTERJSAMPLE);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - CENTERJSAMPLE);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - CENTERJSAMPLE);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - CENTERJSAMPLE);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - CENTERJSAMPLE);
+#else
+	{ register int elemc;
+	  for (elemc = DCTSIZE; elemc > 0; elemc--) {
+	    *workspaceptr++ = (FAST_FLOAT)
+	      (GETJSAMPLE(*elemptr++) - CENTERJSAMPLE);
+to:
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - cinfo->centerjsample);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - cinfo->centerjsample);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - cinfo->centerjsample);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - cinfo->centerjsample);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - cinfo->centerjsample);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - cinfo->centerjsample);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - cinfo->centerjsample);
+	*workspaceptr++ = (FAST_FLOAT)(GETJSAMPLE(*elemptr++) - cinfo->centerjsample);
+#else
+	{ register int elemc;
+	  for (elemc = DCTSIZE; elemc > 0; elemc--) {
+	    *workspaceptr++ = (FAST_FLOAT)
+	      (GETJSAMPLE(*elemptr++) - cinfo->centerjsample);
+
+-----------------------------------------------------------------------
+jcdiffct.c (GCC4.1 Warning) from:
+  JDIMENSION last_MCU_col = cinfo->MCUs_per_row - 1;
+to:
+/*  JDIMENSION last_MCU_col = cinfo->MCUs_per_row - 1;*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+    buffer[ci] = (*cinfo->mem->access_virt_sarray)
+to:
+    buffer[ci] = (JSAMPARRAY16)(*cinfo->mem->access_virt_sarray)
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) from:
+  JDIMENSION MCU_col_num;	/* index of current MCU within row */
+  JDIMENSION MCU_count;		/* number of MCUs encoded */
+  int comp, ci, yoffset;
+to:
+/*  JDIMENSION MCU_col_num;	*//* index of current MCU within row */
+/*  JDIMENSION MCU_count;*/		/* number of MCUs encoded */
+  int comp, ci;/*, yoffset;*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+    buffer[ci] = (*cinfo->mem->access_virt_sarray)
+to:
+    buffer[ci] = (JSAMPARRAY16)(*cinfo->mem->access_virt_sarray)
+++++++++++++++++++++++++++++++++++++++++
+from:
+    diff->cur_row[ci] = *(*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE,
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+			      (long) compptr->h_samp_factor),
+       (JDIMENSION) 1);
+    diff->prev_row[ci] = *(*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE,
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+			      (long) compptr->h_samp_factor),
+to:
+    diff->cur_row[ci] = (JSAMPROW16)*(*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE,
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units
+       * SIZEOF(JSAMPLE16), (long) compptr->h_samp_factor),
+       (JDIMENSION) 1);
+    diff->prev_row[ci] = (JSAMPROW16)*(*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE,
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units
+       * SIZEOF(JSAMPLE16), (long) compptr->h_samp_factor),
+++++++++++++++++++++++++++++++++++++++++
+from:
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+			      (long) compptr->h_samp_factor),
+to:
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+			      (long) compptr->h_samp_factor) * SIZEOF(JSAMPLE16),
+++++++++++++++++++++++++++++++++++++++++
+from:
+	 (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+				(long) compptr->h_samp_factor),
+to:
+	 (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+				(long) compptr->h_samp_factor) * SIZEOF(JSAMPLE16),
+++++++++++++++++++++++++++++++++++++++++
+from:
+				  C_MAX_DATA_UNITS_IN_MCU * SIZEOF(JBLOCK));
+to:
+				  C_MAX_DATA_UNITS_IN_MCU * SIZEOF(JBLOCK) * SIZEOF(JSAMPLE16));
+
+-----------------------------------------------------------------------
+jchuff.h from:
+#if BITS_IN_JSAMPLE == 8
+#define MAX_COEF_BITS 10
+#else
+#define MAX_COEF_BITS 14
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+#define MAX_COEF_BITS 10
+#else
+#define MAX_COEF_BITS 14
+#endif*/
+
+-----------------------------------------------------------------------
+jclhuff.c (GCC4.1 Warning) from:
+  int ci;
+to:
+/*  int ci;*/
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) 2 places from:
+  jpeg_component_info * compptr;
+to:
+/*  jpeg_component_info * compptr;*/
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) from:
+      register int temp, temp2, temp3;
+to:
+      register int temp, temp2;/*, temp3;*/
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) from:
+      c_derived_tbl *dctbl = entropy->cur_tbls[sampn];
+to:
+/*      c_derived_tbl *dctbl = entropy->cur_tbls[sampn];*/
+
+-----------------------------------------------------------------------
+jcmainct.c from:
+	JPP((j_compress_ptr cinfo, JSAMPARRAY input_buf,
+	     JDIMENSION *in_row_ctr, JDIMENSION in_rows_avail));
+#ifdef FULL_MAIN_BUFFER_SUPPORTED
+METHODDEF(void) process_data_buffer_main
+	JPP((j_compress_ptr cinfo, JSAMPARRAY input_buf,
+(stays JSAMPARRAY) to:
+	JPP((j_compress_ptr cinfo, JSAMPARRAY input_buf,
+	     JDIMENSION *in_row_ctr, JDIMENSION in_rows_avail));
+#ifdef FULL_MAIN_BUFFER_SUPPORTED
+METHODDEF(void) process_data_buffer_main
+	JPP((j_compress_ptr cinfo, JSAMPARRAY input_buf,
+++++++++++++++++++++++++++++++++++++++++
+from:
+process_data_simple_main (j_compress_ptr cinfo,
+			  JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+(stays JSAMPARRAY) to:
+process_data_simple_main (j_compress_ptr cinfo,
+			  JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+++++++++++++++++++++++++++++++++++++++++
+from:
+process_data_buffer_main (j_compress_ptr cinfo,
+			  JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+(stays JSAMPARRAY) to:
+process_data_buffer_main (j_compress_ptr cinfo,
+			  JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+++++++++++++++++++++++++++++++++++++++++
+from:
+      mainp->whole_image[ci] = (*cinfo->mem->request_virt_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE, FALSE,
+	 compptr->width_in_data_units * data_unit,
+to:
+      mainp->whole_image[ci] = (*cinfo->mem->request_virt_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE, FALSE,
+	 compptr->width_in_data_units * data_unit * SIZEOF(JSAMPLE16),
+++++++++++++++++++++++++++++++++++++++++
+from:
+      main->buffer[ci] = (*cinfo->mem->alloc_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE,
+	 compptr->width_in_data_units * data_unit,
+to:
+      mainp->buffer[ci] = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE,
+	 compptr->width_in_data_units * data_unit * SIZEOF(JSAMPLE16),
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) from:
+main
+to:
+mainp
+
+-----------------------------------------------------------------------
+jcmarker.c(GCC4.1 Warning) from:
+  int ci, prec;
+to:
+  int ci, prec = 0;
+
+-----------------------------------------------------------------------
+jcmaster.c from:
+  if (cinfo->data_precision != BITS_IN_JSAMPLE)
+    ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+to:
+/*  if (cinfo->data_precision != BITS_IN_JSAMPLE)
+    ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+	  Al < 0 || Al >= cinfo->data_precision) /* point transform */
+to:
+	  Al < 0 || Al >= cinfo->data_precision || Al >= JSAMPLEMAX) /* point transform */
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+#define MAX_AH_AL 10
+#else
+#define MAX_AH_AL 13
+#endif
+      if (Ss < 0 || Ss >= DCTSIZE2 || Se < Ss || Se >= DCTSIZE2 ||
+	  Ah < 0 || Ah > MAX_AH_AL || Al < 0 || Al > MAX_AH_AL)
+		ERREXIT1(cinfo, JERR_BAD_PROG_SCRIPT, scanno);
+to:
+/*#if BITS_IN_JSAMPLE == 8
+#define MAX_AH_AL 10
+#else
+#define MAX_AH_AL 13
+#endif*/
+      if (cinfo->data_precision <= 8) {
+       if (Ss < 0 || Ss >= DCTSIZE2 || Se < Ss || Se >= DCTSIZE2 ||
+	   Ah < 0 || Ah > 10 || Al < 0 || Al > 10)
+		ERREXIT1(cinfo, JERR_BAD_PROG_SCRIPT, scanno);
+	  } else {
+       if (Ss < 0 || Ss >= DCTSIZE2 || Se < Ss || Se >= DCTSIZE2 ||
+	   Ah < 0 || Ah > 13 || Al < 0 || Al > 13)
+		ERREXIT1(cinfo, JERR_BAD_PROG_SCRIPT, scanno);
+      }
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) line 460 from:
+  j_lossy_c_ptr lossyc = (j_lossy_c_ptr) cinfo->codec;
+to:
+/*  j_lossy_c_ptr lossyc = (j_lossy_c_ptr) cinfo->codec;*/
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning) from:
+main
+to:
+mainp
+
+-----------------------------------------------------------------------
+jcparam.c from:
+  cinfo->data_precision = BITS_IN_JSAMPLE;
+to:
+  cinfo->lossless = FALSE;
+  cinfo->lossless_scaling = TRUE;
+  cinfo->data_precision = 8;
+  cinfo->maxjsample = 255;
+  cinfo->centerjsample = 128;
+#ifdef HAVE_GETJSAMPLE_MASK
+  cinfo->maskjsample = 0xFF;
+#endif
+++++++++++++++++++++++++++++++++++++++++
+from:
+  cinfo->raw_data_in = FALSE;
+to:
+  cinfo->raw_data_in = FALSE;
+  cinfo->raw_data_buffer = NULL;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  /* By default, don't do extra passes to optimize entropy coding */
+  cinfo->optimize_coding = FALSE;
+
+  /* The standard Huffman tables are only valid for 8-bit data precision.
+   * If the precision is higher, force optimization on so that usable
+   * tables will be computed.  This test can be removed if default tables
+   * are supplied that are valid for the desired precision.
+   */
+  if (cinfo->data_precision > 8)
+    cinfo->optimize_coding = TRUE;
+ to:
+  /* By default, don't do extra passes to optimize entropy coding */
+  cinfo->optimize_coding = FALSE;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  cinfo->write_Adobe_marker = FALSE; /* write no Adobe marker by default */
+ to:
+  cinfo->write_Adobe_marker = FALSE; /* write no Adobe marker by default */
+  
+  /* Fix the bit width stuff here, by now cinfo->data_precision should be set */
+  if (2 > cinfo->data_precision || cinfo->data_precision > 16)
+    ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+  if (!cinfo->lossless) {
+  if (!cinfo->lossless) {
+    if (cinfo->data_precision <=8) {
+      if (cinfo->data_precision !=8) {
+        WARNMS2(cinfo, JWRN_JPEG_PRECISION_CHANGED, cinfo->data_precision, 8);
+        cinfo->data_precision = 8;
+      }
+    } else if (cinfo->data_precision != 12) {
+      WARNMS2(cinfo, JWRN_JPEG_PRECISION_CHANGED, cinfo->data_precision, 12);
+      cinfo->data_precision = 12;
+    }
+  }
+  cinfo->maxjsample = (1 << cinfo->data_precision) - 1;
+  cinfo->centerjsample = (cinfo->maxjsample + 1)/2;
+#ifdef HAVE_GETJSAMPLE_MASK
+  cinfo->maskjsample = cinfo->maxjsample;
+#endif
+
+  /* The standard Huffman tables are only valid for 8-bit data precision.
+   * If the precision is higher, force optimization on so that usable
+   * tables will be computed.  This test can be removed if default tables
+   * are supplied that are valid for the desired precision.
+   */
+  if (cinfo->data_precision != 8)
+    cinfo->optimize_coding = TRUE;
+
+-----------------------------------------------------------------------
+jcphuff.c from:
+    if (nbits > 14)
+      ERREXIT(entropy->cinfo, JERR_HUFF_MISSING_CODE);
+to:
+    if (nbits > 18)
+      ERREXIT(entropy->cinfo, JERR_HUFF_MISSING_CODE);
+++++++++++++++++++++++++++++++++++++++++
+from:
+	 */
+    if (nbits > MAX_COEF_BITS+1)
+      ERREXIT(cinfo, JERR_BAD_DCT_COEF);
+to:
+    * was MAX_COEF_BITS +1, 11 or 15, now data_precision + 3.
+    */
+    if (nbits > (cinfo->data_precision + 3))
+      ERREXIT(cinfo, JERR_BAD_DCT_COEF);
+++++++++++++++++++++++++++++++++++++++++
+from:
+    if (nbits > MAX_COEF_BITS)
+      ERREXIT(cinfo, JERR_BAD_DCT_COEF);
+to:
+    /* was MAX_COEF_BITS, 10 or 14, now data_precision + 2. */
+    if (nbits > (cinfo->data_precision + 2))
+      ERREXIT(cinfo, JERR_BAD_DCT_COEF);
+
+-----------------------------------------------------------------------
+jcpred.c (GCC4.1 Warning) from:
+  j_lossless_c_ptr losslsc = (j_lossless_c_ptr) cinfo->codec;
+  c_pred_ptr pred = (c_pred_ptr) losslsc->pred_private;
+to:
+/*  j_lossless_c_ptr losslsc = (j_lossless_c_ptr) cinfo->codec;
+  c_pred_ptr pred = (c_pred_ptr) losslsc->pred_private;*/
+
+-----------------------------------------------------------------------
+jcprepct.c from:
+pre_process_data (j_compress_ptr cinfo,
+		  JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+		  JDIMENSION in_rows_avail,
+		  JSAMPIMAGE output_buf, JDIMENSION *out_row_group_ctr,
+		  JDIMENSION out_row_groups_avail)
+to:
+pre_process_data (j_compress_ptr cinfo,
+		  JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+		  JDIMENSION in_rows_avail,
+		  JSAMPIMAGE16 output_buf, JDIMENSION *out_row_group_ctr,
+		  JDIMENSION out_row_groups_avail)
+++++++++++++++++++++++++++++++++++++++++
+from:
+pre_process_context (j_compress_ptr cinfo,
+		     JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+		     JDIMENSION in_rows_avail,
+		     JSAMPIMAGE output_buf, JDIMENSION *out_row_group_ctr,
+		     JDIMENSION out_row_groups_avail)
+to:
+pre_process_context (j_compress_ptr cinfo,
+		     JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+		     JDIMENSION in_rows_avail,
+		     JSAMPIMAGE16 output_buf, JDIMENSION *out_row_group_ctr,
+		     JDIMENSION out_row_groups_avail)
+++++++++++++++++++++++++++++++++++++++++
+from:
+    true_buffer = (*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE,
+       (JDIMENSION) (((long) compptr->width_in_data_units * cinfo->data_unit *
+		      cinfo->max_h_samp_factor) / compptr->h_samp_factor),
+to:
+    true_buffer = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE,
+       (JDIMENSION) (((long) compptr->width_in_data_units * cinfo->data_unit *
+		      cinfo->max_h_samp_factor * SIZEOF(JSAMPLE16)) / compptr->h_samp_factor),
+++++++++++++++++++++++++++++++++++++++++
+from:
+      prep->color_buf[ci] = (*cinfo->mem->alloc_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE,
+	 (JDIMENSION) (((long) compptr->width_in_data_units * cinfo->data_unit *
+			cinfo->max_h_samp_factor) / compptr->h_samp_factor),
+to:
+      prep->color_buf[ci] = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE,
+	 (JDIMENSION) (((long) compptr->width_in_data_units * cinfo->data_unit *
+			cinfo->max_h_samp_factor * SIZEOF(JSAMPLE16)) / compptr->h_samp_factor),
+
+-----------------------------------------------------------------------
+jcscale.c (GCC4.1 Warning) from:
+  j_lossless_c_ptr losslsc = (j_lossless_c_ptr) cinfo->codec;
+to:
+/*  j_lossless_c_ptr losslsc = (j_lossless_c_ptr) cinfo->codec;*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+  if (cinfo->Al)
+to:
+  if ((cinfo->Al)  &&  cinfo->lossless_scaling)
+
+-----------------------------------------------------------------------
+jcshuff.c from:
+   */
+  if (nbits > MAX_COEF_BITS+1)
+    ERREXIT(state->cinfo, JERR_BAD_DCT_COEF);
+to:
+   * was MAX_COEF_BITS +1, 11 or 15, now data_precision + 3.
+   */
+  if (nbits > (state->cinfo->data_precision + 3))
+    ERREXIT(state->cinfo, JERR_BAD_DCT_COEF);
+++++++++++++++++++++++++++++++++++++++++
+from:
+      if (nbits > MAX_COEF_BITS)
+	ERREXIT(state->cinfo, JERR_BAD_DCT_COEF);
+to:
+      /* was MAX_COEF_BITS, 10 or 14, now data_precision + 2. */
+    if (nbits > (cinfo->data_precision + 2))
+      ERREXIT(cinfo, JERR_BAD_DCT_COEF);
+++++++++++++++++++++++++++++++++++++++++
+from:
+   */
+  if (nbits > MAX_COEF_BITS+1)
+    ERREXIT(cinfo, JERR_BAD_DCT_COEF);
+to:
+   * was MAX_COEF_BITS +1, 11 or 15, now data_precision + 3.
+   */
+  if (nbits > (cinfo->data_precision + 3))
+    ERREXIT(cinfo, JERR_BAD_DCT_COEF);
+++++++++++++++++++++++++++++++++++++++++
+from:
+      if (nbits > MAX_COEF_BITS)
+	ERREXIT(cinfo, JERR_BAD_DCT_COEF);
+to:
+      /* was MAX_COEF_BITS, 10 or 14, now data_precision + 2. */
+    if (nbits > (cinfo->data_precision + 2))
+      ERREXIT(cinfo, JERR_BAD_DCT_COEF);
+
+-----------------------------------------------------------------------
+jctrans.c from:
+  dstinfo->data_precision = srcinfo->data_precision;
+to:
+  dstinfo->data_precision = srcinfo->data_precision;
+  dstinfo->data_precision_other = srcinfo->data_precision_other;
+  dstinfo->maxjsample = srcinfo->maxjsample;
+  dstinfo->centerjsample = srcinfo->centerjsample;
+#ifdef HAVE_GETJSAMPLE_MASK
+  dstinfo->maskjsample = srcinfo->maskjsample;
+#endif
+-----------------------------------------------------------------------
+jdapimin.c from:
+  cinfo->colormap = NULL;
+to:
+  cinfo->colormap = NULL;
+  cinfo->colormap16 = NULL;
+
+-----------------------------------------------------------------------
+jdapistd.c from:
+jpeg_start_decompress (j_decompress_ptr cinfo)
+{
+to:
+jpeg_start_decompress (j_decompress_ptr cinfo)
+{
+  /* Fix scaling here */
+  if (cinfo->data_precision == cinfo->data_precision_other)
+    cinfo->shft = 0;
+  /* Warn now if scaled */
+  if (cinfo->shft != 0) WARNMS2(cinfo, JWRN_SCALED,
+    cinfo->data_precision, cinfo->data_precision_other);
+++++++++++++++++++++++++++++++++++++++++
+from:
+jpeg_read_scanlines (j_decompress_ptr cinfo, JSAMPARRAY scanlines,
+		     JDIMENSION max_lines)
+{
+  JDIMENSION row_ctr;
+to:
+jpeg_read_scanlines (j_decompress_ptr cinfo, JSAMPARRAY scanlines,
+		     JDIMENSION max_lines)
+{
+  JDIMENSION row_ctr;
+  JSAMPARRAY16 scanlines16;
+  JDIMENSION max_lines_buffer;
+  register JDIMENSION width, line, col;
+  register JSAMPLE16 *temp_buf_ptr;
+  register JSAMPLE16 *out_buf16_row_ptr;
+  register JSAMPLE *out_buf_row_ptr;
+  register int rshft;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  /* Call progress monitor hook if present */
+to:
+  /* Deal with 8 bit outputs and scaling. */
+  max_lines_buffer = max_lines;
+  if ((cinfo->shft != 0)  || (cinfo->buffer_size_char)) {
+    /* Create a data buffer <= DCTSIZE */
+    if (max_lines_buffer > DCTSIZE) max_lines_buffer = DCTSIZE;
+    width = cinfo->output_width * cinfo->output_components;
+    scanlines16 = (JSAMPARRAY16)(cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE_BUF, (JDIMENSION) width * 
+      SIZEOF(JSAMPLE16), max_lines_buffer);
+    
+  } else { /* Short buffer, no scalling, just cast. */
+    scanlines16 = (JSAMPARRAY16)scanlines;
+  }
+
+  /* Call progress monitor hook if present */
+++++++++++++++++++++++++++++++++++++++++
+from:
+  cinfo->output_scanline += row_ctr;
+  
+  return row_ctr;
+to:
+  cinfo->output_scanline += row_ctr;
+  
+  /* Copy the buffer if needed. */
+  rshft = cinfo->shft;
+  if (cinfo->buffer_size_char) {
+    for (line = 0; line < row_ctr; line++) {
+      temp_buf_ptr = scanlines16[line];
+      out_buf_row_ptr = scanlines[line];
+      if (rshft == 0 ) { /* Faster */
+        for (col = 0; col < width; col++) {
+          *temp_buf_ptr++ = *out_buf_row_ptr++;
+        }
+      } else if (rshft > 0) { /* Shift data. */
+        for (col = 0; col < width; col++) {
+          *temp_buf_ptr++ = (*out_buf_row_ptr++ >> rshft);
+        }    
+      } else { /* Shift data the other way. */
+        rshft = -rshft;
+        for (col = 0; col < width; col++) {
+          *temp_buf_ptr++ = (*out_buf_row_ptr++ << rshft);
+        }
+      }
+    }
+  } else if ( rshft != 0) { /* 16 bit shifted. */
+    for (line = 0; line < row_ctr; line++) {
+      temp_buf_ptr = scanlines16[line];
+      out_buf16_row_ptr = (JSAMPARRAY16)scanlines[line];
+      if (rshft > 0) { /* Shift data. */
+        for (col = 0; col < width; col++) {
+          *temp_buf_ptr++ = (*out_buf16_row_ptr++ >> rshft);
+        }
+      } else { /* Shift data the other way. */
+        rshft = -rshft;
+        for (col = 0; col < width; col++) {
+          *temp_buf_ptr++ = (*out_buf16_row_ptr++ << rshft);
+        }
+      }
+    }
+  }
+  
+   /* Free the buffer if used. */
+  if ( scanlines16 == (JSAMPARRAY16)scanlines ) {
+    cinfo->mem->free_pool ((j_common_ptr)cinfo, JPOOL_IMAGE_BUF);
+    scanlines16 = NULL;
+  }
+          
+  return row_ctr;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JDIMENSION lines_per_iMCU_row;
+
+  if (cinfo->global_state != DSTATE_RAW_OK)
+    ERREXIT1(cinfo, JERR_BAD_STATE, cinfo->global_state);
+  if (cinfo->output_scanline >= cinfo->output_height) {
+    WARNMS(cinfo, JWRN_TOO_MUCH_DATA);
+    return 0;
+  }
+
+  /* Call progress monitor hook if present */
+  if (cinfo->progress != NULL) {
+    cinfo->progress->pass_counter = (long) cinfo->output_scanline;
+    cinfo->progress->pass_limit = (long) cinfo->output_height;
+    (*cinfo->progress->progress_monitor) ((j_common_ptr) cinfo);
+  }
+
+  /* Verify that at least one iMCU row can be returned. */
+  lines_per_iMCU_row = cinfo->max_v_samp_factor * cinfo->min_codec_data_unit;
+  if (max_lines < lines_per_iMCU_row)
+    ERREXIT(cinfo, JERR_BUFFER_SIZE);
+
+  /* Decompress directly into user's buffer. */
+  if (! (*cinfo->codec->decompress_data) (cinfo, (JSAMPIMAGE16)data))
+    return 0;			/* suspension forced, can do nothing more */
+
+  /* OK, we processed one iMCU row. */
+  cinfo->output_scanline += lines_per_iMCU_row;
+  return lines_per_iMCU_row;
+}
+to:
+++++++++++++++++++++++++++++++++++++++++
+for GCC4.1 Warning from:
+main
+to:
+mainp
+
+-----------------------------------------------------------------------
+jdcoefct.c (GCC4.1 Warning) from:
+  d_coef_ptr coef = (d_coef_ptr) lossyd->coef_private;
+to:
+/*  d_coef_ptr coef = (d_coef_ptr) lossyd->coef_private;*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+      coef->whole_image[ci] = (*cinfo->mem->request_virt_barray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE, TRUE,
+	 (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+				(long) compptr->h_samp_factor),
+to:
+      coef->whole_image[ci] = (*cinfo->mem->request_virt_barray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE, TRUE,
+	 (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+				(long) compptr->h_samp_factor) * SIZEOF(JSAMPLE16),
+
+-----------------------------------------------------------------------
+jdcolor.c from:
+  cconvert->Cr_r_tab = (int *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(MAXJSAMPLE+1) * SIZEOF(int));
+  cconvert->Cb_b_tab = (int *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(MAXJSAMPLE+1) * SIZEOF(int));
+  cconvert->Cr_g_tab = (INT32 *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(MAXJSAMPLE+1) * SIZEOF(INT32));
+  cconvert->Cb_g_tab = (INT32 *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(MAXJSAMPLE+1) * SIZEOF(INT32));
+
+  for (i = 0, x = -CENTERJSAMPLE; i <= MAXJSAMPLE; i++, x++) {
+to:
+  cconvert->Cr_r_tab = (int *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(cinfo->maxjsample+1) * SIZEOF(int));
+  cconvert->Cb_b_tab = (int *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(cinfo->maxjsample+1) * SIZEOF(int));
+  cconvert->Cr_g_tab = (INT32 *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(cinfo->maxjsample+1) * SIZEOF(INT32));
+  cconvert->Cb_g_tab = (INT32 *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(cinfo->maxjsample+1) * SIZEOF(INT32));
+
+  for (i = 0, x = -cinfo->centerjsample; i <= cinfo->maxjsample; i++, x++) {
+++++++++++++++++++++++++++++++++++++++++
+from:
+      outptr[0] = range_limit[MAXJSAMPLE - (y + Crrtab[cr])];	/* red */
+      outptr[1] = range_limit[MAXJSAMPLE - (y +			/* green */
+			      ((int) RIGHT_SHIFT(Cbgtab[cb] + Crgtab[cr],
+						 SCALEBITS)))];
+      outptr[2] = range_limit[MAXJSAMPLE - (y + Cbbtab[cb])];	/* blue */
+to:
+      outptr[0] = range_limit[cinfo->maxjsample - (y + Crrtab[cr])];	/* red */
+      outptr[1] = range_limit[cinfo->maxjsample - (y +			/* green */
+			      ((int) RIGHT_SHIFT(Cbgtab[cb] + Crgtab[cr],
+						 SCALEBITS)))];
+      outptr[2] = range_limit[cinfo->maxjsample - (y + Cbbtab[cb])];	/* blue */
+
+-----------------------------------------------------------------------
+jdct.h from:
+#if BITS_IN_JSAMPLE == 8
+typedef int DCTELEM;		/* 16 or 32 bits is fine */
+#else
+typedef INT32 DCTELEM;		/* must have 32 bits */
+#endif
+
+typedef JMETHOD(void, forward_DCT_method_ptr, (DCTELEM * data));
+to:
+/*#if BITS_IN_JSAMPLE == 8
+typedef int DCTELEM;*/		/* 16 or 32 bits is fine */
+/*#else*/
+typedef INT32 DCTELEM;		/* must have 32 bits */
+/*#endif*/
+
+typedef JMETHOD(void, forward_DCT_method_ptr, (DCTELEM * data, boolean jpeg8));
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+typedef MULTIPLIER IFAST_MULT_TYPE; /* 16 bits is OK, use short if faster */
+#define IFAST_SCALE_BITS  2	/* fractional bits in scale factors */
+#else
+typedef INT32 IFAST_MULT_TYPE;	/* need 32 bits for scaled quantizers */
+#define IFAST_SCALE_BITS  13	/* fractional bits in scale factors */
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+typedef MULTIPLIER IFAST_MULT_TYPE;*/ /* 16 bits is OK, use short if faster */
+/*#define IFAST_SCALE_BITS  2*/	/* fractional bits in scale factors */
+/*#else*/
+typedef INT32 IFAST_MULT_TYPE;	/* need 32 bits for scaled quantizers */
+/*#define IFAST_SCALE_BITS  13*/	/* fractional bits in scale factors */
+/*#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+#define IDCT_range_limit(cinfo)  ((cinfo)->sample_range_limit + CENTERJSAMPLE)
+
+#define RANGE_MASK  (MAXJSAMPLE * 4 + 3) /* 2 bits wider than legal samples */
+to:
+#define IDCT_range_limit(cinfo)  ((cinfo)->sample_range_limit + cinfo->centerjsample)
+
+#define RANGE_MASK  (cinfo->maxjsample * 4 + 3) /* 2 bits wider than legal samples */
+++++++++++++++++++++++++++++++++++++++++
+from:
+EXTERN(void) jpeg_fdct_islow JPP((DCTELEM * data));
+EXTERN(void) jpeg_fdct_ifast JPP((DCTELEM * data));
+to:
+EXTERN(void) jpeg_fdct_islow JPP((DCTELEM * data, boolean jpeg8));
+EXTERN(void) jpeg_fdct_ifast JPP((DCTELEM * data, boolean jpeg8));
+
+-----------------------------------------------------------------------
+jddctmgr.c from:
+  int ci, i;
+to:
+  int ci, i, ifast_sb;
+++++++++++++++++++++++++++++++++++++++++
+from:
+	SHIFT_TEMPS
+  if(cinfo->data_precision <= 8 ) ifast_sb = 2;
+  else ifast_sb = 13;
+
+	for (i = 0; i < DCTSIZE2; i++) {
+	  ifmtbl[i] = (IFAST_MULT_TYPE)
+	    DESCALE(MULTIPLY16V16((INT32) qtbl->quantval[i],
+				  (INT32) aanscales[i]),
+		    CONST_BITS-IFAST_SCALE_BITS);
+to:
+	for (i = 0; i < DCTSIZE2; i++) {
+	  ifmtbl[i] = (IFAST_MULT_TYPE)
+	    DESCALE(MULTIPLY16V16((INT32) qtbl->quantval[i],
+				  (INT32) aanscales[i]),
+		    CONST_BITS-ifast_sb);
+
+-----------------------------------------------------------------------
+jddiffct.c (GCC4.1 Warning) from:
+  JDIMENSION MCU_col_num;	/* index of current MCU within row */
+  JDIMENSION MCU_count;		/* number of MCUs decoded */
+  JDIMENSION last_iMCU_row = cinfo->total_iMCU_rows - 1;
+  int comp, ci, yoffset, row, prev_row;
+to:
+/*  JDIMENSION MCU_col_num;	*//* index of current MCU within row */
+/*  JDIMENSION MCU_count;	*/	/* number of MCUs decoded */
+/*  JDIMENSION last_iMCU_row = cinfo->total_iMCU_rows - 1;*/
+  int comp, ci;/*, yoffset, row, prev_row;*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+    buffer[ci] = (*cinfo->mem->access_virt_sarray)
+to:
+    buffer[ci] = (JSAMPARRAY16)(*cinfo->mem->access_virt_sarray)
+++++++++++++++++++++++++++++++++++++++++
+from:
+    buffer = (*cinfo->mem->access_virt_sarray)
+to:
+    buffer = (JSAMPARRAY16)(*cinfo->mem->access_virt_sarray)
+++++++++++++++++++++++++++++++++++++++++
+from:
+      diff->whole_image[ci] = (*cinfo->mem->request_virt_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE, FALSE,
+	 (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+				(long) compptr->h_samp_factor),
+to:
+      diff->whole_image[ci] = (*cinfo->mem->request_virt_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE, FALSE,
+	 (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+				(long) compptr->h_samp_factor) * SIZEOF(JSAMPLE16),
+++++++++++++++++++++++++++++++++++++++++
+from:
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+			      (long) compptr->h_samp_factor),
+       (JDIMENSION) compptr->v_samp_factor);
+    diff->undiff_buf[ci] = (*cinfo->mem->alloc_darray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE,
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+			      (long) compptr->h_samp_factor),
+to:
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+			      (long) compptr->h_samp_factor) * SIZEOF(JSAMPLE16),
+       (JDIMENSION) compptr->v_samp_factor);
+    diff->undiff_buf[ci] = (*cinfo->mem->alloc_darray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE,
+       (JDIMENSION) jround_up((long) compptr->width_in_data_units,
+			      (long) compptr->h_samp_factor) * SIZEOF(JSAMPLE16),
+
+-----------------------------------------------------------------------
+jdinput.c from:
+  if (cinfo->process == JPROC_LOSSLESS) {
+    /* If precision > compiled-in value, we must downscale */
+    if (cinfo->data_precision > BITS_IN_JSAMPLE)
+      WARNMS2(cinfo, JWRN_MUST_DOWNSCALE,
+	      cinfo->data_precision, BITS_IN_JSAMPLE);
+  }
+  else {  /* Lossy processes */
+    /* For now, precision must match compiled-in value... */
+    if (cinfo->data_precision != BITS_IN_JSAMPLE)
+      ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+  }
+to:
+/*  if (cinfo->process == JPROC_LOSSLESS) {*/
+    /* If precision > compiled-in value, we must downscale */
+/*    if (cinfo->data_precision > BITS_IN_JSAMPLE)
+      WARNMS2(cinfo, JWRN_MUST_DOWNSCALE,
+	      cinfo->data_precision, BITS_IN_JSAMPLE);
+  }
+  else {*/  /* Lossy processes */
+    /* For now, precision must match compiled-in value... */
+/*    if (cinfo->data_precision != BITS_IN_JSAMPLE)
+      ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+  }*/
+
+-----------------------------------------------------------------------
+jdlhuff.c (GCC4.1 Warning) from:
+  int ci;
+to:
+/*  int ci;*/
+
+-----------------------------------------------------------------------
+jdmainct.c from:
+    mainp->buffer[ci] = (*cinfo->mem->alloc_sarray)
+			((j_common_ptr) cinfo, JPOOL_IMAGE,
+			 compptr->width_in_data_units * compptr->codec_data_unit,
+			 (JDIMENSION) (rgroup * ngroups));
+to:
+    mainp->buffer[ci] = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+			((j_common_ptr) cinfo, JPOOL_IMAGE,
+			 compptr->width_in_data_units * compptr->codec_data_unit *
+             SIZEOF(JSAMPLE16), (JDIMENSION) (rgroup * ngroups));
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 warning)from:
+main
+to:
+mainp
+
+-----------------------------------------------------------------------
+jdmarker.c from:
+  INPUT_BYTE(cinfo, cinfo->data_precision, return FALSE);
+to:
+  INPUT_BYTE(cinfo, cinfo->data_precision, return FALSE);
+  cinfo->maxjsample = ((1<<cinfo->data_precision)-1);
+  cinfo->centerjsample = ((1<<cinfo->data_precision)/2);
+  cinfo->data_precision_other = 8; /* Default for compatabilty. */
+  cinfo->buffer_size_char = TRUE; /* Default for compatabilty. */
+  cinfo->shft = cinfo->data_precision - 8;
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 warning)from:
+  int n, i, prec;
+to:
+  int n, i, prec = 0;
+
+-----------------------------------------------------------------------
+jdmaster.c from:
+		(5 * (MAXJSAMPLE+1) + CENTERJSAMPLE) * SIZEOF(JSAMPLE));
+  table += (MAXJSAMPLE+1);	/* allow negative subscripts of simple table */
+  cinfo->sample_range_limit = table;
+  /* First segment of "simple" table: limit[x] = 0 for x < 0 */
+  MEMZERO(table - (MAXJSAMPLE+1), (MAXJSAMPLE+1) * SIZEOF(JSAMPLE));
+  /* Main part of "simple" table: limit[x] = x */
+  for (i = 0; i <= MAXJSAMPLE; i++)
+    table[i] = (JSAMPLE) i;
+  table += CENTERJSAMPLE;	/* Point to where post-IDCT table starts */
+  /* End of simple table, rest of first half of post-IDCT table */
+  for (i = CENTERJSAMPLE; i < 2*(MAXJSAMPLE+1); i++)
+    table[i] = MAXJSAMPLE;
+  /* Second half of post-IDCT table */
+  MEMZERO(table + (2 * (MAXJSAMPLE+1)),
+	  (2 * (MAXJSAMPLE+1) - CENTERJSAMPLE) * SIZEOF(JSAMPLE));
+  MEMCOPY(table + (4 * (MAXJSAMPLE+1) - CENTERJSAMPLE),
+	  cinfo->sample_range_limit, CENTERJSAMPLE * SIZEOF(JSAMPLE));
+to:
+		(5 * (cinfo->maxjsample+1) + cinfo->centerjsample) * SIZEOF(JSAMPLE16));
+  table += (cinfo->maxjsample+1);	/* allow negative subscripts of simple table */
+  cinfo->sample_range_limit = table;
+  /* First segment of "simple" table: limit[x] = 0 for x < 0 */
+  MEMZERO(table - (cinfo->maxjsample+1), (cinfo->maxjsample+1) * SIZEOF(JSAMPLE16));
+  /* Main part of "simple" table: limit[x] = x */
+  for (i = 0; i <= cinfo->maxjsample; i++)
+    table[i] = (JSAMPLE16) i;
+  table += cinfo->centerjsample;	/* Point to where post-IDCT table starts */
+  /* End of simple table, rest of first half of post-IDCT table */
+  for (i = cinfo->centerjsample; i < 2*(cinfo->maxjsample+1); i++)
+    table[i] = cinfo->maxjsample;
+  /* Second half of post-IDCT table */
+  MEMZERO(table + (2 * (cinfo->maxjsample+1)),
+	  (2 * (cinfo->maxjsample+1) - cinfo->centerjsample) * SIZEOF(JSAMPLE16));
+  MEMCOPY(table + (4 * (cinfo->maxjsample+1) - cinfo->centerjsample),
+	  cinfo->sample_range_limit, cinfo->centerjsample * SIZEOF(JSAMPLE16));
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JDIMENSION jd_samplesperrow;
+to:
+  JDIMENSION jd_samplesperrow;
+  JSAMPROW colormap_in_ptr;
+  JSAMPROW16 colormap_out_ptr;
+  int sample, col;
+++++++++++++++++++++++++++++++++++++++++
+from:
+      cinfo->colormap = NULL;
+    } else if (cinfo->colormap != NULL) {
+      cinfo->enable_external_quant = TRUE;
+to:
+      cinfo->colormap = NULL;
+      cinfo->colormap16 = NULL;
+    } else if (cinfo->colormap != NULL) {
+      if (cinfo->colormap16 == NULL) {
+      /* Copy the color map to 16 bits */
+        cinfo->colormap16 =
+          (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+          ((j_common_ptr) cinfo, JPOOL_IMAGE,
+          (JDIMENSION) ((cinfo->maxjsample + 1) * SIZEOF(JSAMPLE16)),
+          (JDIMENSION) cinfo->out_color_components);
+        for (sample = 0; sample < cinfo->out_color_components; sample++) {
+          colormap_in_ptr = cinfo->colormap[sample];
+          colormap_out_ptr = cinfo->colormap16[sample];
+          for (col = 0; col < cinfo->actual_number_of_colors; col++)
+            *colormap_out_ptr++ = (JSAMPLE16)*colormap_in_ptr++;
+        }
+      }
+    } else if (cinfo->colormap16 != NULL) {
+      cinfo->enable_external_quant = TRUE;
+++++++++++++++++++++++++++++++++++++++++
+from:
+    if (cinfo->quantize_colors && cinfo->colormap == NULL) {
+to:
+    if (cinfo->quantize_colors && cinfo->colormap16 == NULL) {
+++++++++++++++++++++++++++++++++++++++++
+from:
+  if (cinfo->quantize_colors && cinfo->enable_external_quant &&
+      cinfo->colormap != NULL) {
+to:
+  if (cinfo->quantize_colors && cinfo->enable_external_quant &&
+      cinfo->colormap16 != NULL) {
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 warning) in 2 places from:
+main
+to:
+mainp
+
+-----------------------------------------------------------------------
+jdmerge.c from:
+  upsample->Cr_r_tab = (int *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(MAXJSAMPLE+1) * SIZEOF(int));
+  upsample->Cb_b_tab = (int *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(MAXJSAMPLE+1) * SIZEOF(int));
+  upsample->Cr_g_tab = (INT32 *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(MAXJSAMPLE+1) * SIZEOF(INT32));
+  upsample->Cb_g_tab = (INT32 *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(MAXJSAMPLE+1) * SIZEOF(INT32));
+
+  for (i = 0, x = -CENTERJSAMPLE; i <= MAXJSAMPLE; i++, x++) {
+to:
+  upsample->Cr_r_tab = (int *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(cinfo->maxjsample+1) * SIZEOF(int));
+  upsample->Cb_b_tab = (int *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(cinfo->maxjsample+1) * SIZEOF(int));
+  upsample->Cr_g_tab = (INT32 *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(cinfo->maxjsample+1) * SIZEOF(INT32));
+  upsample->Cb_g_tab = (INT32 *)
+    (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				(cinfo->maxjsample+1) * SIZEOF(INT32));
+
+  for (i = 0, x = -cinfo->centerjsample; i <= cinfo->maxjsample; i++, x++) {
+
+-----------------------------------------------------------------------
+jdpostct.c in 4 places from:
+	post->buffer = (*cinfo->mem->access_virt_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE,
+	 cinfo->output_width * cinfo->out_color_components,
+to:
+	post->buffer = (JSAMPARRAY16)(*cinfo->mem->access_virt_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE,
+	 cinfo->output_width * cinfo->out_color_components,
+++++++++++++++++++++++++++++++++++++++++
+from:
+      post->buffer = (*cinfo->mem->alloc_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE,
+	 cinfo->output_width * cinfo->out_color_components,
+to:
+      post->buffer = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE,
+	 cinfo->output_width * cinfo->out_color_components * SIZEOF(JSAMPLE16),
+++++++++++++++++++++++++++++++++++++++++
+from:
+      post->whole_image = (*cinfo->mem->request_virt_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE, FALSE,
+	 cinfo->output_width * cinfo->out_color_components,
+to:
+      post->whole_image = (*cinfo->mem->request_virt_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE, FALSE,
+	 cinfo->output_width * cinfo->out_color_components * SIZEOF(JSAMPLE16),
+-----------------------------------------------------------------------
+jdsample.c from:
+#if BITS_IN_JSAMPLE == 8
+  register int thiscolsum, lastcolsum, nextcolsum;
+#else
+  register INT32 thiscolsum, lastcolsum, nextcolsum;
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+  register int thiscolsum, lastcolsum, nextcolsum;
+#else*/
+  register INT32 thiscolsum, lastcolsum, nextcolsum;
+/*#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+      upsample->color_buf[ci] = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+	   ((j_common_ptr) cinfo, JPOOL_IMAGE,
+	   (JDIMENSION) jround_up((long) cinfo->output_width,
+				(long) cinfo->max_h_samp_factor),
+to:
+      upsample->color_buf[ci] = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+	((j_common_ptr) cinfo, JPOOL_IMAGE,
+	 (JDIMENSION) jround_up((long) cinfo->output_width * SIZEOF(JSAMPLE16),
+				(long) cinfo->max_h_samp_factor),
+
+-----------------------------------------------------------------------
+jdscale.c from:
+  downscale = BITS_IN_JSAMPLE < cinfo->data_precision ?
+    cinfo->data_precision - BITS_IN_JSAMPLE : 0;
+to:
+  downscale = cinfo->data_precision < cinfo->data_precision_other ?
+    cinfo->data_precision - cinfo->data_precision_other : 0;
+
+-----------------------------------------------------------------------
+jdtran.c from:
+  j_lossy_d_ptr decomp;
+to:
+/*  j_lossy_d_ptr decomp;*/
+
+-----------------------------------------------------------------------
+jerror.h from:
+JMESSAGE(JERR_BAD_COMPONENT_ID, "Invalid component ID %d in SOS")
+to:
+JMESSAGE(JERR_BAD_COMPONENT_ID, "Invalid component ID %d in SOS")
+JMESSAGE(JERR_BAD_CROP_SPEC, "Invalid crop request")
+++++++++++++++++++++++++++++++++++++++++
+from:
+JMESSAGE(JERR_BAD_DIFF, "spatial difference out of range")
+to:
+JMESSAGE(JERR_BAD_DIFF, "spatial difference out of range")
+JMESSAGE(JERR_BAD_DROP_SAMPLING,
+	 "Component index %d: mismatching sampling ratio %d:%d, %d:%d, %c")
+++++++++++++++++++++++++++++++++++++++++
+from:
+JMESSAGE(JWRN_NOT_SEQUENTIAL, "Invalid SOS parameters for sequential JPEG")
+to:
+JMESSAGE(JWRN_NOT_SEQUENTIAL, "Invalid SOS parameters for sequential JPEG")
+JMESSAGE(JWRN_SCALED, "Data scaled from %d bits to %d bits")
+++++++++++++++++++++++++++++++++++++++++
+from:
+#define ERREXITS(cinfo,code,str)  \
+to:
+#define ERREXIT6(cinfo,code,p1,p2,p3,p4,p5,p6)  \
+  ((cinfo)->err->msg_code = (code), \
+   (cinfo)->err->msg_parm.i[0] = (p1), \
+   (cinfo)->err->msg_parm.i[1] = (p2), \
+   (cinfo)->err->msg_parm.i[2] = (p3), \
+   (cinfo)->err->msg_parm.i[3] = (p4), \
+   (cinfo)->err->msg_parm.i[4] = (p5), \
+   (cinfo)->err->msg_parm.i[5] = (p6), \
+   (*(cinfo)->err->error_exit) ((j_common_ptr) (cinfo)))
+#define ERREXITS(cinfo,code,str)  \
+
+-----------------------------------------------------------------------
+jfdctfst.c from:
+jpeg_fdct_ifast (DCTELEM * data)
+to:
+jpeg_fdct_ifast (DCTELEM * data,boolean  jpeg8)
+
+-----------------------------------------------------------------------
+jfdctint.c from:
+#if BITS_IN_JSAMPLE == 8
+#define CONST_BITS  13
+#define PASS1_BITS  2
+#else
+#define CONST_BITS  13
+#define PASS1_BITS  1		/* lose a little precision to avoid overflow */
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8*/
+#define CONST_BITS  13
+/*#define PASS1_BITS  2
+#else
+#define CONST_BITS  13
+#define PASS1_BITS  1*/		/* lose a little precision to avoid overflow */
+/*#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+#define MULTIPLY(var,const)  MULTIPLY16C16(var,const)
+#else
+#define MULTIPLY(var,const)  ((var) * (const))
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+#define MULTIPLY(var,const)  MULTIPLY16C16(var,const)
+#else
+#define MULTIPLY(var,const)  ((var) * (const))
+#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+jpeg_fdct_islow (DCTELEM * data)
+to:
+jpeg_fdct_islow (DCTELEM * data, boolean jpeg8)
+++++++++++++++++++++++++++++++++++++++++
+from:
+  int ctr;
+  SHIFT_TEMPS
+to:
+  int ctr, pass1_bits;
+  
+    /* set pass1_bits */
+  if (jpeg8) pass1_bits = 2;
+  else pass1_bits = 1;
+
+  SHIFT_TEMPS
+++++++++++++++++++++++++++++++++++++++++
+from:
+    dataptr[0] = (DCTELEM) ((tmp10 + tmp11) << PASS1_BITS);
+    dataptr[4] = (DCTELEM) ((tmp10 - tmp11) << PASS1_BITS);
+    
+    z1 = MULTIPLY(tmp12 + tmp13, FIX_0_541196100);
+    dataptr[2] = (DCTELEM) DESCALE(z1 + MULTIPLY(tmp13, FIX_0_765366865),
+				   CONST_BITS-PASS1_BITS);
+    dataptr[6] = (DCTELEM) DESCALE(z1 + MULTIPLY(tmp12, - FIX_1_847759065),
+				   CONST_BITS-PASS1_BITS);
+to:
+    dataptr[0] = (DCTELEM) ((tmp10 + tmp11) << pass1_bits);
+    dataptr[4] = (DCTELEM) ((tmp10 - tmp11) << pass1_bits);
+    
+	if (jpeg8){
+     z1 = MULTIPLY16C16(tmp12 + tmp13, FIX_0_541196100);
+     dataptr[2] = (DCTELEM) DESCALE(z1 + MULTIPLY16C16(tmp13, FIX_0_765366865),
+				   CONST_BITS-pass1_bits);
+     dataptr[6] = (DCTELEM) DESCALE(z1 + MULTIPLY16C16(tmp12, - FIX_1_847759065),
+				   CONST_BITS-pass1_bits);
+	} else {
+     z1 = (tmp12 + tmp13) * FIX_0_541196100;
+     dataptr[2] = (DCTELEM) DESCALE(z1 + ( tmp13 * FIX_0_765366865),
+				   CONST_BITS-pass1_bits);
+     dataptr[6] = (DCTELEM) DESCALE(z1 + ( tmp12 * ( - FIX_1_847759065)),
+				   CONST_BITS-pass1_bits); }
+++++++++++++++++++++++++++++++++++++++++
+from:
+    z5 = MULTIPLY(z3 + z4, FIX_1_175875602); /* sqrt(2) * c3 */
+    
+    tmp4 = MULTIPLY(tmp4, FIX_0_298631336); /* sqrt(2) * (-c1+c3+c5-c7) */
+    tmp5 = MULTIPLY(tmp5, FIX_2_053119869); /* sqrt(2) * ( c1+c3-c5+c7) */
+    tmp6 = MULTIPLY(tmp6, FIX_3_072711026); /* sqrt(2) * ( c1+c3+c5-c7) */
+    tmp7 = MULTIPLY(tmp7, FIX_1_501321110); /* sqrt(2) * ( c1+c3-c5-c7) */
+    z1 = MULTIPLY(z1, - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+    z2 = MULTIPLY(z2, - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+    z3 = MULTIPLY(z3, - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+    z4 = MULTIPLY(z4, - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+    
+    z3 += z5;
+    z4 += z5;
+    
+    dataptr[7] = (DCTELEM) DESCALE(tmp4 + z1 + z3, CONST_BITS-PASS1_BITS);
+    dataptr[5] = (DCTELEM) DESCALE(tmp5 + z2 + z4, CONST_BITS-PASS1_BITS);
+    dataptr[3] = (DCTELEM) DESCALE(tmp6 + z2 + z3, CONST_BITS-PASS1_BITS);
+    dataptr[1] = (DCTELEM) DESCALE(tmp7 + z1 + z4, CONST_BITS-PASS1_BITS);
+to:
+	if (jpeg8) {
+     z5 = MULTIPLY16C16(z3 + z4, FIX_1_175875602); /* sqrt(2) * c3 */
+    
+     tmp4 = MULTIPLY16C16(tmp4, FIX_0_298631336); /* sqrt(2) * (-c1+c3+c5-c7) */
+     tmp5 = MULTIPLY16C16(tmp5, FIX_2_053119869); /* sqrt(2) * ( c1+c3-c5+c7) */
+     tmp6 = MULTIPLY16C16(tmp6, FIX_3_072711026); /* sqrt(2) * ( c1+c3+c5-c7) */
+     tmp7 = MULTIPLY16C16(tmp7, FIX_1_501321110); /* sqrt(2) * ( c1+c3-c5-c7) */
+     z1 = MULTIPLY16C16(z1, - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+     z2 = MULTIPLY16C16(z2, - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+     z3 = MULTIPLY16C16(z3, - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+     z4 = MULTIPLY16C16(z4, - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+	} else {
+     z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
+    
+     tmp4 = tmp4 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
+     tmp5 = tmp5 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
+     tmp6 = tmp6 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
+     tmp7 = tmp7 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
+     z1 = z1 * (- FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+     z2 = z2 * (- FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+     z3 = z3 * (- FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+     z4 = z4 * (- FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+	}
+	    
+    z3 += z5;
+    z4 += z5;
+    
+    dataptr[7] = (DCTELEM) DESCALE(tmp4 + z1 + z3, CONST_BITS-pass1_bits);
+    dataptr[5] = (DCTELEM) DESCALE(tmp5 + z2 + z4, CONST_BITS-pass1_bits);
+    dataptr[3] = (DCTELEM) DESCALE(tmp6 + z2 + z3, CONST_BITS-pass1_bits);
+    dataptr[1] = (DCTELEM) DESCALE(tmp7 + z1 + z4, CONST_BITS-pass1_bits);
+++++++++++++++++++++++++++++++++++++++++
+from:
+    dataptr[DCTSIZE*0] = (DCTELEM) DESCALE(tmp10 + tmp11, PASS1_BITS);
+    dataptr[DCTSIZE*4] = (DCTELEM) DESCALE(tmp10 - tmp11, PASS1_BITS);
+    
+    z1 = MULTIPLY(tmp12 + tmp13, FIX_0_541196100);
+    dataptr[DCTSIZE*2] = (DCTELEM) DESCALE(z1 + MULTIPLY(tmp13, FIX_0_765366865),
+					   CONST_BITS+PASS1_BITS);
+    dataptr[DCTSIZE*6] = (DCTELEM) DESCALE(z1 + MULTIPLY(tmp12, - FIX_1_847759065),
+					   CONST_BITS+PASS1_BITS);
+to:
+	if (jpeg8) {
+     z1 = MULTIPLY16C16(tmp12 + tmp13, FIX_0_541196100);
+     dataptr[DCTSIZE*2] = (DCTELEM) DESCALE(z1 + MULTIPLY16C16(tmp13, FIX_0_765366865),
+					   CONST_BITS+pass1_bits);
+     dataptr[DCTSIZE*6] = (DCTELEM) DESCALE(z1 + MULTIPLY16C16(tmp12, - FIX_1_847759065),
+					   CONST_BITS+pass1_bits);
+	} else {
+     z1 = (tmp12 + tmp13) * FIX_0_541196100;
+     dataptr[DCTSIZE*2] = (DCTELEM) DESCALE(z1 + (tmp13 * FIX_0_765366865),
+					   CONST_BITS+pass1_bits);
+     dataptr[DCTSIZE*6] = (DCTELEM) DESCALE(z1 + (tmp12 * (- FIX_1_847759065)),
+					   CONST_BITS+pass1_bits);
+	}
+++++++++++++++++++++++++++++++++++++++++
+from:
+    z5 = MULTIPLY(z3 + z4, FIX_1_175875602); /* sqrt(2) * c3 */
+    
+    tmp4 = MULTIPLY(tmp4, FIX_0_298631336); /* sqrt(2) * (-c1+c3+c5-c7) */
+    tmp5 = MULTIPLY(tmp5, FIX_2_053119869); /* sqrt(2) * ( c1+c3-c5+c7) */
+    tmp6 = MULTIPLY(tmp6, FIX_3_072711026); /* sqrt(2) * ( c1+c3+c5-c7) */
+    tmp7 = MULTIPLY(tmp7, FIX_1_501321110); /* sqrt(2) * ( c1+c3-c5-c7) */
+    z1 = MULTIPLY(z1, - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+    z2 = MULTIPLY(z2, - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+    z3 = MULTIPLY(z3, - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+    z4 = MULTIPLY(z4, - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+    
+    z3 += z5;
+    z4 += z5;
+    
+    dataptr[DCTSIZE*7] = (DCTELEM) DESCALE(tmp4 + z1 + z3,
+					   CONST_BITS+PASS1_BITS);
+    dataptr[DCTSIZE*5] = (DCTELEM) DESCALE(tmp5 + z2 + z4,
+					   CONST_BITS+PASS1_BITS);
+    dataptr[DCTSIZE*3] = (DCTELEM) DESCALE(tmp6 + z2 + z3,
+					   CONST_BITS+PASS1_BITS);
+    dataptr[DCTSIZE*1] = (DCTELEM) DESCALE(tmp7 + z1 + z4,
+					   CONST_BITS+PASS1_BITS);
+to:
+	if (jpeg8) {
+     z5 = MULTIPLY16C16(z3 + z4, FIX_1_175875602); /* sqrt(2) * c3 */
+    
+     tmp4 = MULTIPLY16C16(tmp4, FIX_0_298631336); /* sqrt(2) * (-c1+c3+c5-c7) */
+     tmp5 = MULTIPLY16C16(tmp5, FIX_2_053119869); /* sqrt(2) * ( c1+c3-c5+c7) */
+     tmp6 = MULTIPLY16C16(tmp6, FIX_3_072711026); /* sqrt(2) * ( c1+c3+c5-c7) */
+     tmp7 = MULTIPLY16C16(tmp7, FIX_1_501321110); /* sqrt(2) * ( c1+c3-c5-c7) */
+     z1 = MULTIPLY16C16(z1, - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+     z2 = MULTIPLY16C16(z2, - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+     z3 = MULTIPLY16C16(z3, - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+     z4 = MULTIPLY16C16(z4, - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+    } else {
+     z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
+    
+     tmp4 = tmp4 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
+     tmp5 = tmp5 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
+     tmp6 = tmp6 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
+     tmp7 = tmp7 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
+     z1 = z1 * ( - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+     z2 = z2 * ( - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+     z3 = z3 * ( - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+     z4 = z4 * ( - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+    }
+    z3 += z5;
+    z4 += z5;
+    
+    dataptr[DCTSIZE*7] = (DCTELEM) DESCALE(tmp4 + z1 + z3,
+					   CONST_BITS+pass1_bits);
+    dataptr[DCTSIZE*5] = (DCTELEM) DESCALE(tmp5 + z2 + z4,
+					   CONST_BITS+pass1_bits);
+    dataptr[DCTSIZE*3] = (DCTELEM) DESCALE(tmp6 + z2 + z3,
+					   CONST_BITS+pass1_bits);
+    dataptr[DCTSIZE*1] = (DCTELEM) DESCALE(tmp7 + z1 + z4,
+					   CONST_BITS+pass1_bits);
+
+-----------------------------------------------------------------------
+jidctfst.c from:
+#if BITS_IN_JSAMPLE == 8
+#define CONST_BITS  8
+#define PASS1_BITS  2
+#else
+#define CONST_BITS  8
+#define PASS1_BITS  1		/* lose a little precision to avoid overflow */
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8*/
+#define CONST_BITS  8
+/*#define PASS1_BITS  2
+#else
+#define CONST_BITS  8
+#define PASS1_BITS  1*/		/* lose a little precision to avoid overflow */
+/*#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+#define DEQUANTIZE(coef,quantval)  (((IFAST_MULT_TYPE) (coef)) * (quantval))
+#else
+#define DEQUANTIZE(coef,quantval)  \
+	DESCALE((coef)*(quantval), IFAST_SCALE_BITS-PASS1_BITS)
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+#define DEQUANTIZE(coef,quantval)  (((IFAST_MULT_TYPE) (coef)) * (quantval))
+#else
+#define DEQUANTIZE(coef,quantval)  \
+	DESCALE((coef)*(quantval), IFAST_SCALE_BITS-PASS1_BITS)
+#endif*/
+/* IFAST_SCALE_BITS-PASS1_BITS now isbMp1b */
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+#define DCTELEMBITS  16		/* DCTELEM may be 16 or 32 bits */
+#else
+#define DCTELEMBITS  32		/* DCTELEM must be 32 bits */
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+#define DCTELEMBITS  16*/		/* DCTELEM may be 16 or 32 bits */
+/*#else*/
+#define DCTELEMBITS  32		/* DCTELEM must be 32 bits */
+/*#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+  int ctr;
+  int workspace[DCTSIZE2];	/* buffers data between passes */
+  SHIFT_TEMPS			/* for DESCALE */
+  ISHIFT_TEMPS			/* for IDESCALE */
+to:
+  int ctr, pass1_bits, dcval, isbMp1b;
+  boolean jpeg8;
+  int workspace[DCTSIZE2];	/* buffers data between passes */
+  SHIFT_TEMPS			/* for DESCALE */
+  ISHIFT_TEMPS			/* for IDESCALE */
+
+  /* set pass1_bits */
+  if (cinfo->data_precision <= 8) {
+   pass1_bits = 2;
+   isbMp1b = 0;/*was IFAST_SCALE_BITS-PASS1_BITS (2-2)*/
+   jpeg8 = TRUE;
+  } else {
+   pass1_bits = 1;
+   isbMp1b = 12;/*was IFAST_SCALE_BITS-PASS1_BITS (13-1)*/
+   jpeg8 = FALSE; }
+++++++++++++++++++++++++++++++++++++++++
+from:
+      int dcval = (int) DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]);
+to:
+      if( jpeg8 ) dcval = (int)((IFAST_MULT_TYPE)inptr[DCTSIZE*0] * quantptr[DCTSIZE*0]);
+	  else dcval = (int)DESCALE(inptr[DCTSIZE*0] * quantptr[DCTSIZE*0], isbMp1b);
+++++++++++++++++++++++++++++++++++++++++
+from:
+    tmp0 = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]);
+    tmp1 = DEQUANTIZE(inptr[DCTSIZE*2], quantptr[DCTSIZE*2]);
+    tmp2 = DEQUANTIZE(inptr[DCTSIZE*4], quantptr[DCTSIZE*4]);
+    tmp3 = DEQUANTIZE(inptr[DCTSIZE*6], quantptr[DCTSIZE*6]);
+to:
+	if( jpeg8 ) {
+	tmp0 = ((IFAST_MULT_TYPE)inptr[DCTSIZE*0] * quantptr[DCTSIZE*0]);
+	tmp1 = ((IFAST_MULT_TYPE)inptr[DCTSIZE*2] * quantptr[DCTSIZE*2]);
+	tmp2 = ((IFAST_MULT_TYPE)inptr[DCTSIZE*4] * quantptr[DCTSIZE*4]);
+	tmp3 = ((IFAST_MULT_TYPE)inptr[DCTSIZE*6] * quantptr[DCTSIZE*6]);
+	} else {
+	tmp0 = DESCALE(inptr[DCTSIZE*0] * quantptr[DCTSIZE*0], isbMp1b);
+	tmp1 = DESCALE(inptr[DCTSIZE*2] * quantptr[DCTSIZE*2], isbMp1b);
+	tmp2 = DESCALE(inptr[DCTSIZE*4] * quantptr[DCTSIZE*4], isbMp1b);
+	tmp3 = DESCALE(inptr[DCTSIZE*6] * quantptr[DCTSIZE*6], isbMp1b); }
+++++++++++++++++++++++++++++++++++++++++
+from:
+    tmp4 = DEQUANTIZE(inptr[DCTSIZE*1], quantptr[DCTSIZE*1]);
+    tmp5 = DEQUANTIZE(inptr[DCTSIZE*3], quantptr[DCTSIZE*3]);
+    tmp6 = DEQUANTIZE(inptr[DCTSIZE*5], quantptr[DCTSIZE*5]);
+    tmp7 = DEQUANTIZE(inptr[DCTSIZE*7], quantptr[DCTSIZE*7]);
+to:
+	if( jpeg8 ) {
+	tmp4 = ((IFAST_MULT_TYPE)inptr[DCTSIZE*1] * quantptr[DCTSIZE*1]);
+	tmp5 = ((IFAST_MULT_TYPE)inptr[DCTSIZE*3] * quantptr[DCTSIZE*3]);
+	tmp6 = ((IFAST_MULT_TYPE)inptr[DCTSIZE*5] * quantptr[DCTSIZE*5]);
+	tmp7 = ((IFAST_MULT_TYPE)inptr[DCTSIZE*7] * quantptr[DCTSIZE*7]);
+	} else {
+	tmp4 = DESCALE(inptr[DCTSIZE*1] * quantptr[DCTSIZE*1], isbMp1b);
+	tmp5 = DESCALE(inptr[DCTSIZE*3] * quantptr[DCTSIZE*3], isbMp1b);
+	tmp6 = DESCALE(inptr[DCTSIZE*5] * quantptr[DCTSIZE*5], isbMp1b);
+	tmp7 = DESCALE(inptr[DCTSIZE*7] * quantptr[DCTSIZE*7], isbMp1b); }
+++++++++++++++++++++++++++++++++++++++++
+from:
+      JSAMPLE dcval = range_limit[IDESCALE(wsptr[0], PASS1_BITS+3)
+to:
+      JSAMPLE16 dcval = range_limit[IDESCALE(wsptr[0], pass1_bits+3)
+++++++++++++++++++++++++++++++++++++++++
+from:
+    outptr[0] = range_limit[IDESCALE(tmp0 + tmp7, PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[7] = range_limit[IDESCALE(tmp0 - tmp7, PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[1] = range_limit[IDESCALE(tmp1 + tmp6, PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[6] = range_limit[IDESCALE(tmp1 - tmp6, PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[2] = range_limit[IDESCALE(tmp2 + tmp5, PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[5] = range_limit[IDESCALE(tmp2 - tmp5, PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[4] = range_limit[IDESCALE(tmp3 + tmp4, PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[3] = range_limit[IDESCALE(tmp3 - tmp4, PASS1_BITS+3)
+			    & RANGE_MASK];
+to:
+    outptr[0] = range_limit[IDESCALE(tmp0 + tmp7, pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[7] = range_limit[IDESCALE(tmp0 - tmp7, pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[1] = range_limit[IDESCALE(tmp1 + tmp6, pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[6] = range_limit[IDESCALE(tmp1 - tmp6, pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[2] = range_limit[IDESCALE(tmp2 + tmp5, pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[5] = range_limit[IDESCALE(tmp2 - tmp5, pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[4] = range_limit[IDESCALE(tmp3 + tmp4, pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[3] = range_limit[IDESCALE(tmp3 - tmp4, pass1_bits+3)
+			    & RANGE_MASK];
+
+-----------------------------------------------------------------------
+jidctint.c from:
+#if BITS_IN_JSAMPLE == 8
+#define CONST_BITS  13
+#define PASS1_BITS  2
+#else
+#define CONST_BITS  13
+#define PASS1_BITS  1		/* lose a little precision to avoid overflow */
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8*/
+#define CONST_BITS  13
+/*#define PASS1_BITS  2
+#else
+#define CONST_BITS  13
+#define PASS1_BITS  1*/		/* lose a little precision to avoid overflow */
+/*#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+#define MULTIPLY(var,const)  MULTIPLY16C16(var,const)
+#else
+#define MULTIPLY(var,const)  ((var) * (const))
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+#define MULTIPLY(var,const)  MULTIPLY16C16(var,const)
+#else
+#define MULTIPLY(var,const)  ((var) * (const))
+#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+  int ctr;
+  int workspace[DCTSIZE2];	/* buffers data between passes */
+  SHIFT_TEMPS
+to:
+  int ctr, pass1_bits;
+  int workspace[DCTSIZE2];	/* buffers data between passes */
+  boolean jpeg8;
+  SHIFT_TEMPS
+  
+  /* set pass1_bits */
+  if (cinfo->data_precision <= 8) {
+   pass1_bits = 2;
+   jpeg8 = TRUE;
+  } else {
+   pass1_bits = 1;
+   jpeg8 = FALSE; }
+++++++++++++++++++++++++++++++++++++++++
+from:
+      int dcval = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]) << PASS1_BITS;
+to:
+      int dcval = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]) << pass1_bits;
+++++++++++++++++++++++++++++++++++++++++
+from:
+    z1 = MULTIPLY(z2 + z3, FIX_0_541196100);
+    tmp2 = z1 + MULTIPLY(z3, - FIX_1_847759065);
+    tmp3 = z1 + MULTIPLY(z2, FIX_0_765366865);
+to:
+	if( jpeg8 ) {
+     z1 = MULTIPLY16C16(z2 + z3, FIX_0_541196100);
+     tmp2 = z1 + MULTIPLY16C16(z3, - FIX_1_847759065);
+     tmp3 = z1 + MULTIPLY16C16(z2, FIX_0_765366865);
+	} else {
+     z1 = (z2 + z3) * FIX_0_541196100;
+     tmp2 = z1 + (z3 * (- FIX_1_847759065));
+     tmp3 = z1 + (z2 * FIX_0_765366865);
+	}
+++++++++++++++++++++++++++++++++++++++++
+from:
+    z5 = MULTIPLY(z3 + z4, FIX_1_175875602); /* sqrt(2) * c3 */
+    
+    tmp0 = MULTIPLY(tmp0, FIX_0_298631336); /* sqrt(2) * (-c1+c3+c5-c7) */
+    tmp1 = MULTIPLY(tmp1, FIX_2_053119869); /* sqrt(2) * ( c1+c3-c5+c7) */
+    tmp2 = MULTIPLY(tmp2, FIX_3_072711026); /* sqrt(2) * ( c1+c3+c5-c7) */
+    tmp3 = MULTIPLY(tmp3, FIX_1_501321110); /* sqrt(2) * ( c1+c3-c5-c7) */
+    z1 = MULTIPLY(z1, - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+    z2 = MULTIPLY(z2, - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+    z3 = MULTIPLY(z3, - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+    z4 = MULTIPLY(z4, - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+to:
+	if( jpeg8 ) {
+     z5 = MULTIPLY16C16(z3 + z4, FIX_1_175875602); /* sqrt(2) * c3 */
+    
+     tmp0 = MULTIPLY16C16(tmp0, FIX_0_298631336); /* sqrt(2) * (-c1+c3+c5-c7) */
+     tmp1 = MULTIPLY16C16(tmp1, FIX_2_053119869); /* sqrt(2) * ( c1+c3-c5+c7) */
+     tmp2 = MULTIPLY16C16(tmp2, FIX_3_072711026); /* sqrt(2) * ( c1+c3+c5-c7) */
+     tmp3 = MULTIPLY16C16(tmp3, FIX_1_501321110); /* sqrt(2) * ( c1+c3-c5-c7) */
+     z1 = MULTIPLY16C16(z1, - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+     z2 = MULTIPLY16C16(z2, - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+     z3 = MULTIPLY16C16(z3, - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+     z4 = MULTIPLY16C16(z4, - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+    } else  {
+     z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
+    
+     tmp0 = tmp0 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
+     tmp1 = tmp1 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
+     tmp2 = tmp2 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
+     tmp3 = tmp3 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
+     z1 = z1 * ( - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+     z2 = z2 * ( - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+     z3 = z3 * ( - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+     z4 = z4 * ( - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+    }
+++++++++++++++++++++++++++++++++++++++++
+from:
+    wsptr[DCTSIZE*0] = (int) DESCALE(tmp10 + tmp3, CONST_BITS-PASS1_BITS);
+    wsptr[DCTSIZE*7] = (int) DESCALE(tmp10 - tmp3, CONST_BITS-PASS1_BITS);
+    wsptr[DCTSIZE*1] = (int) DESCALE(tmp11 + tmp2, CONST_BITS-PASS1_BITS);
+    wsptr[DCTSIZE*6] = (int) DESCALE(tmp11 - tmp2, CONST_BITS-PASS1_BITS);
+    wsptr[DCTSIZE*2] = (int) DESCALE(tmp12 + tmp1, CONST_BITS-PASS1_BITS);
+    wsptr[DCTSIZE*5] = (int) DESCALE(tmp12 - tmp1, CONST_BITS-PASS1_BITS);
+    wsptr[DCTSIZE*3] = (int) DESCALE(tmp13 + tmp0, CONST_BITS-PASS1_BITS);
+    wsptr[DCTSIZE*4] = (int) DESCALE(tmp13 - tmp0, CONST_BITS-PASS1_BITS);
+to:
+    wsptr[DCTSIZE*0] = (int) DESCALE(tmp10 + tmp3, CONST_BITS-pass1_bits);
+    wsptr[DCTSIZE*7] = (int) DESCALE(tmp10 - tmp3, CONST_BITS-pass1_bits);
+    wsptr[DCTSIZE*1] = (int) DESCALE(tmp11 + tmp2, CONST_BITS-pass1_bits);
+    wsptr[DCTSIZE*6] = (int) DESCALE(tmp11 - tmp2, CONST_BITS-pass1_bits);
+    wsptr[DCTSIZE*2] = (int) DESCALE(tmp12 + tmp1, CONST_BITS-pass1_bits);
+    wsptr[DCTSIZE*5] = (int) DESCALE(tmp12 - tmp1, CONST_BITS-pass1_bits);
+    wsptr[DCTSIZE*3] = (int) DESCALE(tmp13 + tmp0, CONST_BITS-pass1_bits);
+    wsptr[DCTSIZE*4] = (int) DESCALE(tmp13 - tmp0, CONST_BITS-pass1_bits);
+++++++++++++++++++++++++++++++++++++++++
+from:
+      JSAMPLE dcval = range_limit[(int) DESCALE((INT32) wsptr[0], PASS1_BITS+3)
+to:
+      JSAMPLE16 dcval = range_limit[(int) DESCALE((INT32) wsptr[0], pass1_bits+3)
+++++++++++++++++++++++++++++++++++++++++
+from:
+    z1 = MULTIPLY(z2 + z3, FIX_0_541196100);
+    tmp2 = z1 + MULTIPLY(z3, - FIX_1_847759065);
+    tmp3 = z1 + MULTIPLY(z2, FIX_0_765366865);
+to:
+	if( jpeg8 ) {
+     z1 = MULTIPLY16C16(z2 + z3, FIX_0_541196100);
+     tmp2 = z1 + MULTIPLY16C16(z3, - FIX_1_847759065);
+     tmp3 = z1 + MULTIPLY16C16(z2, FIX_0_765366865);
+    } else {
+     z1 = (z2 + z3) * FIX_0_541196100;
+     tmp2 = z1 + (z3 * ( - FIX_1_847759065));
+     tmp3 = z1 + (z2 * FIX_0_765366865);
+    }
+++++++++++++++++++++++++++++++++++++++++
+from:
+    z5 = MULTIPLY(z3 + z4, FIX_1_175875602); /* sqrt(2) * c3 */
+    
+    tmp0 = MULTIPLY(tmp0, FIX_0_298631336); /* sqrt(2) * (-c1+c3+c5-c7) */
+    tmp1 = MULTIPLY(tmp1, FIX_2_053119869); /* sqrt(2) * ( c1+c3-c5+c7) */
+    tmp2 = MULTIPLY(tmp2, FIX_3_072711026); /* sqrt(2) * ( c1+c3+c5-c7) */
+    tmp3 = MULTIPLY(tmp3, FIX_1_501321110); /* sqrt(2) * ( c1+c3-c5-c7) */
+    z1 = MULTIPLY(z1, - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+    z2 = MULTIPLY(z2, - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+    z3 = MULTIPLY(z3, - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+    z4 = MULTIPLY(z4, - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+to:
+	if( jpeg8 ) {
+     z5 = MULTIPLY16C16(z3 + z4, FIX_1_175875602); /* sqrt(2) * c3 */
+    
+     tmp0 = MULTIPLY16C16(tmp0, FIX_0_298631336); /* sqrt(2) * (-c1+c3+c5-c7) */
+     tmp1 = MULTIPLY16C16(tmp1, FIX_2_053119869); /* sqrt(2) * ( c1+c3-c5+c7) */
+     tmp2 = MULTIPLY16C16(tmp2, FIX_3_072711026); /* sqrt(2) * ( c1+c3+c5-c7) */
+     tmp3 = MULTIPLY16C16(tmp3, FIX_1_501321110); /* sqrt(2) * ( c1+c3-c5-c7) */
+     z1 = MULTIPLY16C16(z1, - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+     z2 = MULTIPLY16C16(z2, - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+     z3 = MULTIPLY16C16(z3, - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+     z4 = MULTIPLY16C16(z4, - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+	} else  {
+     z5 = (z3 + z4) * FIX_1_175875602; /* sqrt(2) * c3 */
+    
+     tmp0 = tmp0 * FIX_0_298631336; /* sqrt(2) * (-c1+c3+c5-c7) */
+     tmp1 = tmp1 * FIX_2_053119869; /* sqrt(2) * ( c1+c3-c5+c7) */
+     tmp2 = tmp2 * FIX_3_072711026; /* sqrt(2) * ( c1+c3+c5-c7) */
+     tmp3 = tmp3 * FIX_1_501321110; /* sqrt(2) * ( c1+c3-c5-c7) */
+     z1 = z1 * ( - FIX_0_899976223); /* sqrt(2) * (c7-c3) */
+     z2 = z2 * ( - FIX_2_562915447); /* sqrt(2) * (-c1-c3) */
+     z3 = z3 * ( - FIX_1_961570560); /* sqrt(2) * (-c3-c5) */
+     z4 = z4 * ( - FIX_0_390180644); /* sqrt(2) * (c5-c3) */
+	}
+++++++++++++++++++++++++++++++++++++++++
+from:
+    outptr[0] = range_limit[(int) DESCALE(tmp10 + tmp3,
+					  CONST_BITS+PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[7] = range_limit[(int) DESCALE(tmp10 - tmp3,
+					  CONST_BITS+PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[1] = range_limit[(int) DESCALE(tmp11 + tmp2,
+					  CONST_BITS+PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[6] = range_limit[(int) DESCALE(tmp11 - tmp2,
+					  CONST_BITS+PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[2] = range_limit[(int) DESCALE(tmp12 + tmp1,
+					  CONST_BITS+PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[5] = range_limit[(int) DESCALE(tmp12 - tmp1,
+					  CONST_BITS+PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[3] = range_limit[(int) DESCALE(tmp13 + tmp0,
+					  CONST_BITS+PASS1_BITS+3)
+			    & RANGE_MASK];
+    outptr[4] = range_limit[(int) DESCALE(tmp13 - tmp0,
+					  CONST_BITS+PASS1_BITS+3)
+to:
+    outptr[0] = range_limit[(int) DESCALE(tmp10 + tmp3,
+					  CONST_BITS+pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[7] = range_limit[(int) DESCALE(tmp10 - tmp3,
+					  CONST_BITS+pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[1] = range_limit[(int) DESCALE(tmp11 + tmp2,
+					  CONST_BITS+pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[6] = range_limit[(int) DESCALE(tmp11 - tmp2,
+					  CONST_BITS+pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[2] = range_limit[(int) DESCALE(tmp12 + tmp1,
+					  CONST_BITS+pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[5] = range_limit[(int) DESCALE(tmp12 - tmp1,
+					  CONST_BITS+pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[3] = range_limit[(int) DESCALE(tmp13 + tmp0,
+					  CONST_BITS+pass1_bits+3)
+			    & RANGE_MASK];
+    outptr[4] = range_limit[(int) DESCALE(tmp13 - tmp0,
+					  CONST_BITS+pass1_bits+3)
+
+-----------------------------------------------------------------------
+jidctred.c from:
+#if BITS_IN_JSAMPLE == 8
+#define CONST_BITS  13
+#define PASS1_BITS  2
+#else
+#define CONST_BITS  13
+#define PASS1_BITS  1		/* lose a little precision to avoid overflow */
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8*/
+#define CONST_BITS  13
+/*#define PASS1_BITS  2
+#else
+#define CONST_BITS  13
+#define PASS1_BITS  1*/		/* lose a little precision to avoid overflow */
+/*#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+#define MULTIPLY(var,const)  MULTIPLY16C16(var,const)
+#else
+#define MULTIPLY(var,const)  ((var) * (const))
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+#define MULTIPLY(var,const)  MULTIPLY16C16(var,const)
+#else
+#define MULTIPLY(var,const)  ((var) * (const))
+#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+  int ctr;
+  int workspace[DCTSIZE*4];	/* buffers data between passes */
+  SHIFT_TEMPS
+to:
+  int ctr, pass1_bits;
+  int workspace[DCTSIZE*4];	/* buffers data between passes */
+  boolean jpeg8;
+  SHIFT_TEMPS
+  
+  /* set pass1_bits */
+  if (cinfo->data_precision <= 8) {
+   pass1_bits = 2;
+   jpeg8 = TRUE;
+  } else {
+   pass1_bits = 1;
+   jpeg8 = FALSE; }
+++++++++++++++++++++++++++++++++++++++++
+from:
+      int dcval = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]) << PASS1_BITS;
+to:
+      int dcval = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]) << pass1_bits;
+++++++++++++++++++++++++++++++++++++++++
+from:
+    tmp2 = MULTIPLY(z2, FIX_1_847759065) + MULTIPLY(z3, - FIX_0_765366865);
+to:
+    if (jpeg8) tmp2 = MULTIPLY16C16(z2, FIX_1_847759065) + MULTIPLY16C16(z3, - FIX_0_765366865);
+    else tmp2 = (z2 * FIX_1_847759065) + (z3* ( - FIX_0_765366865));
+++++++++++++++++++++++++++++++++++++++++
+from:
+    tmp0 = MULTIPLY(z1, - FIX_0_211164243) /* sqrt(2) * (c3-c1) */
+	 + MULTIPLY(z2, FIX_1_451774981) /* sqrt(2) * (c3+c7) */
+	 + MULTIPLY(z3, - FIX_2_172734803) /* sqrt(2) * (-c1-c5) */
+	 + MULTIPLY(z4, FIX_1_061594337); /* sqrt(2) * (c5+c7) */
+    
+    tmp2 = MULTIPLY(z1, - FIX_0_509795579) /* sqrt(2) * (c7-c5) */
+	 + MULTIPLY(z2, - FIX_0_601344887) /* sqrt(2) * (c5-c1) */
+	 + MULTIPLY(z3, FIX_0_899976223) /* sqrt(2) * (c3-c7) */
+	 + MULTIPLY(z4, FIX_2_562915447); /* sqrt(2) * (c1+c3) */
+
+    /* Final output stage */
+    
+    wsptr[DCTSIZE*0] = (int) DESCALE(tmp10 + tmp2, CONST_BITS-PASS1_BITS+1);
+    wsptr[DCTSIZE*3] = (int) DESCALE(tmp10 - tmp2, CONST_BITS-PASS1_BITS+1);
+    wsptr[DCTSIZE*1] = (int) DESCALE(tmp12 + tmp0, CONST_BITS-PASS1_BITS+1);
+    wsptr[DCTSIZE*2] = (int) DESCALE(tmp12 - tmp0, CONST_BITS-PASS1_BITS+1);
+to:
+   if (jpeg8) {
+    tmp0 = MULTIPLY16C16(z1, - FIX_0_211164243) /* sqrt(2) * (c3-c1) */
+	 + MULTIPLY16C16(z2, FIX_1_451774981) /* sqrt(2) * (c3+c7) */
+	 + MULTIPLY16C16(z3, - FIX_2_172734803) /* sqrt(2) * (-c1-c5) */
+	 + MULTIPLY16C16(z4, FIX_1_061594337); /* sqrt(2) * (c5+c7) */
+    
+	tmp2 = MULTIPLY16C16(z1, - FIX_0_509795579) /* sqrt(2) * (c7-c5) */
+	 + MULTIPLY16C16(z2, - FIX_0_601344887) /* sqrt(2) * (c5-c1) */
+	 + MULTIPLY16C16(z3, FIX_0_899976223) /* sqrt(2) * (c3-c7) */
+	 + MULTIPLY16C16(z4, FIX_2_562915447); /* sqrt(2) * (c1+c3) */
+	} else {
+    tmp0 = (z1 * ( - FIX_0_211164243)) /* sqrt(2) * (c3-c1) */
+	 + (z2 * FIX_1_451774981) /* sqrt(2) * (c3+c7) */
+	 + (z3 * ( - FIX_2_172734803)) /* sqrt(2) * (-c1-c5) */
+	 + (z4 * FIX_1_061594337); /* sqrt(2) * (c5+c7) */
+    
+	tmp2 = (z1 * ( - FIX_0_509795579)) /* sqrt(2) * (c7-c5) */
+	 + (z2 * ( - FIX_0_601344887)) /* sqrt(2) * (c5-c1) */
+	 + (z3 * FIX_0_899976223) /* sqrt(2) * (c3-c7) */
+	 + (z4 * FIX_2_562915447); /* sqrt(2) * (c1+c3) */
+	}
+
+    /* Final output stage */
+    
+    wsptr[DCTSIZE*0] = (int) DESCALE(tmp10 + tmp2, CONST_BITS-pass1_bits+1);
+    wsptr[DCTSIZE*3] = (int) DESCALE(tmp10 - tmp2, CONST_BITS-pass1_bits+1);
+    wsptr[DCTSIZE*1] = (int) DESCALE(tmp12 + tmp0, CONST_BITS-pass1_bits+1);
+    wsptr[DCTSIZE*2] = (int) DESCALE(tmp12 - tmp0, CONST_BITS-pass1_bits+1);
+++++++++++++++++++++++++++++++++++++++++
+from:
+      JSAMPLE dcval = range_limit[(int) DESCALE((INT32) wsptr[0], PASS1_BITS+3)
+to:
+      JSAMPLE16 dcval = range_limit[(int) DESCALE((INT32) wsptr[0], pass1_bits+3)
+++++++++++++++++++++++++++++++++++++++++
+from:
+    tmp2 = MULTIPLY((INT32) wsptr[2], FIX_1_847759065)
+	 + MULTIPLY((INT32) wsptr[6], - FIX_0_765366865);
+to:
+    if (jpeg8) tmp2 = MULTIPLY16C16((INT32) wsptr[2], FIX_1_847759065)
+	 + MULTIPLY16C16((INT32) wsptr[6], - FIX_0_765366865);
+    else tmp2 = ((INT32) wsptr[2] * FIX_1_847759065)
+	 + ((INT32) wsptr[6] * ( - FIX_0_765366865));
+++++++++++++++++++++++++++++++++++++++++
+from:
+    tmp0 = MULTIPLY(z1, - FIX_0_211164243) /* sqrt(2) * (c3-c1) */
+	 + MULTIPLY(z2, FIX_1_451774981) /* sqrt(2) * (c3+c7) */
+	 + MULTIPLY(z3, - FIX_2_172734803) /* sqrt(2) * (-c1-c5) */
+	 + MULTIPLY(z4, FIX_1_061594337); /* sqrt(2) * (c5+c7) */
+    
+    tmp2 = MULTIPLY(z1, - FIX_0_509795579) /* sqrt(2) * (c7-c5) */
+	 + MULTIPLY(z2, - FIX_0_601344887) /* sqrt(2) * (c5-c1) */
+	 + MULTIPLY(z3, FIX_0_899976223) /* sqrt(2) * (c3-c7) */
+	 + MULTIPLY(z4, FIX_2_562915447); /* sqrt(2) * (c1+c3) */
+
+    /* Final output stage */
+    
+    outptr[0] = range_limit[(int) DESCALE(tmp10 + tmp2,
+					  CONST_BITS+PASS1_BITS+3+1)
+			    & RANGE_MASK];
+    outptr[3] = range_limit[(int) DESCALE(tmp10 - tmp2,
+					  CONST_BITS+PASS1_BITS+3+1)
+			    & RANGE_MASK];
+    outptr[1] = range_limit[(int) DESCALE(tmp12 + tmp0,
+					  CONST_BITS+PASS1_BITS+3+1)
+			    & RANGE_MASK];
+    outptr[2] = range_limit[(int) DESCALE(tmp12 - tmp0,
+					  CONST_BITS+PASS1_BITS+3+1)
+to:
+    if (jpeg8) {
+     tmp0 = MULTIPLY16C16(z1, - FIX_0_211164243) /* sqrt(2) * (c3-c1) */
+	  + MULTIPLY16C16(z2, FIX_1_451774981) /* sqrt(2) * (c3+c7) */
+	  + MULTIPLY16C16(z3, - FIX_2_172734803) /* sqrt(2) * (-c1-c5) */
+	  + MULTIPLY16C16(z4, FIX_1_061594337); /* sqrt(2) * (c5+c7) */
+    
+     tmp2 = MULTIPLY16C16(z1, - FIX_0_509795579) /* sqrt(2) * (c7-c5) */
+	  + MULTIPLY16C16(z2, - FIX_0_601344887) /* sqrt(2) * (c5-c1) */
+	  + MULTIPLY16C16(z3, FIX_0_899976223) /* sqrt(2) * (c3-c7) */
+	  + MULTIPLY16C16(z4, FIX_2_562915447); /* sqrt(2) * (c1+c3) */
+	} else  {
+     tmp0 = (z1 * ( - FIX_0_211164243)) /* sqrt(2) * (c3-c1) */
+	  + (z2 * FIX_1_451774981) /* sqrt(2) * (c3+c7) */
+	  + (z3 * ( - FIX_2_172734803)) /* sqrt(2) * (-c1-c5) */
+	  + (z4 * FIX_1_061594337); /* sqrt(2) * (c5+c7) */
+    
+     tmp2 = (z1 * ( - FIX_0_509795579)) /* sqrt(2) * (c7-c5) */
+	  + (z2 * ( - FIX_0_601344887)) /* sqrt(2) * (c5-c1) */
+	  + (z3 * FIX_0_899976223) /* sqrt(2) * (c3-c7) */
+	  + (z4 * FIX_2_562915447); /* sqrt(2) * (c1+c3) */
+	}
+	
+    /* Final output stage */
+    
+    outptr[0] = range_limit[(int) DESCALE(tmp10 + tmp2,
+					  CONST_BITS+pass1_bits+3+1)
+			    & RANGE_MASK];
+    outptr[3] = range_limit[(int) DESCALE(tmp10 - tmp2,
+					  CONST_BITS+pass1_bits+3+1)
+			    & RANGE_MASK];
+    outptr[1] = range_limit[(int) DESCALE(tmp12 + tmp0,
+					  CONST_BITS+pass1_bits+3+1)
+			    & RANGE_MASK];
+    outptr[2] = range_limit[(int) DESCALE(tmp12 - tmp0,
+					  CONST_BITS+pass1_bits+3+1)
+++++++++++++++++++++++++++++++++++++++++
+from:
+  int ctr;
+  int workspace[DCTSIZE*2];	/* buffers data between passes */
+  SHIFT_TEMPS
+to:
+  int ctr, pass1_bits;
+  int workspace[DCTSIZE*2];	/* buffers data between passes */
+  boolean jpeg8;
+  SHIFT_TEMPS
+  
+  /* set pass1_bits */
+  if (cinfo->data_precision <= 8) {
+   pass1_bits = 2;
+   jpeg8 = TRUE;
+  } else {
+   pass1_bits = 1;
+   jpeg8 = FALSE; }
+++++++++++++++++++++++++++++++++++++++++
+from:
+      int dcval = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]) << PASS1_BITS;
+to:
+      int dcval = DEQUANTIZE(inptr[DCTSIZE*0], quantptr[DCTSIZE*0]) << pass1_bits;
+++++++++++++++++++++++++++++++++++++++++
+from:
+    tmp0 = MULTIPLY(z1, - FIX_0_720959822); /* sqrt(2) * (c7-c5+c3-c1) */
+    z1 = DEQUANTIZE(inptr[DCTSIZE*5], quantptr[DCTSIZE*5]);
+    tmp0 += MULTIPLY(z1, FIX_0_850430095); /* sqrt(2) * (-c1+c3+c5+c7) */
+    z1 = DEQUANTIZE(inptr[DCTSIZE*3], quantptr[DCTSIZE*3]);
+    tmp0 += MULTIPLY(z1, - FIX_1_272758580); /* sqrt(2) * (-c1+c3-c5-c7) */
+    z1 = DEQUANTIZE(inptr[DCTSIZE*1], quantptr[DCTSIZE*1]);
+    tmp0 += MULTIPLY(z1, FIX_3_624509785); /* sqrt(2) * (c1+c3+c5+c7) */
+
+    /* Final output stage */
+    
+    wsptr[DCTSIZE*0] = (int) DESCALE(tmp10 + tmp0, CONST_BITS-PASS1_BITS+2);
+    wsptr[DCTSIZE*1] = (int) DESCALE(tmp10 - tmp0, CONST_BITS-PASS1_BITS+2);
+to:
+    if (jpeg8) {
+     tmp0 = MULTIPLY16C16(z1, - FIX_0_720959822); /* sqrt(2) * (c7-c5+c3-c1) */
+     z1 = DEQUANTIZE(inptr[DCTSIZE*5], quantptr[DCTSIZE*5]);
+     tmp0 += MULTIPLY16C16(z1, FIX_0_850430095); /* sqrt(2) * (-c1+c3+c5+c7) */
+     z1 = DEQUANTIZE(inptr[DCTSIZE*3], quantptr[DCTSIZE*3]);
+     tmp0 += MULTIPLY16C16(z1, - FIX_1_272758580); /* sqrt(2) * (-c1+c3-c5-c7) */
+     z1 = DEQUANTIZE(inptr[DCTSIZE*1], quantptr[DCTSIZE*1]);
+     tmp0 += MULTIPLY16C16(z1, FIX_3_624509785); /* sqrt(2) * (c1+c3+c5+c7) */
+	} else {
+     tmp0 = z1 * ( - FIX_0_720959822); /* sqrt(2) * (c7-c5+c3-c1) */
+     z1 = DEQUANTIZE(inptr[DCTSIZE*5], quantptr[DCTSIZE*5]);
+     tmp0 += (z1 * FIX_0_850430095); /* sqrt(2) * (-c1+c3+c5+c7) */
+     z1 = DEQUANTIZE(inptr[DCTSIZE*3], quantptr[DCTSIZE*3]);
+     tmp0 += (z1 * ( - FIX_1_272758580)); /* sqrt(2) * (-c1+c3-c5-c7) */
+     z1 = DEQUANTIZE(inptr[DCTSIZE*1], quantptr[DCTSIZE*1]);
+     tmp0 += (z1 * FIX_3_624509785); /* sqrt(2) * (c1+c3+c5+c7) */
+	}
+
+    /* Final output stage */
+    
+    wsptr[DCTSIZE*0] = (int) DESCALE(tmp10 + tmp0, CONST_BITS-pass1_bits+2);
+    wsptr[DCTSIZE*1] = (int) DESCALE(tmp10 - tmp0, CONST_BITS-pass1_bits+2);
+++++++++++++++++++++++++++++++++++++++++
+from:
+      JSAMPLE dcval = range_limit[(int) DESCALE((INT32) wsptr[0], PASS1_BITS+3)
+to:
+      JSAMPLE16 dcval = range_limit[(int) DESCALE((INT32) wsptr[0], pass1_bits+3)
+++++++++++++++++++++++++++++++++++++++++
+from:
+    tmp0 = MULTIPLY((INT32) wsptr[7], - FIX_0_720959822) /* sqrt(2) * (c7-c5+c3-c1) */
+	 + MULTIPLY((INT32) wsptr[5], FIX_0_850430095) /* sqrt(2) * (-c1+c3+c5+c7) */
+	 + MULTIPLY((INT32) wsptr[3], - FIX_1_272758580) /* sqrt(2) * (-c1+c3-c5-c7) */
+	 + MULTIPLY((INT32) wsptr[1], FIX_3_624509785); /* sqrt(2) * (c1+c3+c5+c7) */
+
+    /* Final output stage */
+    
+    outptr[0] = range_limit[(int) DESCALE(tmp10 + tmp0,
+					  CONST_BITS+PASS1_BITS+3+2)
+			    & RANGE_MASK];
+    outptr[1] = range_limit[(int) DESCALE(tmp10 - tmp0,
+					  CONST_BITS+PASS1_BITS+3+2)
+to:
+    if (jpeg8) tmp0 = MULTIPLY16C16((INT32) wsptr[7], - FIX_0_720959822) /* sqrt(2) * (c7-c5+c3-c1) */
+	 + MULTIPLY16C16((INT32) wsptr[5], FIX_0_850430095) /* sqrt(2) * (-c1+c3+c5+c7) */
+	 + MULTIPLY16C16((INT32) wsptr[3], - FIX_1_272758580) /* sqrt(2) * (-c1+c3-c5-c7) */
+	 + MULTIPLY16C16((INT32) wsptr[1], FIX_3_624509785); /* sqrt(2) * (c1+c3+c5+c7) */
+	else tmp0 = ((INT32) wsptr[7] * ( - FIX_0_720959822)) /* sqrt(2) * (c7-c5+c3-c1) */
+	 + ((INT32) wsptr[5] * FIX_0_850430095) /* sqrt(2) * (-c1+c3+c5+c7) */
+	 + ((INT32) wsptr[3] * ( - FIX_1_272758580)) /* sqrt(2) * (-c1+c3-c5-c7) */
+	 + ((INT32) wsptr[1] * FIX_3_624509785); /* sqrt(2) * (c1+c3+c5+c7) */
+
+    /* Final output stage */
+    
+    outptr[0] = range_limit[(int) DESCALE(tmp10 + tmp0,
+					  CONST_BITS+pass1_bits+3+2)
+			    & RANGE_MASK];
+    outptr[1] = range_limit[(int) DESCALE(tmp10 - tmp0,
+					  CONST_BITS+pass1_bits+3+2)
+
+-----------------------------------------------------------------------
+jlossls.h from:
+/* Compression module initialization routines */
+EXTERN(void) jinit_lhuff_encoder JPP((j_compress_ptr cinfo));
+EXTERN(void) jinit_differencer JPP((j_compress_ptr cinfo));
+EXTERN(void) jinit_c_scaler JPP((j_compress_ptr cinfo));
+/* Decompression module initialization routines */
+EXTERN(void) jinit_lhuff_decoder JPP((j_decompress_ptr cinfo));
+EXTERN(void) jinit_undifferencer JPP((j_decompress_ptr cinfo));
+EXTERN(void) jinit_d_scaler JPP((j_decompress_ptr cinfo));
+to:
+/* Compression module initialization routines */
+EXTERN(void) jinit_lossless_c_codec JPP((j_compress_ptr cinfo));
+EXTERN(void) jinit_lhuff_encoder JPP((j_compress_ptr cinfo));
+EXTERN(void) jinit_differencer JPP((j_compress_ptr cinfo));
+EXTERN(void) jinit_c_scaler JPP((j_compress_ptr cinfo));
+/* Decompression module initialization routines */
+EXTERN(void) jinit_lossless_d_codec JPP((j_decompress_ptr cinfo));
+EXTERN(void) jinit_lhuff_decoder JPP((j_decompress_ptr cinfo));
+EXTERN(void) jinit_undifferencer JPP((j_decompress_ptr cinfo));
+EXTERN(void) jinit_d_scaler JPP((j_decompress_ptr cinfo));
+EXTERN(void) jinit_d_diff_controller JPP((j_decompress_ptr cinfo, boolean need_full_buffer));
+
+-----------------------------------------------------------------------
+jmmemmgr.c from:
+  JSAMPARRAY mem_buffer;	/* => the in-memory buffer */
+(stays JSAMPARRAY)to:
+  JSAMPARRAY mem_buffer;	/* => the in-memory buffer */
+
+++++++++++++++++++++++++++++++++++++++++
+in:
+METHODDEF(JSAMPARRAY)
+alloc_sarray (j_common_ptr cinfo, int pool_id,
+stays without "16"
+++++++++++++++++++++++++++++++++++++++++
+from:
+METHODDEF(JSAMPARRAY)
+access_virt_sarray (j_common_ptr cinfo, jvirt_sarray_ptr ptr,
+(stays JSAMPARRAY)to:
+METHODDEF(JSAMPARRAY)
+access_virt_sarray (j_common_ptr cinfo, jvirt_sarray_ptr ptr,
+-----------------------------------------------------------------------
+jmorecfg.h from:
+#define BITS_IN_JSAMPLE  8	/* use 8 or 12 */
+to:
+#define BITS_IN_JSAMPLE  8	/* use 8 or 12 */
+/* Now is 16 for defines and cinfo->data_precision or
+ * cinfo->data_precision_other for data values,
+ * but is left at 8 for compatibility. */
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+/* JSAMPLE should be the smallest type that will hold the values 0..255.
+ * You can use a signed char by having GETJSAMPLE mask it with 0xFF.
+ */
+
+#ifdef HAVE_UNSIGNED_CHAR
+
+typedef unsigned char JSAMPLE;
+#define GETJSAMPLE(value)  ((int) (value))
+
+#else /* not HAVE_UNSIGNED_CHAR */
+
+typedef char JSAMPLE;
+#ifdef CHAR_IS_UNSIGNED
+#define GETJSAMPLE(value)  ((int) (value))
+#else
+#define GETJSAMPLE(value)  ((int) (value) & 0xFF)
+#endif /* CHAR_IS_UNSIGNED */
+
+#endif /* HAVE_UNSIGNED_CHAR */
+
+#define MAXJSAMPLE	255
+#define CENTERJSAMPLE	128
+
+#endif /* BITS_IN_JSAMPLE == 8 */
+
+
+#if BITS_IN_JSAMPLE == 12
+/* JSAMPLE should be the smallest type that will hold the values 0..4095.
+ * On nearly all machines "short" will do nicely.
+ */
+
+typedef short JSAMPLE;
+#define GETJSAMPLE(value)  ((int) (value))
+
+#define MAXJSAMPLE	4095
+#define CENTERJSAMPLE	2048
+
+#endif /* BITS_IN_JSAMPLE == 12 */
+
+
+#if BITS_IN_JSAMPLE == 16
+/* JSAMPLE should be the smallest type that will hold the values 0..65535.
+ * You can use a signed short by having GETJSAMPLE mask it with 0xFFFF.
+ */
+
+#ifdef HAVE_UNSIGNED_SHORT
+
+typedef unsigned short JSAMPLE;
+#define GETJSAMPLE(value)  ((int) (value))
+
+#else /* not HAVE_UNSIGNED_SHORT */
+
+typedef short JSAMPLE;
+#ifdef SHORT_IS_UNSIGNED
+#define GETJSAMPLE(value)  ((int) (value))
+#else
+#define GETJSAMPLE(value)  ((int) (value) & 0xFFFF)
+#endif /* SHORT_IS_UNSIGNED */
+
+#endif /* HAVE_UNSIGNED_SHORT */
+
+#define MAXJSAMPLE	65535
+#define CENTERJSAMPLE	32768
+
+#endif /* BITS_IN_JSAMPLE == 16 */
+to:
+/*#if BITS_IN_JSAMPLE == 8*/
+/* JSAMPLE should be the smallest type that will hold the values 0..255.
+ * You can use a signed char by having GETJSAMPLE mask it with 0xFF.
+ */
+
+#ifdef HAVE_UNSIGNED_CHAR
+
+typedef unsigned char JSAMPLE8;
+/*#define GETJSAMPLE(value)  ((int) (value))*/
+
+#else /* not HAVE_UNSIGNED_CHAR */
+
+typedef char JSAMPLE8;
+/*#ifdef CHAR_IS_UNSIGNED
+#define GETJSAMPLE(value)  ((int) (value))
+#else
+#define GETJSAMPLE(value)  ((int) (value) & 0xFF)
+#endif*/ /* CHAR_IS_UNSIGNED */
+
+#endif /* HAVE_UNSIGNED_CHAR */
+
+/*#define MAXJSAMPLE	255
+#define CENTERJSAMPLE	128
+
+#endif*/ /* BITS_IN_JSAMPLE == 8 */
+
+
+/*#if BITS_IN_JSAMPLE == 12*/
+/* JSAMPLE should be the smallest type that will hold the values 0..4095.
+ * On nearly all machines "short" will do nicely.
+ */
+
+/*typedef short JSAMPLE;
+#define GETJSAMPLE(value)  ((int) (value))
+
+#define MAXJSAMPLE	4095
+#define CENTERJSAMPLE	2048
+
+#endif*/ /* BITS_IN_JSAMPLE == 12 */
+
+
+/*#if BITS_IN_JSAMPLE == 16*/
+/* JSAMPLE16 should be the smallest type that will hold the values 0..65535.
+ * You can use a signed short by having GETJSAMPLE mask it with 0xFFFF.
+ */
+/* Always 16 now. 0xFFFF is now mask ( 0xFF, 0xFFF or 0xFFFF )*/
+/* Added 12 bit mask, may not be needed. */
+#ifdef HAVE_UNSIGNED_SHORT
+
+typedef unsigned short JSAMPLE16;
+#define GETJSAMPLE(value)  ((int) (value))
+
+#else /* not HAVE_UNSIGNED_SHORT */
+
+typedef short JSAMPLE16;
+#ifdef SHORT_IS_UNSIGNED
+#define GETJSAMPLE(value)  ((int) (value))
+#else
+#define GETJSAMPLE(value)  ((int) (value) & cinfo->maskjsample)
+#define HAVE_GETJSAMPLE_MASK 1
+#endif /* SHORT_IS_UNSIGNED */
+
+#endif /* HAVE_UNSIGNED_SHORT */
+
+#define JSAMPLEMAX 16 /* Maximum bits in JSAMPLE16 */
+
+/*#define MAXJSAMPLE	65535
+#define CENTERJSAMPLE	32768
+
+#endif*/ /* BITS_IN_JSAMPLE == 16 */
+
+-----------------------------------------------------------------------
+jpegint.h from:
+  JMETHOD(void, process_data, (j_compress_ptr cinfo,
+			       JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+(stays JSAMPARRAY)to:
+  JMETHOD(void, process_data, (j_compress_ptr cinfo,
+			       JSAMPARRAY input_buf, JDIMENSION *in_row_ctr,
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JMETHOD(void, pre_process_data, (j_compress_ptr cinfo,
+				   JSAMPARRAY input_buf,
+				   JDIMENSION *in_row_ctr,
+				   JDIMENSION in_rows_avail,
+				   JSAMPIMAGE output_buf,
+(stays JSAMPARRAY)to:
+  JMETHOD(void, pre_process_data, (j_compress_ptr cinfo,
+				   JSAMPARRAY input_buf,
+				   JDIMENSION *in_row_ctr,
+				   JDIMENSION in_rows_avail,
+				   JSAMPIMAGE16 output_buf,
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JMETHOD(void, color_convert, (j_compress_ptr cinfo,
+				JSAMPARRAY input_buf, JSAMPIMAGE output_buf,
+(stays JSAMPARRAY)to:
+  JMETHOD(void, color_convert, (j_compress_ptr cinfo,
+				JSAMPARRAY input_buf, JSAMPIMAGE output_buf,
+
+-----------------------------------------------------------------------
+jpeglib.h from:
+ * Might be useful for tests like "#if JPEG_LIB_VERSION >= 60".
+ */
+
+#define JPEG_LIB_VERSION  62	/* Version 6b */
+to:
+ * Might be useful for tests like "#if JPEG_LIB_VERSION >= 70".
+ */
+
+#define JPEG_LIB_VERSION  63	/* Version 6c */
+++++++++++++++++++++++++++++++++++++++++
+from:
+typedef JSAMPLE FAR *JSAMPROW;	/* ptr to one image row of pixel samples. */
+typedef JSAMPROW *JSAMPARRAY;	/* ptr to some rows (a 2-D sample array) */
+typedef JSAMPARRAY *JSAMPIMAGE;	/* a 3-D sample array: top index is color */
+to:
+typedef JSAMPLE FAR *JSAMPROW;	/* ptr to one image row of pixel samples. */
+typedef JSAMPROW *JSAMPARRAY;	/* ptr to some rows (a 2-D sample array) */
+typedef JSAMPARRAY *JSAMPIMAGE;	/* a 3-D sample array: top index is color */
+typedef JSAMPLE16 FAR *JSAMPROW16;	/* ptr to one image row of pixel samples. */
+typedef JSAMPROW16 *JSAMPARRAY16;	/* ptr to some rows (a 2-D sample array) */
+typedef JSAMPARRAY16 *JSAMPIMAGE16;	/* a 3-D sample array: top index is color */
+++++++++++++++++++++++++++++++++++++++++
+from:
+  boolean lossless;		/* TRUE=lossless encoding, FALSE=lossy */
+
+  UINT8 data_precision;		/* bits of precision in image data */
+to:
+  boolean lossless;		/* TRUE=lossless encoding, FALSE=lossy */
+  boolean lossless_scaling; /* If lossless is allowed to scale */
+
+  UINT8 data_precision;		/* bits of precision in jpeg image data */
+  UINT8 data_precision_other;		/* bits of precision in input image data */
+  UINT16 maxjsample;			/* max value of jpeg bits ( 255,4095 or 65535 ) */
+  UINT16 centerjsample;			/* center value of jpeg bits ( 128,2048 or 32768 ) */
+#ifdef HAVE_GETJSAMPLE_MASK
+  UINT16 maskjsample;			/* mask value of the sample */
+#endif
+++++++++++++++++++++++++++++++++++++++++
+from:
+  boolean raw_data_in;		/* TRUE=caller supplies downsampled data */
+to:
+  boolean raw_data_in;		/* TRUE=caller supplies downsampled data */
+  JSAMPIMAGE16 raw_data_buffer; /* 8 to 16 raw data buffer */
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning)from:
+  struct jpeg_c_main_controller * main;
+to:
+  struct jpeg_c_main_controller * mainp;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JSAMPARRAY colormap;		/* The color map as a 2-D pixel array */
+to:
+  JSAMPARRAY colormap;		/* The color map as a 2-D pixel array of 8 bits */
+  JSAMPARRAY16 colormap16;		/* The color map as a 2-D pixel array of 16 bits */
+++++++++++++++++++++++++++++++++++++++++
+from:
+  UINT8 data_precision;		/* bits of precision in image data */
+to:
+  UINT8 data_precision;		/* bits of precision in jpeg image data */
+  UINT8 data_precision_other;		/* bits of precision in output image data */
+  boolean buffer_size_char      /* each output pixel is char wide, default TRUE */
+  UINT16 maxjsample;			/* max value of jpeg bits ( 255,4095 or 65535 ) */
+  UINT16 centerjsample;			/* center value of jpeg bits ( 128,2048 or 32768 ) */
+#ifdef HAVE_GETJSAMPLE_MASK
+  UINT16 maskjsample;			/* mask value of the sample */
+#endif
+  /* Used to shift data to a char. */
+  int shft;
+++++++++++++++++++++++++++++++++++++++++
+(GCC4.1 Warning)from:
+  struct jpeg_d_main_controller * main;
+to:
+  struct jpeg_d_main_controller * mainp;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JSAMPLE * sample_range_limit; /* table for fast range-limiting */
+to:
+  JSAMPLE16 * sample_range_limit; /* table for fast range-limiting */
+++++++++++++++++++++++++++++++++++++++++
+from:
+#define JPOOL_PERMANENT	0	/* lasts until master record is destroyed */
+#define JPOOL_IMAGE	1	/* lasts until done with image/datastream */
+#define JPOOL_NUMPOOLS	2
+to:
+#define JPOOL_PERMANENT	0	/* lasts until master record is destroyed */
+#define JPOOL_IMAGE	1	/* lasts until done with image/datastream */
+#define JPOOL_IMAGE	2	/* lasts until done with image/datastream */
+#define JPOOL_NUMPOOLS	3
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JMETHOD(JSAMPARRAY, alloc_sarray, (j_common_ptr cinfo, int pool_id,
+(stays JSAMPARRAY)to:
+  JMETHOD(JSAMPARRAY, alloc_sarray, (j_common_ptr cinfo, int pool_id,
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JMETHOD(JSAMPARRAY, access_virt_sarray, (j_common_ptr cinfo,
+(stays JSAMPARRAY)to:
+  JMETHOD(JSAMPARRAY, access_virt_sarray, (j_common_ptr cinfo,
+++++++++++++++++++++++++++++++++++++++++
+added:
+/* The fix for CPP */
+#ifdef __cplusplus
+extern "C" {
+#endif
+++++++++++++++++++++++++++++++++++++++++
+from:
+EXTERN(JDIMENSION) jpeg_write_scanlines JPP((j_compress_ptr cinfo,
+					     JSAMPARRAY scanlines,
+					     JDIMENSION num_lines));
+(stays JSAMPARRAY)to:
+EXTERN(JDIMENSION) jpeg_write_scanlines JPP((j_compress_ptr cinfo,
+					     JSAMPARRAY scanlines,
+					     JDIMENSION num_lines));
+++++++++++++++++++++++++++++++++++++++++
+from:
+EXTERN(JDIMENSION) jpeg_write_raw_data JPP((j_compress_ptr cinfo,
+					    JSAMPIMAGE data,
+					    JDIMENSION num_lines));
+(stays JSAMPIMAGE)to:
+EXTERN(JDIMENSION) jpeg_write_raw_data JPP((j_compress_ptr cinfo,
+					    JSAMPIMAGE data,
+					    JDIMENSION num_lines));
+++++++++++++++++++++++++++++++++++++++++
+from:
+EXTERN(JDIMENSION) jpeg_read_scanlines JPP((j_decompress_ptr cinfo,
+					    JSAMPARRAY scanlines,
+					    JDIMENSION max_lines));
+(stays JSAMPARRAY)to:
+EXTERN(JDIMENSION) jpeg_read_scanlines JPP((j_decompress_ptr cinfo,
+					    JSAMPARRAY scanlines,
+					    JDIMENSION max_lines));
+++++++++++++++++++++++++++++++++++++++++
+from:
+EXTERN(JDIMENSION) jpeg_read_raw_data JPP((j_decompress_ptr cinfo,
+					   JSAMPIMAGE data,
+					   JDIMENSION max_lines));
+(stays JSAMPIMAGE)to:
+EXTERN(JDIMENSION) jpeg_read_raw_data JPP((j_decompress_ptr cinfo,
+					   JSAMPIMAGE data,
+					   JDIMENSION max_lines));
+++++++++++++++++++++++++++++++++++++++++
+added:
+/* End of CPP fix */
+#ifdef __cplusplus
+}
+#endif
+
+-----------------------------------------------------------------------
+Use jpegtran.c from patch file.
+
+-----------------------------------------------------------------------
+jquant1.c from:
+#if BITS_IN_JSAMPLE == 8
+typedef INT16 FSERROR;		/* 16 bits should be enough */
+typedef int LOCFSERROR;		/* use 'int' for calculation temps */
+#else
+typedef INT32 FSERROR;		/* may need more than 16 bits */
+typedef INT32 LOCFSERROR;	/* be sure calculation temps are big enough */
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+typedef INT16 FSERROR;*/		/* 16 bits should be enough */
+/*typedef int LOCFSERROR;*/		/* use 'int' for calculation temps */
+/*#else*/
+typedef INT32 FSERROR;		/* may need more than 16 bits */
+typedef INT32 LOCFSERROR;	/* be sure calculation temps are big enough */
+/*#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+  return (int) (((INT32) j * MAXJSAMPLE + maxj/2) / maxj);
+to:
+  return (int) (((INT32) j * cinfo->maxjsample + maxj/2) / maxj);
+++++++++++++++++++++++++++++++++++++++++
+from:
+  return (int) (((INT32) (2*j + 1) * MAXJSAMPLE + maxj) / (2*maxj));
+to:
+  return (int) (((INT32) (2*j + 1) * cinfo->maxjsample + maxj) / (2*maxj));
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JSAMPARRAY colormap;		/* Created colormap */
+to:
+  JSAMPARRAY16 colormap16;		/* Created colormap */
+  JSAMPARRAY colormap;		/* Created 8 bit colormap */
+++++++++++++++++++++++++++++++++++++++++
+from:
+  colormap = (*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+     (JDIMENSION) total_colors, (JDIMENSION) cinfo->out_color_components);
+to:
+  colormap16 = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+     (JDIMENSION) total_colors * SIZEOF(JSAMPLE16),
+     (JDIMENSION) cinfo->out_color_components);
+
+   colormap = (*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+     (JDIMENSION) total_colors * SIZEOF(JSAMPLE),
+     (JDIMENSION) cinfo->out_color_components);
+++++++++++++++++++++++++++++++++++++++++
+from:
+	  colormap[i][ptr+k] = (JSAMPLE) val;
+to:
+	  colormap16[i][ptr+k] = (JSAMPLE16) val;
+	  colormap[i][ptr+k] = (JSAMPLE)(val & 0xFF);/* 8 bit too. */
+++++++++++++++++++++++++++++++++++++++++
+from:
+  cquantize->sv_colormap = colormap;
+to:
+  cquantize->sv_colormap = colormap16;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  cquantize->colorindex = (*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+    pad = MAXJSAMPLE*2;
+to:
+  cquantize->colorindex = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+     (JDIMENSION) (cinfo->maxjsample+1 + pad) * SIZEOF(JSAMPLE16),
+++++++++++++++++++++++++++++++++++++++++
+from:
+     (JDIMENSION) (MAXJSAMPLE+1 + pad),
+to:
+     (JDIMENSION) (cinfo->maxjsample+1 + pad),
+++++++++++++++++++++++++++++++++++++++++
+from:
+      cquantize->colorindex[i] += MAXJSAMPLE;
+to:
+      cquantize->colorindex[i] += cinfo->maxjsample;
+++++++++++++++++++++++++++++++++++++++++
+from:
+    for (j = 0; j <= MAXJSAMPLE; j++) {
+to:
+    for (j = 0; j <= cinfo->maxjsample; j++) {
+++++++++++++++++++++++++++++++++++++++++
+from:
+      for (j = 1; j <= MAXJSAMPLE; j++) {
+to:
+      for (j = 1; j <= cinfo->maxjsample; j++) {
+++++++++++++++++++++++++++++++++++++++++
+from:
+	indexptr[MAXJSAMPLE+j] = indexptr[MAXJSAMPLE];
+to:
+	indexptr[cinfo->maxjsample+j] = indexptr[cinfo->maxjsample];
+++++++++++++++++++++++++++++++++++++++++
+from:
+      num = ((INT32) (ODITHER_CELLS-1 - 2*((int)base_dither_matrix[j][k])))
+	    * MAXJSAMPLE;
+to:
+      num = ((INT32) (ODITHER_CELLS-1 - 2*((int)base_dither_matrix[j][k])))
+	    * cinfo->maxjsample;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  cinfo->colormap = cquantize->sv_colormap;
+to:
+  cinfo->colormap16 = cquantize->sv_colormap;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  if (cinfo->desired_number_of_colors > (MAXJSAMPLE+1))
+    ERREXIT1(cinfo, JERR_QUANT_MANY_COLORS, MAXJSAMPLE+1);
+to:
+  if (cinfo->desired_number_of_colors > (cinfo->maxjsample+1))
+    ERREXIT1(cinfo, JERR_QUANT_MANY_COLORS, cinfo->maxjsample+1);
+
+-----------------------------------------------------------------------
+jquant2.c from:
+#define MAXNUMCOLORS  (MAXJSAMPLE+1) /* maximum size of colormap */
+to:
+#define MAXNUMCOLORS  (cinfo->maxjsample+1) /* maximum size of colormap */
+++++++++++++++++++++++++++++++++++++++++
+from:
+#define C0_SHIFT  (BITS_IN_JSAMPLE-HIST_C0_BITS)
+#define C1_SHIFT  (BITS_IN_JSAMPLE-HIST_C1_BITS)
+#define C2_SHIFT  (BITS_IN_JSAMPLE-HIST_C2_BITS)
+to:
+#define C0_SHIFT  (cinfo->data_precision - HIST_C0_BITS)
+#define C1_SHIFT  (cinfo->data_precision - HIST_C1_BITS)
+#define C2_SHIFT  (cinfo->data_precision - HIST_C2_BITS)
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+typedef INT16 FSERROR;		/* 16 bits should be enough */
+typedef int LOCFSERROR;		/* use 'int' for calculation temps */
+#else
+typedef INT32 FSERROR;		/* may need more than 16 bits */
+typedef INT32 LOCFSERROR;	/* be sure calculation temps are big enough */
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+typedef INT16 FSERROR;*/		/* 16 bits should be enough */
+/*typedef int LOCFSERROR;*/		/* use 'int' for calculation temps */
+/*#else*/
+typedef INT32 FSERROR;		/* may need more than 16 bits */
+typedef INT32 LOCFSERROR;	/* be sure calculation temps are big enough */
+/*#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JSAMPARRAY sv_colormap;	/* colormap allocated at init time */
+to:
+  JSAMPARRAY16 sv_colormap;	/* colormap allocated at init time */
+  JSAMPARRAY sv_colormap8;	/* colormap allocated at init time */
+++++++++++++++++++++++++++++++++++++++++
+from:
+  cinfo->colormap[0][icolor] = (JSAMPLE) ((c0total + (total>>1)) / total);
+  cinfo->colormap[1][icolor] = (JSAMPLE) ((c1total + (total>>1)) / total);
+  cinfo->colormap[2][icolor] = (JSAMPLE) ((c2total + (total>>1)) / total);
+to:
+  cinfo->colormap16[0][icolor] = (JSAMPLE16) ((c0total + (total>>1)) / total);
+  cinfo->colormap16[1][icolor] = (JSAMPLE16) ((c1total + (total>>1)) / total);
+  cinfo->colormap16[2][icolor] = (JSAMPLE16) ((c2total + (total>>1)) / total);
+  /* Now for the 8 bits color map. */
+  cinfo->colormap[0][icolor] = (JSAMPLE) (((c0total + (total>>1)) / total) & 0xFF);
+  cinfo->colormap[1][icolor] = (JSAMPLE) (((c1total + (total>>1)) / total) & 0xFF);
+  cinfo->colormap[2][icolor] = (JSAMPLE) (((c2total + (total>>1)) / total) & 0xFF);
+++++++++++++++++++++++++++++++++++++++++
+from:
+  boxlist[0].c0max = MAXJSAMPLE >> C0_SHIFT;
+  boxlist[0].c1min = 0;
+  boxlist[0].c1max = MAXJSAMPLE >> C1_SHIFT;
+  boxlist[0].c2min = 0;
+  boxlist[0].c2max = MAXJSAMPLE >> C2_SHIFT;
+to:
+  boxlist[0].c0max = cinfo->maxjsample >> C0_SHIFT;
+  boxlist[0].c1min = 0;
+  boxlist[0].c1max = cinfo->maxjsample >> C1_SHIFT;
+  boxlist[0].c2min = 0;
+  boxlist[0].c2max = cinfo->maxjsample >> C2_SHIFT;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  INT32 mindist[MAXNUMCOLORS];	/* min distance to colormap entry i */
+to:
+  /* mvh,bcb 20100121 Allocate and free mindist */
+  INT32 * mindist = (INT32*)jpeg_get_large((j_common_ptr)cinfo,
+				       MAXNUMCOLORS * sizeof(INT32));	/* min distance to colormap entry i */
+++++++++++++++++++++++++++++++++++++++++
+from:
+    x = GETJSAMPLE(cinfo->colormap[0][i]);
+to:
+    x = GETJSAMPLE(cinfo->colormap16[0][i]);
+++++++++++++++++++++++++++++++++++++++++
+from:
+    x = GETJSAMPLE(cinfo->colormap[1][i]);
+to:
+    x = GETJSAMPLE(cinfo->colormap16[1][i]);
+++++++++++++++++++++++++++++++++++++++++
+from:
+    x = GETJSAMPLE(cinfo->colormap[2][i]);
+to:
+    x = GETJSAMPLE(cinfo->colormap16[2][i]);
+++++++++++++++++++++++++++++++++++++++++
+added:
+  /* mvh,bcb 20100121 Allocate and free mindist */
+  jpeg_free_large((j_common_ptr)cinfo, mindist, MAXNUMCOLORS * sizeof(INT32));
+++++++++++++++++++++++++++++++++++++++++
+from:
+    inc0 = (minc0 - GETJSAMPLE(cinfo->colormap[0][icolor])) * C0_SCALE;
+    dist0 = inc0*inc0;
+    inc1 = (minc1 - GETJSAMPLE(cinfo->colormap[1][icolor])) * C1_SCALE;
+    dist0 += inc1*inc1;
+    inc2 = (minc2 - GETJSAMPLE(cinfo->colormap[2][icolor])) * C2_SCALE;
+to:
+    inc0 = (minc0 - GETJSAMPLE(cinfo->colormap16[0][icolor])) * C0_SCALE;
+    dist0 = inc0*inc0;
+    inc1 = (minc1 - GETJSAMPLE(cinfo->colormap16[1][icolor])) * C1_SCALE;
+    dist0 += inc1*inc1;
+    inc2 = (minc2 - GETJSAMPLE(cinfo->colormap16[2][icolor])) * C2_SCALE;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JSAMPLE16 colorlist[MAXNUMCOLORS];	/* min distance to colormap entry i */
+to:
+  /* mvh,bcb 20100121 Allocate and free colorlist */
+  JSAMPLE16 *colorlist = (JSAMPLE16 *)jpeg_get_large((j_common_ptr)cinfo,
+				       MAXNUMCOLORS * sizeof(INT32));	/* min distance to colormap entry i */
+++++++++++++++++++++++++++++++++++++++++
+added:
+  /* mvh,bcb 20100121 Allocate and free colorlist */
+  jpeg_free_large((j_common_ptr)cinfo, colorlist, MAXNUMCOLORS * sizeof(INT32));
+
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JSAMPROW colormap0 = cinfo->colormap[0];
+  JSAMPROW colormap1 = cinfo->colormap[1];
+  JSAMPROW colormap2 = cinfo->colormap[2];
+to:
+  JSAMPROW16 colormap0 = cinfo->colormap16[0];
+  JSAMPROW16 colormap1 = cinfo->colormap16[1];
+  JSAMPROW16 colormap2 = cinfo->colormap16[2];
+++++++++++++++++++++++++++++++++++++++++
+from:
+    ((j_common_ptr) cinfo, JPOOL_IMAGE, (MAXJSAMPLE*2+1) * SIZEOF(int));
+  table += MAXJSAMPLE;		/* so can index -MAXJSAMPLE .. +MAXJSAMPLE */
+  cquantize->error_limiter = table;
+
+#define STEPSIZE ((MAXJSAMPLE+1)/16)
+  /* Map errors 1:1 up to +- MAXJSAMPLE/16 */
+  out = 0;
+  for (in = 0; in < STEPSIZE; in++, out++) {
+    table[in] = out; table[-in] = -out;
+  }
+  /* Map errors 1:2 up to +- 3*MAXJSAMPLE/16 */
+  for (; in < STEPSIZE*3; in++, out += (in&1) ? 0 : 1) {
+    table[in] = out; table[-in] = -out;
+  }
+  /* Clamp the rest to final out value (which is (MAXJSAMPLE+1)/8) */
+  for (; in <= MAXJSAMPLE; in++) {
+to:
+    ((j_common_ptr) cinfo, JPOOL_IMAGE, (cinfo->maxjsample*2+1) * SIZEOF(int));
+  table += cinfo->maxjsample;		/* so can index -cinfo->maxjsample .. +cinfo->maxjsample */
+  cquantize->error_limiter = table;
+
+#define STEPSIZE ((cinfo->maxjsample+1)/16)
+  /* Map errors 1:1 up to +- cinfo->maxjsample/16 */
+  out = 0;
+  for (in = 0; in < STEPSIZE; in++, out++) {
+    table[in] = out; table[-in] = -out;
+  }
+  /* Map errors 1:2 up to +- 3*cinfo->maxjsample/16 */
+  for (; in < STEPSIZE*3; in++, out += (in&1) ? 0 : 1) {
+    table[in] = out; table[-in] = -out;
+  }
+  /* Clamp the rest to final out value (which is (cinfo->maxjsample+1)/8) */
+  for (; in <= cinfo->maxjsample; in++) {
+++++++++++++++++++++++++++++++++++++++++
+from:
+  cinfo->colormap = cquantize->sv_colormap;
+to:
+  cinfo->colormap16 = cquantize->sv_colormap;
+  cinfo->colormap = cquantize->sv_colormap8;
+++++++++++++++++++++++++++++++++++++++++
+from:
+    cquantize->sv_colormap = (*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo,JPOOL_IMAGE, (JDIMENSION) desired, (JDIMENSION) 3);
+to:
+    cquantize->sv_colormap = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo,JPOOL_IMAGE, (JDIMENSION) desired
+      * SIZEOF(JSAMPLE16), (JDIMENSION) 3);
+    cquantize->sv_colormap8 = (*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo,JPOOL_IMAGE, (JDIMENSION) desired
+      * SIZEOF(JSAMPLE), (JDIMENSION) 3);
+
+-----------------------------------------------------------------------
+jversion.h from:
+#define JVERSION	"6b  27-Mar-1998"
+to:
+#define JVERSION	"7  29-Jun-2009"
+-----------------------------------------------------------------------
+makefile.cfg from:
+        jcprepct.$(O) jclossls.$(O) jclossy.o jccoefct.$(O) jccolor.$(O) \
+to:
+        jcprepct.$(O) jclossls.$(O) jclossy.$(O) jccoefct.$(O) jccolor.$(O) \
+
+-----------------------------------------------------------------------
+rdcolmap.c from:
+  JSAMPROW colormap0 = cinfo->colormap[0];
+  JSAMPROW colormap1 = cinfo->colormap[1];
+  JSAMPROW colormap2 = cinfo->colormap[2];
+to:
+  JSAMPROW16 colormap0 = cinfo->colormap16[0];
+  JSAMPROW16 colormap1 = cinfo->colormap16[1];
+  JSAMPROW16 colormap2 = cinfo->colormap16[2];
+  JSAMPROW colormap8_0 = cinfo->colormap[0];
+  JSAMPROW colormap8_1 = cinfo->colormap[1];
+  JSAMPROW colormap8_2 = cinfo->colormap[2];
+++++++++++++++++++++++++++++++++++++++++ Check later
+from:
+  if (ncolors >= (MAXJSAMPLE+1))
+    ERREXIT1(cinfo, JERR_QUANT_MANY_COLORS, (MAXJSAMPLE+1));
+to:
+  if (ncolors >= (cinfo->maxjsample+1))
+    ERREXIT1(cinfo, JERR_QUANT_MANY_COLORS, (cinfo->maxjsample+1));
+++++++++++++++++++++++++++++++++++++++++
+from:
+  /* OK, add color to map. */
+  colormap0[ncolors] = (JSAMPLE) R;
+  colormap1[ncolors] = (JSAMPLE) G;
+  colormap2[ncolors] = (JSAMPLE) B;
+to:
+  /* OK, add color to maps. */
+  colormap0[ncolors] = (JSAMPLE16) R;
+  colormap1[ncolors] = (JSAMPLE16) G;
+  colormap2[ncolors] = (JSAMPLE16) B;
+  colormap8_0[ncolors] = (JSAMPLE)(R & 0xFF);
+  colormap8_1[ncolors] = (JSAMPLE)(G & 0xFF);
+  colormap8_2[ncolors] = (JSAMPLE)(B & 0xFF);
+++++++++++++++++++++++++++++++++++++++++
+from:
+		  R << (BITS_IN_JSAMPLE-8),
+		  G << (BITS_IN_JSAMPLE-8),
+		  B << (BITS_IN_JSAMPLE-8));
+to:
+		  R << (cinfo->data_precision -8),
+		  G << (cinfo->data_precision -8),
+		  B << (cinfo->data_precision -8));
+++++++++++++++++++++++++++++++++++++++++
+from:
+  if (maxval != (unsigned int) MAXJSAMPLE)
+to:
+  if (maxval != (unsigned int) cinfo->maxjsample)
+++++++++++++++++++++++++++++++++++++++++
+from:
+  /* Allocate space for a color map of maximum supported size. */
+  cinfo->colormap = (*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+     (JDIMENSION) (MAXJSAMPLE+1), (JDIMENSION) 3);
+to:
+  /* Allocate space for a color map of maximum supported size. */
+  cinfo->colormap16 = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+     (JDIMENSION) ((cinfo->maxjsample + 1) * SIZEOF(JSAMPLE16)), (JDIMENSION) 3);
+  cinfo->actual_number_of_colors = 0; /* initialize map to empty */
+
+-----------------------------------------------------------------------
+rdgif.c (ver 6a) from:
+  boolean out_of_blocks;	/* TRUE if hit terminator data block */
+to:
+  boolean out_of_blocks;	/* TRUE if hit terminator data block */
+  boolean grayscale;	/* TRUE if r = g = b for all bits in the table */
+to:
+++++++++++++++++++++++++++++++++++++++++
+from:
+ReadColorMap (gif_source_ptr sinfo, int cmaplen, JSAMPARRAY cmap)
+/* Read a GIF colormap */
+{
+  int i;
+to:
+ReadColorMap (gif_source_ptr sinfo, int cmaplen, JSAMPARRAY cmap, int upscale)
+/* Read a GIF colormap */
+{
+  int i;
+  sinfo->grayscale = TRUE;
+++++++++++++++++++++++++++++++++++++++++
+from:
+#if BITS_IN_JSAMPLE == 8
+#define UPSCALE(x)  (x)
+#else
+#define UPSCALE(x)  ((x) << (BITS_IN_JSAMPLE-8))
+#endif
+    cmap[CM_RED][i]   = (JSAMPLE) UPSCALE(ReadByte(sinfo));
+    cmap[CM_GREEN][i] = (JSAMPLE) UPSCALE(ReadByte(sinfo));
+    cmap[CM_BLUE][i]  = (JSAMPLE) UPSCALE(ReadByte(sinfo));
+to:
+/*#if BITS_IN_JSAMPLE == 8
+#define UPSCALE(x)  (x)
+#else
+#define UPSCALE(x)  ((x) << (BITS_IN_JSAMPLE-8))
+#endif
+    cmap[CM_RED][i]   = (JSAMPLE) UPSCALE(ReadByte(sinfo));
+    cmap[CM_GREEN][i] = (JSAMPLE) UPSCALE(ReadByte(sinfo));
+    cmap[CM_BLUE][i]  = (JSAMPLE) UPSCALE(ReadByte(sinfo));*/
+	cmap[CM_RED][i]   = (JSAMPLE)(ReadByte(sinfo) << upscale);
+    cmap[CM_GREEN][i] = (JSAMPLE) (ReadByte(sinfo) << upscale);
+    cmap[CM_BLUE][i]  = (JSAMPLE) (ReadByte(sinfo) << upscale);
+	if( sinfo->grayscale ){
+		if( cmap[CM_RED][i] != cmap[CM_GREEN][i] ) sinfo->grayscale = FALSE;
+		if( cmap[CM_RED][i] != cmap[CM_BLUE][i] ) sinfo->grayscale = FALSE;
+	}
+++++++++++++++++++++++++++++++++++++++++
+from:
+  source->colormap = (*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+     (JDIMENSION) MAXCOLORMAPSIZE, (JDIMENSION) NUMCOLORS);
+to:
+  source->colormap = (JSAMPARRAY16)(*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+    (JDIMENSION) MAXCOLORMAPSIZE * SIZEOF(JSAMPLE16),
+    (JDIMENSION) NUMCOLORS);
+++++++++++++++++++++++++++++++++++++++++
+in 2 places from:
+    ReadColorMap(source, colormaplen, source->colormap);
+to:
+      ReadColorMap(source, colormaplen, source->colormap,
+        cinfo->data_precision - cinfo->data_precision_other);
+++++++++++++++++++++++++++++++++++++++++
+from:
+  /* Create compressor input buffer. */
+  source->pub.buffer = (*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+     (JDIMENSION) width * NUMCOLORS, (JDIMENSION) 1);
+  source->pub.buffer_height = 1;
+
+  /* Return info about the image. */
+  cinfo->in_color_space = JCS_RGB;
+  cinfo->input_components = NUMCOLORS;
+  cinfo->data_precision = BITS_IN_JSAMPLE; /* we always rescale data to this */
+  cinfo->image_width = width;
+  cinfo->image_height = height;
+
+  TRACEMS3(cinfo, 1, JTRC_GIF, width, height, colormaplen);
+to:
+  /* Return info about the image. */
+  cinfo->in_color_space = JCS_RGB;
+  cinfo->input_components = NUMCOLORS;
+  if( source->grayscale ) {
+    cinfo->in_color_space = JCS_GRAYSCALE;
+    cinfo->input_components = 1;
+  }
+  /*cinfo->data_precision = BITS_IN_JSAMPLE;*/ /* we always rescale data to this */
+/*  cinfo->data_precision_other = 8; *//* Word size, not data size */
+  cinfo->data_precision = 8; /* Real datawidth */
+  cinfo->centerjsample = 128;
+  cinfo->maxjsample = 255;
+#ifdef HAVE_GETJSAMPLE_MASK
+  cinfo->maskjsample 0xFF
+#endif
+  cinfo->image_width = width;
+  cinfo->image_height = height;
+
+  TRACEMS3(cinfo, 1, JTRC_GIF, width, height, colormaplen);
+  
+  /* Create compressor input buffer. */
+  source->pub.buffer = (*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+    (JDIMENSION) width * cinfo->input_components,
+    (JDIMENSION) 1);
+  source->pub.buffer_height = 1;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  for (col = cinfo->image_width; col > 0; col--) {
+    c = LZWReadByte(source);
+    *ptr++ = colormap[CM_RED][c];
+    *ptr++ = colormap[CM_GREEN][c];
+    *ptr++ = colormap[CM_BLUE][c];
+  }
+to:
+  if (cinfo->in_color_space == JCS_GRAYSCALE) {
+    for (col = cinfo->image_width; col > 0; col--) {
+      c = LZWReadByte(source);
+      *ptr++ = colormap[CM_RED][c];
+    }
+  } else {
+    for (col = cinfo->image_width; col > 0; col--) {
+      c = LZWReadByte(source);
+      *ptr++ = colormap[CM_RED][c];
+      *ptr++ = colormap[CM_GREEN][c];
+      *ptr++ = colormap[CM_BLUE][c];
+    }
+  }
+++++++++++++++++++++++++++++++++++++++++
+from:
+  for (col = cinfo->image_width; col > 0; col--) {
+    c = GETJSAMPLE(*sptr++);
+    *ptr++ = colormap[CM_RED][c];
+    *ptr++ = colormap[CM_GREEN][c];
+    *ptr++ = colormap[CM_BLUE][c];
+to:
+  if (cinfo->in_color_space == JCS_GRAYSCALE) {
+    for (col = cinfo->image_width; col > 0; col--) {
+      c = GETJSAMPLE(*sptr++);
+      *ptr++ = colormap[CM_RED][c];
+    }
+  } else {
+    for (col = cinfo->image_width; col > 0; col--) {
+      c = GETJSAMPLE(*sptr++);
+      *ptr++ = colormap[CM_RED][c];
+      *ptr++ = colormap[CM_GREEN][c];
+      *ptr++ = colormap[CM_BLUE][c];
+    }
+  }
+
+-----------------------------------------------------------------------
+rdppm.c from:
+to:
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(JDIMENSION)
+get_text_gray_row16 (j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
+/* This version is for reading text-format PGM files with any maxval */
+{
+  ppm_source_ptr source = (ppm_source_ptr) sinfo;
+  FILE * infile = source->pub.input_file;
+  register JSAMPROW16 ptr;
+  register JSAMPLE16 *rescale = (JSAMPROW16)source->rescale;
+  JDIMENSION col;
+
+  ptr = (JSAMPROW16)source->pub.buffer[0];
+  for (col = cinfo->image_width; col > 0; col--) {
+    *ptr++ = rescale[read_pbm_integer(cinfo, infile)];
+  }
+  return 1;
+}
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(JDIMENSION)
+get_text_rgb_row16 (j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
+/* This version is for reading text-format PPM files with any maxval */
+{
+  ppm_source_ptr source = (ppm_source_ptr) sinfo;
+  FILE * infile = source->pub.input_file;
+  register JSAMPROW16 ptr;
+  register JSAMPLE16 *rescale = (JSAMPROW16)source->rescale;
+  JDIMENSION col;
+
+  ptr = (JSAMPROW16)source->pub.buffer[0];
+  for (col = cinfo->image_width; col > 0; col--) {
+    *ptr++ = rescale[read_pbm_integer(cinfo, infile)];
+    *ptr++ = rescale[read_pbm_integer(cinfo, infile)];
+    *ptr++ = rescale[read_pbm_integer(cinfo, infile)];
+  }
+  return 1;
+}
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(JDIMENSION)
+get_scaled_gray_row16 (j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
+/* This version is for reading raw-byte-format PGM files with any maxval */
+{
+  ppm_source_ptr source = (ppm_source_ptr) sinfo;
+  register JSAMPROW16 ptr;
+  register U_CHAR * bufferptr;
+  register JSAMPLE16 *rescale = (JSAMPROW16)source->rescale;
+  JDIMENSION col;
+
+  if (! ReadOK(source->pub.input_file, source->iobuffer, source->buffer_width))
+    ERREXIT(cinfo, JERR_INPUT_EOF);
+  ptr = (JSAMPROW16)source->pub.buffer[0];
+  bufferptr = source->iobuffer;
+  for (col = cinfo->image_width; col > 0; col--) {
+    *ptr++ = rescale[UCH(*bufferptr++)];
+  }
+  return 1;
+}
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(JDIMENSION)
+get_scaled_rgb_row16 (j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
+/* This version is for reading raw-byte-format PPM files with any maxval */
+{
+  ppm_source_ptr source = (ppm_source_ptr) sinfo;
+  register JSAMPROW16 ptr;
+  register U_CHAR * bufferptr;
+  register JSAMPLE16 *rescale = (JSAMPROW16)source->rescale;
+  JDIMENSION col;
+
+  if (! ReadOK(source->pub.input_file, source->iobuffer, source->buffer_width))
+    ERREXIT(cinfo, JERR_INPUT_EOF);
+  ptr = (JSAMPROW16)source->pub.buffer[0];
+  bufferptr = source->iobuffer;
+  for (col = cinfo->image_width; col > 0; col--) {
+    *ptr++ = rescale[UCH(*bufferptr++)];
+    *ptr++ = rescale[UCH(*bufferptr++)];
+    *ptr++ = rescale[UCH(*bufferptr++)];
+  }
+  return 1;
+}
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(JDIMENSION)
+get_corr_row16 (j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
+/* This version is for reading raw-word-format maxval = MAXJSAMPLE, any endian */
+{
+  ppm_source_ptr source = (ppm_source_ptr) sinfo;
+  register JSAMPROW16 ptr;
+  register U_CHAR * bufferptr;
+  JDIMENSION col;
+
+  if (! ReadOK(source->pub.input_file, source->iobuffer, source->buffer_width))
+    ERREXIT(cinfo, JERR_INPUT_EOF);
+  ptr = (JSAMPROW16)source->pub.buffer[0];
+  bufferptr = source->iobuffer;
+  for (col = cinfo->image_width; col > 0; col--) {
+    *ptr = UCH(*bufferptr++) << 8;
+    *ptr++  |= UCH(*bufferptr++);
+  }
+  return 1;
+}
+++++++++++++++++++++++++++++++++++++++++
+to correct PGM standard MSB first, from:
+    temp  = UCH(*bufferptr++);
+    temp |= UCH(*bufferptr++) << 8;
+to:
+    temp = UCH(*bufferptr++) << 8;
+    temp  |= UCH(*bufferptr++);
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(JDIMENSION)
+get_word_gray_row16 (j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
+/* This version is for reading raw-word-format PGM files with any maxval */
+{
+  ppm_source_ptr source = (ppm_source_ptr) sinfo;
+  register JSAMPROW16 ptr;
+  register U_CHAR * bufferptr;
+  register JSAMPLE16 *rescale = (JSAMPROW16)source->rescale;
+  JDIMENSION col;
+
+  if (! ReadOK(source->pub.input_file, source->iobuffer, source->buffer_width))
+    ERREXIT(cinfo, JERR_INPUT_EOF);
+  ptr = (JSAMPROW16)source->pub.buffer[0];
+  bufferptr = source->iobuffer;
+  for (col = cinfo->image_width; col > 0; col--) {
+    register int temp;
+    temp = UCH(*bufferptr++) << 8;
+    temp  |= UCH(*bufferptr++);
+    *ptr++ = rescale[temp];
+  }
+  return 1;
+}
+++++++++++++++++++++++++++++++++++++++++
+to correct PGM standard MSB first, from:
+    temp  = UCH(*bufferptr++);
+    temp |= UCH(*bufferptr++) << 8;
+    *ptr++ = rescale[temp];
+    temp  = UCH(*bufferptr++);
+    temp |= UCH(*bufferptr++) << 8;
+    *ptr++ = rescale[temp];
+    temp  = UCH(*bufferptr++);
+    temp |= UCH(*bufferptr++) << 8;
+to:
+    temp = UCH(*bufferptr++) << 8;
+    temp  |= UCH(*bufferptr++);
+    *ptr++ = rescale[temp];
+    temp = UCH(*bufferptr++) << 8;
+    temp  |= UCH(*bufferptr++);
+    *ptr++ = rescale[temp];
+    temp = UCH(*bufferptr++) << 8;
+    temp  |= UCH(*bufferptr++);
+++++++++++++++++++++++++++++++++++++++++
+add:
+METHODDEF(JDIMENSION)
+get_word_rgb_row16 (j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
+/* This version is for reading raw-word-format PPM files with any maxval */
+{
+  ppm_source_ptr source = (ppm_source_ptr) sinfo;
+  register JSAMPROW16 ptr;
+  register U_CHAR * bufferptr;
+  register JSAMPLE16 *rescale = (JSAMPROW16)source->rescale;
+  JDIMENSION col;
+
+  if (! ReadOK(source->pub.input_file, source->iobuffer, source->buffer_width))
+    ERREXIT(cinfo, JERR_INPUT_EOF);
+  ptr = (JSAMPROW16)source->pub.buffer[0];
+  bufferptr = source->iobuffer;
+  for (col = cinfo->image_width; col > 0; col--) {
+    register int temp;
+    temp  = UCH(*bufferptr++);
+    temp |= UCH(*bufferptr++) << 8;
+    *ptr++ = rescale[temp];
+    temp  = UCH(*bufferptr++);
+    temp |= UCH(*bufferptr++) << 8;
+    *ptr++ = rescale[temp];
+    temp  = UCH(*bufferptr++);
+    temp |= UCH(*bufferptr++) << 8;
+    *ptr++ = rescale[temp];
+  }
+  return 1;
+}
+++++++++++++++++++++++++++++++++++++++++
+from:
+  int c;
+  unsigned int w, h, maxval;
+to:
+  int c, bit_width;
+  unsigned int w, h, maxval;
+/* On 16-bit-int machines we have to be careful of maxval = 65535 + 1 */
+  long maxval_shift;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  cinfo->data_precision = BITS_IN_JSAMPLE; /* we always rescale data to this */
+to:
+/*  cinfo->data_precision = BITS_IN_JSAMPLE;*/ /* we always rescale data to this */
+/* Find the # of bits for maxval. */
+  cinfo->data_precision_other = 0;
+  for (maxval_shift = (long)maxval + 1L ; maxval_shift > 1; maxval_shift >>= 1)
+    cinfo->data_precision_other++;
+/* Set to 0 for: use input value from file */
+  if (cinfo->data_precision == 0)
+    cinfo->data_precision = cinfo->data_precision_other;
+++++++++++++++++++++++++++++++++++++++++
+from:
+    source->pub.get_pixel_rows = get_text_gray_row;
+    need_iobuffer = FALSE;
+    break;
+
+  case '3':			/* it's a text-format PPM file */
+    cinfo->input_components = 3;
+    cinfo->in_color_space = JCS_RGB;
+    TRACEMS2(cinfo, 1, JTRC_PPM_TEXT, w, h);
+    source->pub.get_pixel_rows = get_text_rgb_row;
+    need_iobuffer = FALSE;
+    break;
+
+  case '5':			/* it's a raw-format PGM file */
+    cinfo->input_components = 1;
+    cinfo->in_color_space = JCS_GRAYSCALE;
+    TRACEMS2(cinfo, 1, JTRC_PGM, w, h);
+    if (maxval > 255) {
+      source->pub.get_pixel_rows = get_word_gray_row;
+    } else if (maxval == MAXJSAMPLE && SIZEOF(JSAMPLE) == SIZEOF(U_CHAR)) {
+      source->pub.get_pixel_rows = get_raw_row;
+      use_raw_buffer = TRUE;
+      need_rescale = FALSE;
+    } else {
+      source->pub.get_pixel_rows = get_scaled_gray_row;
+    }
+    break;
+
+  case '6':			/* it's a raw-format PPM file */
+    cinfo->input_components = 3;
+    cinfo->in_color_space = JCS_RGB;
+    TRACEMS2(cinfo, 1, JTRC_PPM, w, h);
+    if (maxval > 255) {
+      source->pub.get_pixel_rows = get_word_rgb_row;
+    } else if (maxval == MAXJSAMPLE && SIZEOF(JSAMPLE) == SIZEOF(U_CHAR)) {
+      source->pub.get_pixel_rows = get_raw_row;
+      use_raw_buffer = TRUE;
+      need_rescale = FALSE;
+to:
+    if (cinfo->data_precision <= 8)
+      source->pub.get_pixel_rows = get_text_gray_row;
+    else source->pub.get_pixel_rows = get_text_gray_row16;
+    need_iobuffer = FALSE;
+    break;
+
+  case '3':			/* it's a text-format PPM file */
+    cinfo->input_components = 3;
+    cinfo->in_color_space = JCS_RGB;
+    TRACEMS2(cinfo, 1, JTRC_PPM_TEXT, w, h);
+    if (cinfo->data_precision <= 8)
+      source->pub.get_pixel_rows = get_text_rgb_row;
+    else source->pub.get_pixel_rows = get_text_rgb_row16;
+    need_iobuffer = FALSE;
+    break;
+
+  case '5':			/* it's a raw-format PGM file */
+    cinfo->input_components = 1;
+    cinfo->in_color_space = JCS_GRAYSCALE;
+    TRACEMS2(cinfo, 1, JTRC_PGM, w, h);
+    if (cinfo->data_precision == cinfo->data_precision_other) {
+      need_rescale = FALSE;
+      if (cinfo->data_precision > 8) {
+        source->pub.get_pixel_rows = get_corr_row16;
+        use_raw_buffer = FALSE;
+      } else { /* 8 bit*/
+        source->pub.get_pixel_rows = get_raw_row;
+        use_raw_buffer = TRUE;
+      }
+    } else if (cinfo->data_precision > 8) {
+      if (cinfo->data_precision_other > 8)
+        source->pub.get_pixel_rows = get_word_gray_row16;
+      else source->pub.get_pixel_rows = get_word_gray_row;
+    } else {
+      if (cinfo->data_precision_other > 8)
+       source->pub.get_pixel_rows = get_scaled_gray_row16;
+      else source->pub.get_pixel_rows = get_scaled_gray_row;
+    }
+    break;
+
+  case '6':			/* it's a raw-format PPM file */
+    cinfo->input_components = 3;
+    cinfo->in_color_space = JCS_RGB;
+    TRACEMS2(cinfo, 1, JTRC_PPM, w, h);
+    if (cinfo->data_precision == cinfo->data_precision_other) {
+      need_rescale = FALSE;
+      if (cinfo->data_precision > 8) {
+        source->pub.get_pixel_rows = get_corr_row16;
+        use_raw_buffer = FALSE;
+      } else { /* 8 bit*/
+        source->pub.get_pixel_rows = get_raw_row;
+        use_raw_buffer = TRUE;
+      }
+    } else if (cinfo->data_precision > 8) {
+      if (cinfo->data_precision_other > 8)
+        source->pub.get_pixel_rows = get_word_rgb_row16;
+      else source->pub.get_pixel_rows = get_word_rgb_row;
+    } else {
+      if (cinfo->data_precision_other > 8)
+       source->pub.get_pixel_rows = get_scaled_rgb_row16;
+      else source->pub.get_pixel_rows = get_scaled_rgb_row;
+++++++++++++++++++++++++++++++++++++++++
+from:
+  /* Create compressor input buffer. */
+to:
+  /* Create compressor input buffer. */
+  bit_width = ((cinfo->data_precision<=8) ? SIZEOF(JSAMPLE) : SIZEOF(JSAMPLE16));
+++++++++++++++++++++++++++++++++++++++++
+from:
+       (JDIMENSION) w * cinfo->input_components, (JDIMENSION) 1);
+to:
+      (JDIMENSION) w * cinfo->input_components *
+      bit_width, (JDIMENSION) 1);
+++++++++++++++++++++++++++++++++++++++++
+from:
+    INT32 val, half_maxval;
+
+    /* On 16-bit-int machines we have to be careful of maxval = 65535 */
+    source->rescale = (JSAMPLE *)
+      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				  (size_t) (((long) maxval + 1L) * SIZEOF(JSAMPLE)));
+    half_maxval = maxval / 2;
+    for (val = 0; val <= (INT32) maxval; val++) {
+      /* The multiplication here must be done in 32 bits to avoid overflow */
+      source->rescale[val] = (JSAMPLE) ((val*MAXJSAMPLE + half_maxval)/maxval);
+to:
+    INT32 val, half_maxval, maxjsample;
+
+    /* On 16-bit-int machines we have to be careful of maxval = 65535 */
+    source->rescale = (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				  (size_t) (((long) maxval + 1L) * (long)bit_width));
+    half_maxval = maxval / 2;
+    maxjsample = (1 << cinfo->data_precision) - 1;
+    if (bit_width == 1) {
+      if (maxjsample == maxval) {
+        for (val = 0; val <= (INT32) maxval; val++) source->rescale[val] = val;
+      } else {
+        for (val = 0; val <= (INT32) maxval; val++) {
+        /* The multiplication here must be done in 32 bits to avoid overflow */
+          source->rescale[val] = (JSAMPLE) ((val*maxjsample + half_maxval)/maxval);
+        }
+      }
+    } else {
+      JSAMPLE16 *rescale16;
+      rescale16 = (JSAMPLE16 *)source->rescale;
+      if (maxjsample == maxval) {
+        for (val = 0; val <= (INT32) maxval; val++) rescale16[val] = val;
+      } else {
+        for (val = 0; val <= (INT32) maxval; val++) {
+        /* The multiplication here must be done in 32 bits to avoid overflow */
+          rescale16[val] = (JSAMPLE16) ((val*maxjsample + half_maxval)/maxval);
+        }
+      }
+
+-----------------------------------------------------------------------
+Use transupp.c from droppatch with changes.
+in 14 places from:
+height_in_blocks
+to:
+height_in_data_units
+++++++++++++++++++++++++++++++++++++++++
+in 18 places from:
+width_in_blocks
+to:
+width_in_data_units
+++++++++++++++++++++++++++++++++++++++++
+from:
+      coef_arrays[ci] = (*srcinfo->mem->request_virt_barray)
+	((j_common_ptr) srcinfo, JPOOL_IMAGE, FALSE,
+	 width_in_data_units, height_in_data_units, (JDIMENSION) v_samp_factor);
+to:
+       coef_arrays[ci] = (*srcinfo->mem->request_virt_barray)
+	((j_common_ptr) srcinfo, JPOOL_IMAGE, FALSE,
+	 width_in_data_units * SIZEOF(JSAMPLE16), height_in_data_units, (JDIMENSION) v_samp_factor);
+
+-----------------------------------------------------------------------
+Use transupp.h from droppatch.
+
+-----------------------------------------------------------------------
+wrppm.c from:
+#if BITS_IN_JSAMPLE == 8
+#define PUTPPMSAMPLE(ptr,v)  *ptr++ = (char) (v)
+#define BYTESPERSAMPLE 1
+#define PPM_MAXVAL 255
+#else
+#ifdef PPM_NORAWWORD
+#define PUTPPMSAMPLE(ptr,v)  *ptr++ = (char) ((v) >> (BITS_IN_JSAMPLE-8))
+#define BYTESPERSAMPLE 1
+#define PPM_MAXVAL 255
+#else
+/* The word-per-sample format always puts the LSB first. */
+#define PUTPPMSAMPLE(ptr,v)			\
+	{ register int val_ = v;		\
+	  *ptr++ = (char) (val_ & 0xFF);	\
+	  *ptr++ = (char) ((val_ >> 8) & 0xFF);	\
+	}
+#define BYTESPERSAMPLE 2
+#define PPM_MAXVAL ((1<<BITS_IN_JSAMPLE)-1)
+#endif
+#endif
+to:
+/*#if BITS_IN_JSAMPLE == 8
+#define PUTPPMSAMPLE(ptr,v)  *ptr++ = (char) (v)
+#define BYTESPERSAMPLE 1
+#define PPM_MAXVAL 255
+#else
+#ifdef PPM_NORAWWORD
+#define PUTPPMSAMPLE(ptr,v)  *ptr++ = (char) ((v) >> (cinfo->data_precision-8))
+#define BYTESPERSAMPLE 1
+#define PPM_MAXVAL 255
+#else*/
+/* The word-per-sample format always puts the LSB first. */
+/*#define PUTPPMSAMPLE(ptr,v)			\
+	{ register int val_ = v;		\
+	  *ptr++ = (char) (val_ & 0xFF);	\
+	  *ptr++ = (char) ((val_ >> 8) & 0xFF);	\
+	}
+#define BYTESPERSAMPLE 2
+#define PPM_MAXVAL ((1<<cinfo->data_precision)-1)
+#endif
+#endif*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+  JSAMPROW pixrow;		/* decompressor output buffer */
+  size_t buffer_width;		/* width of I/O buffer */
+  JDIMENSION samples_per_row;	/* JSAMPLEs per output row */
+to:
+/*  JSAMPROW16 pixrow;*/		/* decompressor output buffer */
+  size_t buffer_width;		/* width of I/O buffer */
+  JDIMENSION samples_per_row;	/* JSAMPLEs per output row */
+++++++++++++++++++++++++++++++++++++++++
+from:
+/*
+ * Write some pixel data.
+ * In this module rows_supplied will always be 1.
+ *
+ * put_pixel_rows handles the "normal" 8-bit case where the decompressor
+ * output buffer is physically the same as the fwrite buffer.
+ */
+
+METHODDEF(void)
+put_pixel_rows (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+
+to:
+/*
+ * Write some pixel data.
+ * In this module rows_supplied will always be 1.
+ *
+ * put_pixel_rows handles the "normal" 8-bit case where the decompressor
+ * output buffer is physically the same as the fwrite buffer.
+ */
+
+/*METHODDEF(void)
+put_pixel_rows (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}*/
+++++++++++++++++++++++++++++++++++++++++
+from:
+METHODDEF(void)
+copy_pixel_rows (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		 JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  register char * bufferptr;
+  register JSAMPROW ptr;
+  register JDIMENSION col;
+
+  ptr = dest->pub.buffer[0];
+  bufferptr = dest->iobuffer;
+  for (col = dest->samples_per_row; col > 0; col--) {
+    PUTPPMSAMPLE(bufferptr, GETJSAMPLE(*ptr++));
+  }
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+to:
+METHODDEF(void)
+copy_pixel_rows8 (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		 JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  register char * bufferptr;
+  register JSAMPROW16 ptr;
+  register JDIMENSION col;
+  register int shft;
+
+  ptr = (JSAMPROW16)dest->pub.buffer[0];
+  bufferptr = dest->iobuffer;
+  for (col = dest->samples_per_row; col > 0; col--) {
+    *bufferptr++ = (char)GETJSAMPLE(*ptr++);
+  }	
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+
+METHODDEF(void)
+copy_pixel_rows16 (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		 JDIMENSION rows_supplied)
+{
+fprintf(stderr,"16 ");/*delme*/
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  register char * bufferptr;
+  register JSAMPROW16 ptr;
+  register JDIMENSION col;
+  register int val;
+
+  ptr = (JSAMPROW16)dest->pub.buffer[0];
+  bufferptr = dest->iobuffer;
+  for (col = dest->samples_per_row; col > 0; col--) {
+    val = GETJSAMPLE(*ptr++);
+	*bufferptr++ = (char)((val >> 8) & 0xFF);
+	*bufferptr++ = (char)(val & 0xFF);
+  }
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+++++++++++++++++++++++++++++++++++++++++
+from:
+METHODDEF(void)
+put_demapped_rgb (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		  JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  register char * bufferptr;
+  register int pixval;
+  register JSAMPROW ptr;
+  register JSAMPROW color_map0 = cinfo->colormap16[0];
+  register JSAMPROW color_map1 = cinfo->colormap16[1];
+  register JSAMPROW color_map2 = cinfo->colormap16[2];
+  register JDIMENSION col;
+
+  ptr = (JSAMPROW16)dest->pub.buffer[0];
+  bufferptr = dest->iobuffer;
+  for (col = cinfo->output_width; col > 0; col--) {
+    pixval = GETJSAMPLE(*ptr++);
+    PUTPPMSAMPLE(bufferptr, GETJSAMPLE(color_map0[pixval]));
+    PUTPPMSAMPLE(bufferptr, GETJSAMPLE(color_map1[pixval]));
+    PUTPPMSAMPLE(bufferptr, GETJSAMPLE(color_map2[pixval]));
+  }
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+
+METHODDEF(void)
+put_demapped_gray (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		   JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  register char * bufferptr;
+  register JSAMPROW ptr;
+  register JSAMPROW color_map = cinfo->colormap16[0];
+  register JDIMENSION col;
+
+  ptr = dest->pub.buffer[0];
+  bufferptr = dest->iobuffer;
+  for (col = cinfo->output_width; col > 0; col--) {
+    PUTPPMSAMPLE(bufferptr, GETJSAMPLE(color_map[GETJSAMPLE(*ptr++)]));
+  }
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+
+to:
+METHODDEF(void)
+put_demapped_rgb8 (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		  JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  register char * bufferptr;
+  register int pixval, shft;
+  register JSAMPROW16 ptr;
+  register JSAMPROW16 color_map0 = cinfo->colormap16[0];
+  register JSAMPROW16 color_map1 = cinfo->colormap16[1];
+  register JSAMPROW16 color_map2 = cinfo->colormap16[2];
+  register JDIMENSION col;
+
+  ptr = (JSAMPROW16)dest->pub.buffer[0];
+  bufferptr = dest->iobuffer;
+  if (dest->cshift == 0) { /* Fast */
+    for (col = cinfo->output_width; col > 0; col--) {
+      pixval = GETJSAMPLE(*ptr++);
+      *bufferptr++ = (char)GETJSAMPLE(color_map0[pixval]);
+      *bufferptr++ = (char)GETJSAMPLE(color_map1[pixval]);
+      *bufferptr++ = (char)GETJSAMPLE(color_map2[pixval]);
+    }
+  } else if (dest->cshift > 0) { /* Down */
+    shft = dest->cshift;
+    for (col = cinfo->output_width; col > 0; col--) {
+      pixval = GETJSAMPLE(*ptr++);
+      *bufferptr++ = (char)((GETJSAMPLE(color_map0[pixval])) >> shft);
+      *bufferptr++ = (char)((GETJSAMPLE(color_map1[pixval])) >> shft);
+      *bufferptr++ = (char)((GETJSAMPLE(color_map2[pixval])) >> shft);
+    }
+  } else { /* Up */
+    shft = - dest->cshift;
+    for (col = cinfo->output_width; col > 0; col--) {
+      pixval = GETJSAMPLE(*ptr++);
+      *bufferptr++ = (char)((GETJSAMPLE(color_map0[pixval])) << shft);
+      *bufferptr++ = (char)((GETJSAMPLE(color_map1[pixval])) << shft);
+      *bufferptr++ = (char)((GETJSAMPLE(color_map2[pixval])) << shft);
+    }
+  }
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+
+METHODDEF(void)
+put_demapped_rgb16 (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		  JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  register char * bufferptr;
+  register int pixval, val;
+  register JSAMPROW16 ptr;
+  register JSAMPROW16 color_map0 = cinfo->colormap16[0];
+  register JSAMPROW16 color_map1 = cinfo->colormap16[1];
+  register JSAMPROW16 color_map2 = cinfo->colormap16[2];
+  register JDIMENSION col;
+
+  ptr = (JSAMPROW16)dest->pub.buffer[0];
+  bufferptr = dest->iobuffer;
+  for (col = cinfo->output_width; col > 0; col--) {
+    pixval = GETJSAMPLE(*ptr++);
+	val = GETJSAMPLE(color_map0[pixval]);
+	*bufferptr++ = (char)((val >> 8) & 0xFF);
+	*bufferptr++ = (char)(val & 0xFF);
+    val = GETJSAMPLE(color_map1[pixval]);
+	*bufferptr++ = (char)((val >> 8) & 0xFF);
+	*bufferptr++ = (char)(val & 0xFF);
+    val = GETJSAMPLE(color_map2[pixval]);
+	*bufferptr++ = (char)((val >> 8) & 0xFF);
+	*bufferptr++ = (char)(val & 0xFF);
+  }
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+
+METHODDEF(void)
+put_demapped_gray8 (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		   JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  register char * bufferptr;
+  register JSAMPROW16 ptr;
+  register JSAMPROW16 color_map = cinfo->colormap16[0];
+  register JDIMENSION col;
+
+  ptr = (JSAMPROW16)dest->pub.buffer[0];
+  bufferptr = dest->iobuffer;
+  for (col = cinfo->output_width; col > 0; col--) {
+    *bufferptr++ = (char)GETJSAMPLE(color_map[GETJSAMPLE(*ptr++)]);
+  }
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+
+METHODDEF(void)
+put_demapped_gray16 (j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+		   JDIMENSION rows_supplied)
+{
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  register char * bufferptr;
+  register JSAMPROW16 ptr;
+  register JSAMPROW16 color_map = cinfo->colormap16[0];
+  register JDIMENSION col;
+  register int val;
+
+  ptr = (JSAMPROW16)dest->pub.buffer[0];
+  bufferptr = dest->iobuffer;
+  for (col = cinfo->output_width; col > 0; col--) {
+	val = GETJSAMPLE(color_map[GETJSAMPLE(*ptr++)]);
+	*bufferptr++ = (char)((val >> 8) & 0xFF);
+	*bufferptr++ = (char)(val & 0xFF);
+  }  
+  (void) JFWRITE(dest->pub.output_file, dest->iobuffer, dest->buffer_width);
+}
+++++++++++++++++++++++++++++++++++++++++
+from:
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+
+  /* Emit file header */
+  switch (cinfo->out_color_space) {
+  case JCS_GRAYSCALE:
+    /* emit header for raw PGM format */
+    fprintf(dest->pub.output_file, "P5\n%ld %ld\n%d\n",
+	    (long) cinfo->output_width, (long) cinfo->output_height,
+	    PPM_MAXVAL);
+    break;
+  case JCS_RGB:
+    /* emit header for raw PPM format */
+    fprintf(dest->pub.output_file, "P6\n%ld %ld\n%d\n",
+	    (long) cinfo->output_width, (long) cinfo->output_height,
+	    PPM_MAXVAL);
+to:
+  ppm_dest_ptr dest = (ppm_dest_ptr) dinfo;
+  int ppm_maxval;
+
+  /* Create physical I/O buffer.  Note we make this near on a PC. */
+  cinfo->buffer_size_char = FALSE; /* JSAMPLE16 buffer sent. */
+  if (cinfo->data_precision_other <= 8)
+    dest->buffer_width = dest->samples_per_row * SIZEOF(char);
+  else dest->buffer_width = dest->samples_per_row * SIZEOF(JSAMPLE16);
+  dest->iobuffer = (char *) (*cinfo->mem->alloc_small)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE, dest->buffer_width);
+  
+  ppm_maxval = (1<<cinfo->data_precision_other)-1;
+
+  /* Emit file header */
+  switch (cinfo->out_color_space) {
+  case JCS_GRAYSCALE:
+    /* emit header for raw PGM format */
+    fprintf(dest->pub.output_file, "P5\n%ld %ld\n%d\n",
+	    (long) cinfo->output_width, (long) cinfo->output_height,
+	    ppm_maxval);
+    break;
+  case JCS_RGB:
+    /* emit header for raw PPM format */
+    fprintf(dest->pub.output_file, "P6\n%ld %ld\n%d\n",
+	    (long) cinfo->output_width, (long) cinfo->output_height,
+	    ppm_maxval);
+++++++++++++++++++++++++++++++++++++++++
+from:
+  /* Create physical I/O buffer.  Note we make this near on a PC. */
+  dest->samples_per_row = cinfo->output_width * cinfo->out_color_components;
+  dest->buffer_width = dest->samples_per_row * (BYTESPERSAMPLE * SIZEOF(char));
+  dest->iobuffer = (char *) (*cinfo->mem->alloc_small)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE, dest->buffer_width);
+
+  if (cinfo->quantize_colors || BITS_IN_JSAMPLE != 8 ||
+      SIZEOF(JSAMPLE) != SIZEOF(char)) {
+    /* When quantizing, we need an output buffer for colormap indexes
+     * that's separate from the physical I/O buffer.  We also need a
+     * separate buffer if pixel format translation must take place.
+     */
+    dest->pub.buffer = (*cinfo->mem->alloc_sarray)
+      ((j_common_ptr) cinfo, JPOOL_IMAGE,
+       cinfo->output_width * cinfo->output_components, (JDIMENSION) 1);
+    dest->pub.buffer_height = 1;
+    if (! cinfo->quantize_colors)
+      dest->pub.put_pixel_rows = copy_pixel_rows;
+    else if (cinfo->out_color_space == JCS_GRAYSCALE)
+      dest->pub.put_pixel_rows = put_demapped_gray;
+    else
+      dest->pub.put_pixel_rows = put_demapped_rgb;
+  } else {
+    /* We will fwrite() directly from decompressor output buffer. */
+    /* Synthesize a JSAMPARRAY pointer structure */
+    /* Cast here implies near->far pointer conversion on PCs */
+    dest->pixrow = (JSAMPROW) dest->iobuffer;
+    dest->pub.buffer = & dest->pixrow;
+    dest->pub.buffer_height = 1;
+    dest->pub.put_pixel_rows = put_pixel_rows;
+  }
+to:
+  /* Dimensions for the physical I/O buffer. */
+  dest->samples_per_row = cinfo->output_width * cinfo->out_color_components;
+
+  /* A JSAMPLE16 buffer for decompression now that jdapistd take it.
+   * Conversion to 8 bit if needed is done later with copy or put 8.
+   * Scaling is now done by the jpeg library. */
+  dest->pub.buffer = (*cinfo->mem->alloc_sarray)
+    ((j_common_ptr) cinfo, JPOOL_IMAGE,
+    (JDIMENSION) cinfo->output_width * cinfo->output_components
+    * SIZEOF(JSAMPLE16),(JDIMENSION) 1);
+  dest->pub.buffer_height = 1;
+	
+  if (cinfo->data_precision_other <= 8) {
+    if (cinfo->quantize_colors) {
+      if (cinfo->out_color_space == JCS_GRAYSCALE)
+       dest->pub.put_pixel_rows = put_demapped_gray8;
+	  else dest->pub.put_pixel_rows = put_demapped_rgb8; /* Maped color */
+    } else dest->pub.put_pixel_rows = copy_pixel_rows8; /* Default 8 bit */
+  } else { /* > 8 bit output */
+	if (cinfo->quantize_colors) {
+	  if (cinfo->out_color_space == JCS_GRAYSCALE)
+	    dest->pub.put_pixel_rows = put_demapped_gray16;
+	  else dest->pub.put_pixel_rows = put_demapped_rgb16;
+	} else dest->pub.put_pixel_rows = copy_pixel_rows16; /* No quanttize */
+  }
+

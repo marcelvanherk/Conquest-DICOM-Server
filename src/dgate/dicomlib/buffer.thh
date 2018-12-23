@@ -1,0 +1,113 @@
+/****************************************************************************
+          Copyright (C) 1995, University of California, Davis
+
+          THIS SOFTWARE IS MADE AVAILABLE, AS IS, AND THE UNIVERSITY
+          OF CALIFORNIA DOES NOT MAKE ANY WARRANTY ABOUT THE SOFTWARE, ITS
+          PERFORMANCE, ITS MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR
+          USE, FREEDOM FROM ANY COMPUTER DISEASES OR ITS CONFORMITY TO ANY
+          SPECIFICATION. THE ENTIRE RISK AS TO QUALITY AND PERFORMANCE OF
+          THE SOFTWARE IS WITH THE USER.
+
+          Copyright of the software and supporting documentation is
+          owned by the University of California, and free access
+          is hereby granted as a license to use this software, copy this
+          software and prepare derivative works based upon this software.
+          However, any distribution of this software source code or
+          supporting documentation or derivative works (source code and
+          supporting documentation) must include this copyright notice.
+****************************************************************************/
+/* 20100309 bcb Changed BufferSize, InSize and OutSize from INT to UINT
+   20100621 bcb Added no-copy to the BufferSpace classes.
+   20100707 mvh Merged
+   20140528 mgw ensure INT32 define 
+   20140610 mvh Sorry this breaks dicom server compile
+		nkiqrsop.cpp; e:\quirt\comps\exe\dgate\jpeg-6c\jmorecfg.h(202) : error C2632: 'int' followed by 'int' is illegal
+*/
+
+/***************************************************************************
+ *
+ * University of California, Davis
+ * UCDMC DICOM Network Transport Libraries
+ * Version 0.1 Beta
+ *
+ * Technical Contact: mhoskin@ucdavis.edu
+ *
+ ***************************************************************************/
+
+//#ifndef INT32
+//#define INT32 int
+//#endif
+
+class	BufferSpace
+	{
+	public:
+		UINT		BufferSize;
+		UINT		Index;
+		BOOL		isTemp;
+		BYTE		*Data;
+	
+				BufferSpace(UINT);
+				BufferSpace();
+				~BufferSpace();
+#ifdef __GNUC__
+	private:// This will prevent it from being copied (it has a pointer)
+		BufferSpace(const BufferSpace&);
+		const	BufferSpace & operator = (const BufferSpace&);
+#endif
+	};
+
+class	Buffer
+	{
+	protected:
+
+	UINT				BreakSize;
+	UINT				InEndian;
+	UINT				OutEndian;
+	UINT				InSize;
+	UINT				OutSize;
+	Array<BufferSpace*>		Incoming;
+	Array<BufferSpace*>		Outgoing;
+
+	public:
+		BOOL		ReadBlock();
+		BOOL		Poll();
+	public:
+		BOOL		SetBreakSize(UINT);
+		BOOL		SetIncomingEndian(UINT);
+		BOOL		SetOutgoingEndian(UINT);
+		inline	UINT		GetIncomingEndian()	{ return ( InEndian ); };
+		inline	UINT		GetOutgoingEndian()	{ return ( OutEndian ); };
+					Buffer();
+		virtual		~Buffer();		
+		Buffer	&	operator			>>	(BYTE	&);
+		Buffer	&	operator			>>	(UINT16	&);
+		Buffer	&	operator			>>	(UINT32	&);
+		inline	Buffer	&	operator	>>	(char	&x)
+			{ return ( (*this)>>(BYTE &) x); };
+		inline	Buffer	&	operator	>>	(INT16	&x)
+			{ return ( (*this)>>(UINT16 &) x); };
+		inline	Buffer	&	operator	>>	(INT32	&x)
+			{ return ( (*this)>>(UINT32 &) x); };
+
+		Buffer	&	operator			<<	(BYTE	&);
+		Buffer	&	operator			<<	(UINT16	&);
+		Buffer	&	operator			<<	(UINT32	&);
+		inline	Buffer	&	operator	<<	(char	&x)
+			{ return ( (*this)<<(BYTE &) x); };
+		inline	Buffer	&	operator	<<	(INT16	&x)
+			{ return ( (*this)<<(UINT16 &) x); };
+		inline	Buffer	&	operator	<<	(INT32	&x)
+			{ return ( (*this)<<(UINT32 &) x); };
+
+		inline	UINT		GetSize()	{ return ( InSize ); };
+		BOOL		Flush();
+		BOOL		Flush(UINT	Bytes);
+		BOOL		Kill(UINT);
+		BOOL		Read(BYTE *, UINT);
+		BOOL		Write(BYTE *, UINT);
+		BOOL		Fill(UINT);
+		virtual	INT			ReadBinary(BYTE	*, UINT)	=	0;
+		virtual	BOOL		SendBinary(BYTE	*, UINT)	=	0;
+
+	};
+

@@ -1,0 +1,103 @@
+/* mvh 20001106 removed unneeded (and sometimes uncompilable) XE_UINTX::XE_UINTX (int x) */
+
+/****************************************************************************
+          Copyright (C) 1995, University of California, Davis
+
+          THIS SOFTWARE IS MADE AVAILABLE, AS IS, AND THE UNIVERSITY
+          OF CALIFORNIA DOES NOT MAKE ANY WARRANTY ABOUT THE SOFTWARE, ITS
+          PERFORMANCE, ITS MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR
+          USE, FREEDOM FROM ANY COMPUTER DISEASES OR ITS CONFORMITY TO ANY
+          SPECIFICATION. THE ENTIRE RISK AS TO QUALITY AND PERFORMANCE OF
+          THE SOFTWARE IS WITH THE USER.
+
+          Copyright of the software and supporting documentation is
+          owned by the University of California, and free access
+          is hereby granted as a license to use this software, copy this
+          software and prepare derivative works based upon this software.
+          However, any distribution of this software source code or
+          supporting documentation or derivative works (source code and
+          supporting documentation) must include this copyright notice.
+****************************************************************************/
+
+/***************************************************************************
+ *
+ * University of California, Davis
+ * UCDMC DICOM Network Transport Libraries
+ * Version 0.1 Beta
+ *
+ * Technical Contact: mhoskin@ucdavis.edu
+ *
+ ***************************************************************************/
+
+// Template file.  Never compiler directly
+
+XE_UINTX	&	XE_UINTX :: operator = (UINTX	&x)
+	{
+	Data = SwitchEndian (x);
+	return (*this);
+	}
+
+XE_UINTX	&	XE_UINTX	::	operator	= (const XE_UINTX	&x)
+	{
+	Data = x.Data;
+	return (*this);
+	}
+
+XE_UINTX	&	XE_UINTX :: operator = (const int	&x)
+	{
+	UINTX	Temp = (UINTX) x;
+	Data = SwitchEndian (Temp);
+	return (*this);
+	}
+
+XE_UINTX	*	XE_UINTX	::	operator & ()
+	{
+	return ( (XE_UINTX*)&Data );
+	}
+
+XE_UINTX	::	operator	UINTX	()
+	{
+	return (SwitchEndian (Data) );
+	}
+
+XE_UINTX	::	XE_UINTX	()
+	{
+	Data = 0;
+	}
+
+XE_UINTX	::	XE_UINTX (XE_UINTX	&x)
+	{
+	Data = x.Data;
+	}
+
+XE_UINTX	::	XE_UINTX (UINT16	x)
+	{
+	UINTX	Temp = (UINTX) x;
+	Data = SwitchEndian ( Temp );
+	}
+
+XE_UINTX	::	XE_UINTX (UINT32	x)
+	{
+	UINTX	Temp = (UINTX) x;
+	Data = SwitchEndian ( Temp );
+	}
+
+XE_UINTX	::	XE_UINTX (INT16	x)
+	{
+	UINTX	Temp = (UINTX) x;
+	Data = SwitchEndian ( Temp );
+	}
+
+XE_UINTX	::	XE_UINTX (INT32	x)
+	{
+	UINTX	Temp = (UINTX) x;
+	Data = SwitchEndian ( Temp );
+	}
+
+//XE_UINTX	::	XE_UINTX (int	x)
+//	{
+//	UINTX	Temp = (UINTX) x;
+//	Data = SwitchEndian ( Temp );
+//	}
+
+	

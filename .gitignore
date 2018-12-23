@@ -1,0 +1,8 @@
+**/Obsolete
+**/obsolete
+**/win32
+**/__history
+**/ignore
+*.local
+*.stat
+*.identcache

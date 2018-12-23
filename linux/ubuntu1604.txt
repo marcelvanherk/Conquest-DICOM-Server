@@ -1,0 +1,175 @@
+steps to make conquest on ubuntu16.04
+
+-- prerequisite software for all builds (c++ compiler and apache with cgi support)
+sudo apt-get update
+sudo apt-get install g++
+sudo apt-get install apache2
+sudo a2enmod cgi
+sudo service apache2 restart
+
+-- for access to machine with e.g. filezilla (development only)
+(optional sudo apt install openssh-server)
+
+-- to install postgres and set password of postgres user to postgres:
+sudo apt-get install libpq-dev
+sudo apt-get install postgresql
+(optional sudo apt-get install pgadmin3)
+create postgres user
+sudo su
+su - postgres
+psql
+\password
+postgres
+postgres
+\q
+createdb conquest
+exit
+exit
+-- end to install postgres:
+
+-- compiling conquest with all output, error messages can be ignored
+osboxes@osboxes:~/Desktop/distribution$ chmod 777 maklinux
+osboxes@osboxes:~/Desktop/distribution$ ./maklinux
+checking for gcc... gcc
+checking whether the C compiler (gcc  ) works... yes
+checking whether the C compiler (gcc  ) is a cross-compiler... no
+checking whether we are using GNU C... yes
+checking how to run the C preprocessor... gcc -E
+checking for function prototypes... yes
+checking for stddef.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for size_t... yes
+checking for type unsigned char... yes
+checking for type unsigned short... yes
+checking for type void... yes
+checking for working const... yes
+checking for inline... __inline__
+checking for broken incomplete types... ok
+checking for short external names... ok
+checking to see if char is signed... yes
+checking to see if right shift is signed... yes
+checking to see if fopen accepts b spec... yes
+checking for a BSD compatible install... /usr/bin/install -c
+checking for ranlib... ranlib
+checking libjpeg version number... 63
+creating ./config.status
+creating Makefile
+creating jconfig.h
+jconfig.h is unchanged
+make: Nothing to be done for 'all'.
+(or the jpeg library is built here if not done before)
+/usr/bin/install -c cjpeg /usr/local/bin/cjpeg
+/usr/bin/install -c djpeg /usr/local/bin/djpeg
+/usr/bin/install -c jpegtran /usr/local/bin/jpegtran
+/usr/bin/install -c rdjpgcom /usr/local/bin/rdjpgcom
+/usr/bin/install -c wrjpgcom /usr/local/bin/wrjpgcom
+/usr/bin/install -c -m 644 ./cjpeg.1 /usr/local/man/man1/cjpeg.1
+/usr/bin/install: cannot create regular file '/usr/local/man/man1/cjpeg.1': No such file or directory
+Makefile:200: recipe for target 'install' failed
+make: *** [install] Error 1
+Please choose DB type
+1) mysql
+2) postgres
+3) sqlite
+4) dbase
+5) Quit
+#? 2
+mkdir: cannot create directory ‘data/dbase’: File exists
+
+osboxes@osboxes:~/Desktop/distribution$ ./dgate -v -r
+
+Regen Database
+Step 1: Re-intialize SQL Tables
+*** ERROR:  relation "dicomworklist" does not exist
+LINE 1: SELECT DICOMWorkList.PatientID FROM DICOMWorkList
+                                            ^
+
+Dropping Existing tables (if-any)
+Worklist is empty
+Dropping worklist
+*** ERROR:  table "dicomworklist" does not exist
+
+***Failed PGSQLExec : DROP TABLE DICOMWorkList
+***Error: ERROR:  table "dicomworklist" does not exist
+
+Dropping other tables
+*** ERROR:  table "dicompatients" does not exist
+
+***Failed PGSQLExec : DROP TABLE DICOMPatients
+***Error: ERROR:  table "dicompatients" does not exist
+
+*** ERROR:  table "dicomstudies" does not exist
+
+***Failed PGSQLExec : DROP TABLE DICOMStudies
+***Error: ERROR:  table "dicomstudies" does not exist
+
+*** ERROR:  table "dicomseries" does not exist
+
+***Failed PGSQLExec : DROP TABLE DICOMSeries
+***Error: ERROR:  table "dicomseries" does not exist
+
+*** ERROR:  table "dicomimages" does not exist
+
+***Failed PGSQLExec : DROP TABLE DICOMImages
+***Error: ERROR:  table "dicomimages" does not exist
+
+*** ERROR:  table "uidmods" does not exist
+
+***Failed PGSQLExec : DROP TABLE UIDMODS
+***Error: ERROR:  table "uidmods" does not exist
+
+WorkList Database
+Patient Database
+Study Database
+Series Database
+Image Database
+Step 2: Load / Add DICOM Object files
+Regen Device 'MAG0'
+[Regen] ./data/0009703828/1.3.46.670589.5.2.10.2156913941.892665339.860724_0001_002000_14579035620000.dcm -SUCCESS
+[Regen] ./data/0009703828/1.3.46.670589.5.2.10.2156913941.892665339.860724_0001_003000_14579035620001.dcm -SUCCESS
+Regeneration Complete
+osboxes@osboxes:~/Desktop/distribution$ ./dgate -v
+DGATE (1.4.19, build Tue Nov 22 20:34:32 2016, bits 64) is running as threaded server
+Database type: native PostGres connection
+
+
+Please choose DB type
+1) mysql
+2) postgres
+3) sqlite
+4) dbase
+5) Quit
+#? 3
+Regen Database
+Step 1: Re-intialize SQL Tables
+Dropping Existing tables (if-any)
+Worklist is empty
+Dropping worklist
+Dropping other tables
+WorkList Database
+Patient Database
+Study Database
+Series Database
+Image Database
+Step 2: Load / Add DICOM Object files
+Regen Device 'MAG0'
+[Regen] ./data/0009703828/1.3.46.670589.5.2.10.2156913941.892665339.860724_0001_002000_14579035620000.dcm -SUCCESS
+[Regen] ./data/0009703828/1.3.46.670589.5.2.10.2156913941.892665339.860724_0001_003000_14579035620001.dcm -SUCCESS
+Regeneration Complete
+osboxes@osboxes:~/Desktop/distribution$ ./dgate -v
+DGATE (1.4.19, build Tue Nov 22 20:12:57 2016, bits 64) is running as threaded server
+Database type: built-in SQLite driver
+FreeStore Left 88929 on ./data/
+
+--- install and use zerobrane studio
+chmod 777 ./ZeroBraneStudioEduPack-1.40-linux.sh
+sudo ./ZeroBraneStudioEduPack-1.40-linux.sh
+sudo zbstudio
+run install script
+zbstudio
+open livacoding.lua
+set interpreter as conquest dicom server
+set project folder as current folder
+F5
+--- install and use zerobrane studio

@@ -1,0 +1,247 @@
+/****************************************************************************
+          Copyright (C) 1995, University of California, Davis
+
+          THIS SOFTWARE IS MADE AVAILABLE, AS IS, AND THE UNIVERSITY
+          OF CALIFORNIA DOES NOT MAKE ANY WARRANTY ABOUT THE SOFTWARE, ITS
+          PERFORMANCE, ITS MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR
+          USE, FREEDOM FROM ANY COMPUTER DISEASES OR ITS CONFORMITY TO ANY
+          SPECIFICATION. THE ENTIRE RISK AS TO QUALITY AND PERFORMANCE OF
+          THE SOFTWARE IS WITH THE USER.
+
+          Copyright of the software and supporting documentation is
+          owned by the University of California, and free access
+          is hereby granted as a license to use this software, copy this
+          software and prepare derivative works based upon this software.
+          However, any distribution of this software source code or
+          supporting documentation or derivative works (source code and
+          supporting documentation) must include this copyright notice.
+****************************************************************************/
+
+/***************************************************************************
+ *
+ * University of California, Davis
+ * UCDMC DICOM Network Transport Libraries
+ * Version 0.1 Beta
+ *
+ * Technical Contact: mhoskin@ucdavis.edu
+ *
+ ***************************************************************************/
+
+/*20100309    bcb Changed INT to unsigned UINT.(gcc4.2 Warnings)
+  20100621    bcb Added no-copy to classes
+  20100707    mvh Merged
+Spectra-0017: Thu, 6 Mar 2014 15:37:26 -0300: Fix mismatched new/delete in farray.thh
+  20140813    lsp Private copy ctor and member initialization not GNUC specific
+*/
+
+/************************************************************************
+ *
+ * Sorted / Fixed, Fast-Access Array.
+ *
+ ************************************************************************/
+
+template	<class	KEYTYPE, class	DATATYPE>
+class	FixedArray
+	{
+	public:
+		UINT		ArraySize;
+		UINT		Top;
+		KEYTYPE		*KeyTable;
+		DATATYPE	*DataTable;
+
+		FixedArray (UINT, BOOL);
+		~FixedArray ();
+		BOOL		Sort();
+		DATATYPE	&	Add(KEYTYPE	&, DATATYPE	&);
+		DATATYPE	&	Add(DATATYPE	&);
+		INT				IndexOf(KEYTYPE	&);
+		DATATYPE	&	Get(INT Index)
+			{ return(DataTable[Index]); };
+		BOOL			RemoveAt(INT);
+		DATATYPE	&	operator	[]	(INT	Index)
+			{ return(Get(Index)); };
+		UINT			GetSize()
+			{ return ( Top ); };
+		UINT			GetAllocationSize()
+			{ return ( ArraySize ); };
+	private:// This will prevent it from being copied (it has pointers)
+		FixedArray(const FixedArray&);
+		const	FixedArray<KEYTYPE,DATATYPE> & operator = (const FixedArray<KEYTYPE,DATATYPE>&);
+	};
+
+template	<class	KEYTYPE, class	DATATYPE>
+class	FixedArrayElement
+	{
+	public:
+		KEYTYPE		Key;
+		DATATYPE	Data;
+		UINT	operator	>	(FixedArrayElement	&FAE)
+			{ return ( Key > FAE.Key ); };
+		UINT	operator	<	(FixedArrayElement	&FAE)
+			{ return ( Key < FAE.Key ); };
+		UINT	operator	==	(FixedArrayElement	&FAE)
+			{ return ( Key == FAE.Key ); };
+	};
+
+template	<class	KEYTYPE, class	DATATYPE>
+	FixedArray<KEYTYPE, DATATYPE>	::	FixedArray (
+	UINT	aSize,
+	BOOL	UseKeys)
+:ArraySize(aSize), Top(0),KeyTable(NULL),DataTable(new DATATYPE [ aSize ])
+	{
+	if ( UseKeys )
+		KeyTable = new KEYTYPE [ aSize ];
+	}
+
+template	<class	KEYTYPE, class	DATATYPE>
+	FixedArray<KEYTYPE, DATATYPE>	::	~FixedArray ()
+	{
+	if ( KeyTable )
+		delete [] KeyTable;
+	if ( DataTable )
+		delete [] DataTable;
+	}
+
+template	<class	KEYTYPE, class	DATATYPE>
+BOOL	FixedArray<KEYTYPE, DATATYPE>	::	Sort()
+	{
+	UINT	Index;
+	FixedArrayElement < KEYTYPE, DATATYPE >			FAE;
+	PQueue< FixedArrayElement<KEYTYPE, DATATYPE> >	PQFAE;
+
+	if ( ! KeyTable )
+		return ( FALSE );	// Not a sortable array
+
+	Index = 0;
+	while ( Index < Top )
+		{
+		FAE.Key = KeyTable [ Index ];
+		FAE.Data = DataTable [ Index ];
+		PQFAE.Push(FAE);
+		++Index;
+		}
+	Index = 0;
+	while ( Index < Top )
+		{
+		FAE = PQFAE.Pop ();
+		KeyTable [ Index ] = FAE.Key;
+		DataTable [ Index ] = FAE.Data;
+		++Index;
+		}
+	return ( TRUE );
+	}
+
+template	<class	KEYTYPE, class	DATATYPE>
+DATATYPE	&	FixedArray<KEYTYPE, DATATYPE>	::	Add(
+	KEYTYPE		&Key,
+	DATATYPE	&Data)
+	{
+	if (Top < ArraySize)
+		{
+		if ( KeyTable )
+			KeyTable [ Top ] = Key;
+		if ( DataTable )
+			DataTable [ Top ] = Data;
+		++Top;
+		}
+	return ( DataTable [ Top-1 ] );
+	}
+		
+template	<class	KEYTYPE, class	DATATYPE>
+DATATYPE	&	FixedArray<KEYTYPE, DATATYPE>	::	Add(
+	DATATYPE	&Data)
+	{
+	if ( Top < ArraySize )
+		{
+		if ( DataTable )
+			DataTable [ Top ] = Data;
+		++Top;
+		}
+	return ( DataTable [ Top-1 ] );
+	}
+
+template	<class	KEYTYPE, class	DATATYPE>
+INT		FixedArray<KEYTYPE, DATATYPE>	::	IndexOf(
+	KEYTYPE		&Key)
+	{
+	UINT		Index = (Top / 2);
+	INT		Shift = (Top / 2 - 1);
+
+	if (!KeyTable)
+		return ( -1 );
+
+	if ( ! Top )
+		return ( -1 );
+
+	while ( KeyTable [ Index ] != Key )
+		{
+		if ( KeyTable [ Index ] > Key )
+			Index -= Shift;
+		else
+			Index += Shift;
+
+		if ( Index >= Top )
+			{ Index = Top - 1;	break; };
+		if ( Index <= 0 )
+			{ Index = 0; break; };
+		if ( Shift == 0 )
+			{ break; }
+		Shift = Shift / 2;
+		}
+	if ( KeyTable [ Index ] == Key )
+		return ( Index );
+
+	if ( KeyTable [ Index ] < Key )
+		{
+		while ( Index < Top )
+			{
+			if ( KeyTable [ Index ] == Key )
+				return ( Index );
+			if ( KeyTable [ Index ] > Key )
+				return ( -1 );
+			++Index;
+			}
+		return ( -1 );
+		}
+	else
+		{
+		while ( Index >= 0 )
+			{
+			if ( KeyTable [ Index ] == Key )
+				return ( Index );
+			if ( KeyTable [ Index ] < Key )
+				return ( -1 );
+			--Index;
+			}
+		return ( -1 );
+		}
+	return ( -1 );
+	}
+
+
+template	<class	KEYTYPE, class	DATATYPE>
+BOOL	FixedArray<KEYTYPE, DATATYPE>	::	RemoveAt(
+	INT		Index)
+	{
+	if ( Index >= Top )
+		return ( FALSE );
+
+	if ( DataTable )
+		{
+		if ( (Index + 1) != Top )
+			memcpy(	(void*)&DataTable [ Index ],
+					(void*)&DataTable [ Index + 1],
+					sizeof ( DATATYPE ) * Top - Index - 1);
+		}
+	if ( KeyTable )
+		{
+		if ( (Index + 1) != Top )
+			memcpy(	(void*)&KeyTable [ Index ],
+					(void*)&KeyTable [ Index + 1],
+					sizeof ( KEYTYPE ) * Top - Index - 1);
+		}
+	--Top;
+	return ( TRUE );
+	}
+
+

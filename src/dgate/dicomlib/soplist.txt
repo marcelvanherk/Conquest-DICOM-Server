@@ -1,0 +1,94 @@
+#
+# DICOM Application / sop / transfer UID list.
+#
+# This list is used by the CheckedPDU_Service ( "filename" ) service
+# class.  All incoming associations will be verified against this
+# file.
+# Modifications:
+#   19990109: MvH, added all sops for GE advantagesim, listed as 'unknown'
+#   19990317: MvH, Completed with RT objects, GE, Philips
+#   19990318: ljz, added three xxxxRetrieveNKI sops
+#   19991105: ljz, changed the xxxxRetrieveNKI sops using NKI unique root
+#                  1.2.826.0.1.3680043.2.135.yyyy.xxxxxxxxxx (yyyy = 1066)
+#   20010824: ljz, Made up to date with DICOM 1999 final text
+#   20131204: ea,  Added some important missing UIDS
+#
+#None				none				RemoteAE
+#None				none				LocalAE
+#DICOM				1.2.840.10008.3.1.1.1		application
+Verification			1.2.840.10008.1.1		sop
+StoredPrintStorage		1.2.840.10008.5.1.1.27		sop
+HardcopyGrayscaleImageStorage	1.2.840.10008.5.1.1.29		sop
+HardcopyColorImageStorage	1.2.840.10008.5.1.1.30		sop
+CRStorage			1.2.840.10008.5.1.4.1.1.1	sop
+DXStorageForPresentation	1.2.840.10008.5.1.4.1.1.1.1	sop
+DXStorageForProcessing		1.2.840.10008.5.1.4.1.1.1.1.1	sop
+DMStorageForPresentation	1.2.840.10008.5.1.4.1.1.1.2	sop
+DMStorageForProcessing		1.2.840.10008.5.1.4.1.1.1.2.1	sop
+DOralStorageForPresentation	1.2.840.10008.5.1.4.1.1.1.3	sop
+DOralStorageForProcessing	1.2.840.10008.5.1.4.1.1.1.3.1	sop
+CTStorage			1.2.840.10008.5.1.4.1.1.2	sop
+CTImageStorageEnhanced  	1.2.840.10008.5.1.4.1.1.2.1     sop
+RetiredUSMultiframeStorage	1.2.840.10008.5.1.4.1.1.3	sop
+USMultiframeStorage		1.2.840.10008.5.1.4.1.1.3.1	sop
+MRStorage			1.2.840.10008.5.1.4.1.1.4	sop
+MRImageStorageEnhanced		1.2.840.10008.5.1.4.1.1.4.1	sop
+MRStorageSpectroscopy		1.2.840.10008.5.1.4.1.1.4.2	sop
+RetiredNMStorage		1.2.840.10008.5.1.4.1.1.5	sop
+RetiredUSStorage		1.2.840.10008.5.1.4.1.1.6	sop
+USStorage			1.2.840.10008.5.1.4.1.1.6.1	sop
+SCStorage			1.2.840.10008.5.1.4.1.1.7	sop
+SCStorageSingleBitMF		1.2.840.10008.5.1.4.1.1.7.1	sop
+SCStorageGrayscaleByteMF	1.2.840.10008.5.1.4.1.1.7.2	sop
+SCStorageGrayscaleWordMF	1.2.840.10008.5.1.4.1.1.7.3	sop
+SCStorageTrueColorMF		1.2.840.10008.5.1.4.1.1.7.4	sop
+StandaloneOverlayStorage	1.2.840.10008.5.1.4.1.1.8	sop
+StandaloneCurveStorage		1.2.840.10008.5.1.4.1.1.9	sop
+StandaloneModalityLUTStorage	1.2.840.10008.5.1.4.1.1.10	sop
+StandaloneVOILUTStorage		1.2.840.10008.5.1.4.1.1.11	sop
+GrayscaleSoftcopyPresentationStateStorage	1.2.840.10008.5.1.4.1.1.11.1	sop
+RetiredXASinglePlaneStorage	1.2.840.10008.5.1.4.1.1.12	sop
+XASinglePlaneStorage		1.2.840.10008.5.1.4.1.1.12.1	sop
+RFStorage			1.2.840.10008.5.1.4.1.1.12.2	sop
+XABiPlaneStorage		1.2.840.10008.5.1.4.1.1.12.3	sop
+NMStorage			1.2.840.10008.5.1.4.1.1.20	sop
+RawDataStorage                                       1.2.840.10008.5.1.4.1.1.66	sop
+SpatialRegistrationStorage                           1.2.840.10008.5.1.4.1.1.66.1	sop
+SpatialFiducialsStorage                              1.2.840.10008.5.1.4.1.1.66.2	sop
+DeformableSpatialRegistrationStorage                 1.2.840.10008.5.1.4.1.1.66.3	sop
+SegmentationStorage                                  1.2.840.10008.5.1.4.1.1.66.4	sop
+SurfaceSegmentationStorage                           1.2.840.10008.5.1.4.1.1.66.5	sop
+RetiredVLImageStorage				1.2.840.10008.5.1.4.1.1.77.1	sop
+RetiredVLMultiFrameImageStorage			1.2.840.10008.5.1.4.1.1.77.2	sop
+RetiredVLMicroscopicSlideStorage		1.2.840.10008.5.1.4.1.1.77.3	sop
+RetiredVLPhotographicStorage			1.2.840.10008.5.1.4.1.1.77.4	sop
+VLEndoscopicImageStorage			1.2.840.10008.5.1.4.1.1.77.1.1	sop
+VLMicroscopicImageStorage			1.2.840.10008.5.1.4.1.1.77.1.2	sop
+VLSlideCoordinatesMicroscopicImageStorage	1.2.840.10008.5.1.4.1.1.77.1.3	sop
+VLPhotographicImageStorage			1.2.840.10008.5.1.4.1.1.77.1.4	sop
+BasicTextSR			1.2.840.10008.5.1.4.1.1.88.11	sop
+EnhancedSR			1.2.840.10008.5.1.4.1.1.88.22	sop
+ComprehensiveSR			1.2.840.10008.5.1.4.1.1.88.33	sop
+MammographyCADSR		1.2.840.10008.5.1.4.1.1.88.50	sop
+KeyObjectSelectionDocument	1.2.840.10008.5.1.4.1.1.88.59	sop
+PETStorage			1.2.840.10008.5.1.4.1.1.128	sop
+StandalonePETCurveStorage	1.2.840.10008.5.1.4.1.1.129	sop
+RTImageStorage			1.2.840.10008.5.1.4.1.1.481.1	sop
+RTDoseStorage			1.2.840.10008.5.1.4.1.1.481.2	sop
+RTStructureStorage		1.2.840.10008.5.1.4.1.1.481.3	sop
+RTTreatmentRecordStorage	1.2.840.10008.5.1.4.1.1.481.4	sop
+RTPlanStorage			1.2.840.10008.5.1.4.1.1.481.5	sop
+RTBrachyTreatmentRecordStorage	1.2.840.10008.5.1.4.1.1.481.6	sop
+RTTreatmentSummaryRecordStorage	1.2.840.10008.5.1.4.1.1.481.7	sop
+RTIonPlanStorage                                     1.2.840.10008.5.1.4.1.1.481.8	sop
+RTIonBeamsTreatmentRecordStorage                     1.2.840.10008.5.1.4.1.1.481.9	sop
+PatientRootQuery		1.2.840.10008.5.1.4.1.2.1.1			sop
+PatientRootRetrieveNKI		1.2.826.0.1.3680043.2.135.1066.5.1.4.1.2.1.2	sop
+PatientRootRetrieve		1.2.840.10008.5.1.4.1.2.1.2			sop
+StudyRootQuery			1.2.840.10008.5.1.4.1.2.2.1			sop
+StudyRootRetrieveNKI		1.2.826.0.1.3680043.2.135.1066.5.1.4.1.2.2.2	sop
+StudyRootRetrieve		1.2.840.10008.5.1.4.1.2.2.2			sop
+PatientStudyOnlyQuery		1.2.840.10008.5.1.4.1.2.3.1			sop
+PatientStudyOnlyRetrieveNKI	1.2.826.0.1.3680043.2.135.1066.5.1.4.1.2.3.2	sop
+PatientStudyOnlyRetrieve	1.2.840.10008.5.1.4.1.2.3.2			sop
+LittleEndianImplicit		1.2.840.10008.1.2		transfer

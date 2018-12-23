@@ -1,0 +1,87 @@
+/****************************************************************************
+          Copyright (C) 1995, University of California, Davis
+
+          THIS SOFTWARE IS MADE AVAILABLE, AS IS, AND THE UNIVERSITY
+          OF CALIFORNIA DOES NOT MAKE ANY WARRANTY ABOUT THE SOFTWARE, ITS
+          PERFORMANCE, ITS MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR
+          USE, FREEDOM FROM ANY COMPUTER DISEASES OR ITS CONFORMITY TO ANY
+          SPECIFICATION. THE ENTIRE RISK AS TO QUALITY AND PERFORMANCE OF
+          THE SOFTWARE IS WITH THE USER.
+
+          Copyright of the software and supporting documentation is
+          owned by the University of California, and free access
+          is hereby granted as a license to use this software, copy this
+          software and prepare derivative works based upon this software.
+          However, any distribution of this software source code or
+          supporting documentation or derivative works (source code and
+          supporting documentation) must include this copyright notice.
+****************************************************************************/
+
+/***************************************************************************
+ *
+ * University of California, Davis
+ * UCDMC DICOM Network Transport Libraries
+ * Version 0.1 Beta
+ *
+ * Technical Contact: mhoskin@ucdavis.edu
+ *
+ ***************************************************************************/
+/*
+20100621    bcb Added no-copy to the classes.
+20100707    mvh Merged
+*/
+
+/******************************************************************
+ *
+ * PQueue Unit Class
+ *
+ * ANSI (ARM) C++ Compatible / Templates Required
+ *
+ *
+ * usage:
+ *
+ *	# include "array.tcc"
+ *	# include "pqueue.thh"
+ *	# include "pqueue.tcc"
+ *
+ *	PQueue<ClassType>	VarName;
+ *
+ *
+ * notes:
+ *
+ *	Any Class used as the datatype must support the operators < > =
+ *
+ ******************************************************************/
+
+
+template	<class	DATATYPE>
+class	PQueue	:
+	public	Array<DATATYPE>
+	{
+	DATATYPE		dt;
+	public:
+		DATATYPE	&	Push(DATATYPE &);
+		DATATYPE	&	Pop();
+#ifdef __GNUC__
+		PQueue():dt(){};
+	private:// This will prevent it from being copied (it has a pointer)
+		PQueue(const PQueue&);
+		const	PQueue<DATATYPE> & operator = (const PQueue<DATATYPE>&);
+#endif
+	};
+
+template	<class	DATATYPE>
+class	PQueueOfPtr	:
+	public	Array<DATATYPE>
+	{
+	DATATYPE	dt;
+	public:
+		DATATYPE	&	Push(DATATYPE	&);
+		DATATYPE	&	Pop();
+#ifdef __GNUC__
+		PQueueOfPtr():dt(){};
+	private:// This will prevent it from being copied (it has a pointer)
+		PQueueOfPtr(const PQueueOfPtr&);
+		const	PQueueOfPtr<DATATYPE> & operator = (const PQueueOfPtr<DATATYPE>&);
+#endif
+	};

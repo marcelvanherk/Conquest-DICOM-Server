@@ -1,0 +1,134 @@
+/*
+20050125	ljz	Added 'ReplaceAt()' to the 'Array' class
+20100617	bcb	Fix gcc4 warnings, improve speed and added constructors.
+20100717	mvh	Merged; QUES:6 ok; changed = operator; QUES:7 ?
+20100816	mvh	Meged bcb cleanup
+20130812        mvh     Removed non-thread safe caching of last value
+20140310     lsp+ea+mvh Initialize "last" member in copy constructor to avoid access violation
+*/
+
+/****************************************************************************
+          Copyright (C) 1995, University of California, Davis
+
+          THIS SOFTWARE IS MADE AVAILABLE, AS IS, AND THE UNIVERSITY
+          OF CALIFORNIA DOES NOT MAKE ANY WARRANTY ABOUT THE SOFTWARE, ITS
+          PERFORMANCE, ITS MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR
+          USE, FREEDOM FROM ANY COMPUTER DISEASES OR ITS CONFORMITY TO ANY
+          SPECIFICATION. THE ENTIRE RISK AS TO QUALITY AND PERFORMANCE OF
+          THE SOFTWARE IS WITH THE USER.
+
+          Copyright of the software and supporting documentation is
+          owned by the University of California, and free access
+          is hereby granted as a license to use this software, copy this
+          software and prepare derivative works based upon this software.
+          However, any distribution of this software source code or
+          supporting documentation or derivative works (source code and
+          supporting documentation) must include this copyright notice.
+****************************************************************************/
+
+/***************************************************************************
+ *
+ * University of California, Davis
+ * UCDMC DICOM Network Transport Libraries
+ * Version 0.1 Beta
+ *
+ * Technical Contact: mhoskin@ucdavis.edu
+ *
+ ***************************************************************************/
+
+/*********************************************************************
+ * Array Unit Class
+ *
+ * ANSI (ARM) C++ Compatible / Templates Required
+ *
+ *
+ * usage:
+ *
+ *	# include "array.thh"
+ *	# include "array.tcc"
+ *
+ *
+ *	Array<ClassType>  VarName;
+ *
+ * 
+ *********************************************************************/
+
+
+template	<class	DATATYPE>
+class	DataLink
+	{
+	public:
+		DATATYPE			Data;
+		DataLink<DATATYPE>	*prev, *next;
+					DataLink(DataLink<DATATYPE> *p, DataLink<DATATYPE> *n)
+						{ prev = p; next = n; };
+#ifdef __GNUC__
+					DataLink():Data(), prev(NULL), next(NULL) {};
+#else
+					DataLink()
+						{ prev = NULL; next = NULL; };
+#endif
+#ifdef __GNUC__
+	private:// This will prevent it from being copied (it has pointers)
+		DataLink(const DataLink&);
+		const	DataLink<DATATYPE> & operator = (const DataLink<DATATYPE>&);
+#endif
+	};
+
+template	<class	DATATYPE>
+class	Array
+	{
+	public:
+
+	DataLink<DATATYPE>	*first;	
+	DataLink<DATATYPE>	*last;	
+	//DataLink<DATATYPE>	*LastAccess;
+	//unsigned	int		LastAccessNumber;
+	unsigned	int		ArraySize;
+	public:
+		UINT			ClearType;
+		DATATYPE	&	Add(DATATYPE	&);
+		DATATYPE	&	Get(unsigned int);
+		DATATYPE	&	ReplaceAt(DATATYPE	&, unsigned int);
+		BOOL			RemoveAt(unsigned int);
+		BOOL			Clear ()
+			{
+			first = last = /*LastAccess =*/ NULL;
+			//LastAccessNumber = 0;
+			ArraySize = 0;
+			return ( TRUE );
+			}
+#ifdef	MAC
+			DATATYPE	&	operator	[]	(unsigned int	Index)
+			{ return(Get(Index)); };
+			unsigned	int	GetSize()
+			{ return(ArraySize); };
+#else
+	inline	DATATYPE	&	operator	[]	(unsigned int	Index)
+			{ return(Get(Index)); };
+	inline	unsigned	int	GetSize()
+			{ return(ArraySize); };
+#endif
+#ifdef __GNUC__
+		Array()
+		:first(NULL), last(NULL), /*LastAccess(NULL), LastAccessNumber(0),*/ ArraySize(0), ClearType(1) {};
+#else
+		Array()
+		{ first = NULL; last = NULL; /*LastAccess = NULL; LastAccessNumber = 0;*/ ArraySize = 0; ClearType = 1; };
+#endif
+		Array(UINT);
+#ifdef	MAC
+		~Array();
+#else
+		virtual		~Array();
+#endif
+		const	Array<DATATYPE>	&	operator	=	(Array<DATATYPE> &array)
+			{ first = array.first; last = array.last; ArraySize = array.ArraySize; ClearType = FALSE; return *this; };
+
+// Used in PDU_Service::AddAbstractSyntaxAlias (UID &UIDSource, UID &UIDAlias)
+// in the line PresentationContext	vPresContext = PresContext;  Commented out
+// Now using the line Array<TransferSyntax>  vTrnSyntax = PresContext.TrnSyntax;
+		Array(const Array & array)
+			:first(array.first), last(array.last), /*LastAccess(array.LastAccess),*/
+			/*LastAccessNumber(array.LastAccessNumber),*/ ArraySize(array.ArraySize), ClearType(FALSE) {};
+	};

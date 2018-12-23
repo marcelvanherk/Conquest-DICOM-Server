@@ -1,0 +1,15 @@
+Save keys of first anonymization specific to given trial
+(needs patient id in UIDmods database)
+
+Restore keys operation
+
+Delete data should not delete data in other trial
+
+Create installer script and batch file
+dicom.ini modifications: put filter first
+then anonymizer
+
+Pass lua table to anonymizer to allow flexible modifications
+
+Web interface preview, information for each subject
+

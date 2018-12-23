@@ -1,0 +1,38 @@
+<html>
+<HEAD><TITLE>Conquest DICOM server - version %version% - ImageJA based viewer</TITLE></HEAD>
+<BODY BGCOLOR='CFDFCF'>
+<H2>Conquest DICOM server - version %version% - ImageJA based viewer</H2>
+
+<object type="application/x-java-applet;version=1.4.1"
+   width="850" height="750"
+   name="ImageJA" id="ImageJA">
+<param name="CODEBASE" value="http://imageja.sourceforge.net">
+<param name="archive" value="ij.jar">
+<param name="code" value="ij.ImageJApplet">
+<param name="mayscript" value="yes">
+<param name="scriptable" value="true">
+<param name="name" value="ImageJA Applet">
+</object>
+
+<p>
+
+<form>
+Slice: 
+  <select name=slice onchange=loadimage()> 
+--imagelister:local|%patid%|%seruid%|:<option value=%s:%s>slice %s</option>
+  </select> 
+  <input type=button value='load stack' onClick=loadstack()'>
+</form>
+
+<SCRIPT language=JavaScript> 
+function loadimage()
+{ document.ImageJA.open('%webscriptadress%?%extra%&mode=dicom&compress=un&slice=' + document.forms[0].slice.value + '&dum=.dcm');
+}
+function loadstack() 
+{ document.ImageJA.eval('run("Stack From List...", "open=%webscriptadress%?%extra%&mode=imagelisturls&series=%series2%&dum=.txt use")');
+}
+document.onload=loadstack()
+</SCRIPT>
+
+</body>
+</html>

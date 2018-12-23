@@ -1,0 +1,93 @@
+Install for Ubuntu 16.04 server | Conquest 1419b | Postgresql
+
+Install the dependencies
+
+apt-get update
+
+apt-get install build-essential g++ apache2 libpq-dev postgresql unzip -y
+
+Enable cgi on apache
+
+a2enmod cgi
+
+service apache2 restart
+Setup postgresql for conquest
+
+su - postgres
+
+psql
+
+\password
+
+postgres (type the password twice)
+
+\q
+
+createdb conquest
+
+exit
+Download and unzip conquest
+
+wget http://ingenium.home.xs4all.nl/dicomserver/dicomserver1419c.zip
+
+unzip dicomserver1419b.zip
+
+rm dicomserver1419b.zip
+
+Build conquest
+
+cd distribution
+
+chmod 777 maklinux
+
+./maklinux
+
+
+(Choose 2 for postgres)
+Generate database
+
+./dgate -v -r
+Test conquest
+
+./dgate -v
+Install as daemon
+
+cd /etc/systemd/system
+
+nano conquest.service
+
+
+(In ExecStart= change conquest directory to suit your installation)
+
+[Unit] 
+Description=conquest dicom server service
+After=network.target
+
+[Service]
+ExecStart=/root/distribution/dgate -v
+KillMode=process
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=conquest-server
+
+[Install]
+WantedBy=multi-user.target
+
+
+Enable daemon
+
+systemctl start conquest.service
+
+systemctl enable conquest.service
+
+
+systemctl status conquest.service
+Extra
+
+If you need to change conquest AE Title or port :
+
+You need to update the dicom.ini and arcnema.map files accordingly in the distribution folder of conquest and in the cgi folder located in /usr/lib/cgi-bin/newweb/
+
+to be able to still use the conquest webpage.

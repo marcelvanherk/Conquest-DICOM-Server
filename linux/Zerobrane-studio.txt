@@ -1,0 +1,3 @@
+download and install e.g.
+
+ZeroBraneStudioEduPack-1.40-linux.sh

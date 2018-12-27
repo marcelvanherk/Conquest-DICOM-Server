@@ -23,6 +23,7 @@
 -- mvh 20181213 server_name does not copy port use relative link and WebScriptAddress;
 --              moved WadoTransferSyntaxUID to series level
 -- mvh 20181214 Made to work with help from lyakh92; uses compress and WebScriptAddress from dicom.ini
+-- mvh 20181227 Use remotequery to limit contralize access to server; use gpps WebScriptAddress
 
 local source_server = Global.WebCodeBase
 
@@ -133,6 +134,20 @@ function split(str, pat)
    return t
 end
 
+function remotequery(ae, level, q)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..q:Serialize()..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize();
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  local f = loadstring('return '..servercommand('lua:'..remotecode));
+  if f then return f() end
+end
+
 -----------------------------------
 -- render jnlp file if requested --
 -----------------------------------
@@ -140,7 +155,7 @@ end
 if parameter=='jnlp' then
 HTML("Content-Type: application/x-java-jnlp-file\n")
   local xmlline = string.format([[<argument>$dicom:get -w "%s?mode=weasis_starter&parameter=xml&compress=%s&%s&dum=.xml"</argument>]],
-    script_name, gpps('webdefaults', 'compress', 'un'), level..'='..ident)
+    gpps('webdefaults', 'WebScriptAddress', ''), gpps('webdefaults', 'compress', 'un'), level..'='..ident)
   jnlp = split(jnlp, '\n')
   for k,v in ipairs(jnlp) do
     v = string.gsub(v, 'http://localhost:8080/', source_server)
@@ -179,17 +194,6 @@ local xml=
 
 if parameter=='xml' then
   -- utility functions first
-
-  -- convert dicomobject into lua table
-  function tablify(dicomobject)
-    local res = {}
-    n = dicomobject:ListItems()
-    n = split(n, '|')
-    for k, v in ipairs(n) do
-      res[v] = dicomobject[v]
-    end
-    return res
-  end
   
   -- make DICOM query from sample xml line
   function xmltoquery(line)
@@ -293,8 +297,8 @@ if parameter=='xml' then
   if level=='series' then 
     seq.SeriesInstanceUID = uid
     seq.StudyInstanceUID = ''
-    ser = dicomquery(source, 'SERIES', seq)
-    stq.StudyInstanceUID = ser[0].StudyInstanceUID
+    ser = remotequery(source, 'SERIES', seq)
+    stq.StudyInstanceUID = ser[1].StudyInstanceUID
   end
   if level=='study' then
     seq.StudyInstanceUID = uid
@@ -302,31 +306,31 @@ if parameter=='xml' then
   end
   
   -- loop over levels and print xml patient data
-  par = dicomquery(source, 'PATIENT', paq)
-  for i=0, #par-1 do
+  par = remotequery(source, 'PATIENT', paq)
+  for i=1, #par do
     par[i].QueryRetrieveLevel=nil
     par[i].TransferSyntaxUID=nil
-    xmlopen('PATIENT', tablify(par[i]))
+    xmlopen('PATIENT', par[i])
     stq.PatientID=par[i].PatientID
-    str = dicomquery(source, 'STUDY', stq)
-    for j=0, #str-1 do
+    str = remotequery(source, 'STUDY', stq)
+    for j=1, #str do
       str[j].QueryRetrieveLevel=nil
       str[j].TransferSyntaxUID=nil
       str[j].PatientID=nil
-      xmlopen('STUDY', tablify(str[j]))
+      xmlopen('STUDY', str[j])
       seq.StudyInstanceUID=str[j].StudyInstanceUID
-      ser = dicomquery(source, 'SERIES', seq)
-      for k=0, #ser-1 do
+      ser = remotequery(source, 'SERIES', seq)
+      for k=1, #ser do
         ser[k].QueryRetrieveLevel=nil
         ser[k].TransferSyntaxUID=nil
         ser[k].StudyInstanceUID=nil
-	local r=tablify(ser[k])
+	local r=ser[k]
         if wt~='' then r.WadoTransferSyntaxUID = wt end
         xmlopen('SERIES', r)
 	inq.SeriesInstanceUID=ser[k].SeriesInstanceUID
-        inr = dicomquery(source, 'IMAGE', inq)
-        for L=0, #inr-1 do
-          local t = tablify(inr[L])
+        inr = remotequery(source, 'IMAGE', inq)
+        for L=1, #inr do
+          local t = inr[L]
 	  t.QueryRetrieveLevel=nil
           t.TransferSyntaxUID=nil
           t.SeriesInstanceUID=nil

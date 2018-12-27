@@ -19,8 +19,23 @@
 ----------------------------------------------------------------------------
 -- mvh 20181126 Created
 -- mvh 20181213 server_name does not copy port; use relative link instead
+-- mvh 20181227 Use remotequery to limit contralize access to server 
 
 local source = servercommand('get_param:MyACRNema')
+
+function remotequery(ae, level, q)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..q:Serialize()..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize();
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  local f = loadstring('return '..servercommand('lua:'..remotecode));
+  if f then return f() end
+end
 
 -- Functions declaration
 function getstudyuid(pat, series)
@@ -28,8 +43,8 @@ function getstudyuid(pat, series)
   b.PatientID = pat
   b.SeriesInstanceUID = series
   b.StudyInstanceUID = ''
-  local a = dicomquery(source, 'SERIES', b)
-  return a[0].StudyInstanceUID
+  local a = remotequery(source, 'SERIES', b)
+  return a[1].StudyInstanceUID
 end
 
 function queryimages(pat, series)
@@ -37,15 +52,10 @@ function queryimages(pat, series)
   b.PatientID = pat
   b.SeriesInstanceUID = series
   b.SOPInstanceUID = ''
-  local images = dicomquery(source, 'IMAGE', b)
+  local images = remotequery(source, 'IMAGE', b)
 
-  local imaget={}
-  for k=0,#images-1 do
-    imaget[k+1]={}
-    imaget[k+1].SOPInstanceUID = images[k].SOPInstanceUID
-  end
-  table.sort(imaget, function(a,b) return a.SOPInstanceUID < b.SOPInstanceUID end)
-  return imaget
+  table.sort(images, function(a,b) return a.SOPInstanceUID < b.SOPInstanceUID end)
+  return images
 end
 
 -- split string into pieces, return as table

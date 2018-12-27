@@ -1097,6 +1097,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20181221	mvh     Send printer information [lua]printserver or to Progress port 
 20181222	mvh     Added luadicomget; removed superfluous DCO from luadicomquery
 20181223	mvh     Put progress port back to TCP until new GUI committed
+20181227	mvh     -x!port uses TCP; -xport uses UDP
 
 ENDOFUPDATEHISTORY
 */
@@ -12657,7 +12658,10 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 					break;
 
 				case	'x':
-					Progress.OnUDP(OCPipeName, argv[valid_argc]+2);
+					if (argv[valid_argc][2]=='!')
+					  Progress.OnTCP(OCPipeName, argv[valid_argc]+3);
+				        else
+					  Progress.OnUDP(OCPipeName, argv[valid_argc]+2);
 					break;
 
 				case	'p':	// override dicom.ini port#

@@ -1,6 +1,7 @@
 -- 20151206   mvh   fix 1.4.17d compatibility
 -- 20160709   mvh   fix for PatientID with spaces in it
 -- 20160723   mvh   changed incorrect dum heading for image url
+-- 20181215   mvh   Added remotequery to limit dependency on cgi functionality
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
 
@@ -58,23 +59,55 @@ function mcoalesce(fff)
  return res
 end;
 
-function querypats(id)
-  local patis, b, s;
-    --InitializeVar()
+function remotequery(ae, level, q)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..q:Serialize()..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize();
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  local f = loadstring('return '..servercommand('lua:'..remotecode));
+  if f then return f() end
+end
+
+function queryimagem_remote()
+  local patis, b, s, pid, q, i, j, k, l, siuid;
+ 
+  InitializeVar()
   s = servercommand('get_param:MyACRNema')
 
-  b=newdicomobject();
-  b.PatientID        = id;
-  b.PatientName      = '';
-  b.PatientSex = '';
-  b.PatientBirthDate = '';
+  q=CGI('query')
+  --print(q) 
+  i, j = string.find(q, "DICOMStudies.patientid = '")
 
-  patis=dicomquery(s, 'PATIENT', b);
-  return patis[0].PatientName
- end
- 
+  k, l = string.find(q, "' and")
+  pid=(string.sub(q, j+1,k-1))       --> patientid
+  
+  i, j = string.find(q, "DICOMSeries.seriesinst = '")
+  siuid=(string.sub(q, j+1))       --> seriesinst
+  siuid = string.gsub(siuid, "'", '')
+  --print(pid,siuid)
+
+  b=DicomObject:new();
+  b.QueryRetrieveLevel='IMAGE'
+  b.PatientID        = pid
+  b.SeriesInstanceUID = siuid
+  b.SOPInstanceUID   = '';
+  b.InstanceNumber = '';
+  b.SliceLocation = '';
+  b.PatientName=''
+  b.ImageDate=''
+  b.StudyInstanceUID=''
+  local imaget=remotequery(s, 'IMAGE', b);
+  table.sort(imaget, function(a,b) return 0+a.InstanceNumber<0+b.InstanceNumber end)
+  return imaget
+end
+
 function queryimagem()
-  local patis, b, s, pid, q, i, j, siuid;
+  local patis, b, s, pid, q, i, j, k, l, siuid;
  
   InitializeVar()
   s = servercommand('get_param:MyACRNema')
@@ -104,7 +137,7 @@ function queryimagem()
   
   images=dicomquery(s, 'IMAGE', b);
   
-  imaget={}
+  local imaget={}
   for k=0,#images-1 do
     imaget[k+1]={}
     imaget[k+1].SOPInstanceUID=images[k].SOPInstanceUID
@@ -261,7 +294,7 @@ function getTextSync(url,w,h)
 
 HTML("<H1>Welcome to the Conquest DICOM server - version %s</H1>", version)
 
-local pats=queryimagem()
+local pats=queryimagem_remote()
 local a = #pats
 
 if #pats>50 then

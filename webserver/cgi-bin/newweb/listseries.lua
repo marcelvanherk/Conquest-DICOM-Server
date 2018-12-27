@@ -5,6 +5,7 @@
 -- 20170305   mvh   start with send etc functions (1.4.19a)
 -- 20170430   mvh   Indicate viewer in menu
 -- 20180203   mvh   Removed opacity control for s[1] which does not exist
+-- 20181215   mvh   Added remotequery to limit dependency on cgi functionality
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -43,6 +44,52 @@ end;
 function mc(fff)
   return fff or ''
 end;
+
+function remotequery(ae, level, q)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..q:Serialize()..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize();
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  local f = loadstring('return '..servercommand('lua:'..remotecode));
+  if f then return f() end
+end
+
+function queryserie_remote()
+  InitializeVar()
+  local s = servercommand('get_param:MyACRNema')
+
+  local q=CGI('query')
+  --print(q) 
+  local i, j = string.find(q, "DICOMStudies.patientid = '")
+
+  local k, l = string.find(q, "' and")
+  local pid=(string.sub(q, j+1,k-1))       --> patientid
+  
+  i, j = string.find(q, "DICOMSeries.studyinsta = '")
+  local siuid=(string.sub(q, j+1))       --> studyinsta
+  siuid = string.gsub(siuid, "'", '')
+
+  local b=DicomObject:new();
+  b.QueryRetrieveLevel='SERIES'
+  b.PatientName = ''
+  b.PatientID        = pid
+  b.StudyDate        = ''; 
+  b.StudyInstanceUID = siuid;
+  b.StudyDescription = '';
+  b.SeriesDescription= '';
+  b.SeriesInstanceUID= '';
+  b.SeriesDate= '';
+  b.Modality         = '';
+  b.SeriesTime       = '';
+
+  local seriest=remotequery(s, 'SERIES', b);
+  return seriest
+end
 
 function queryserie()
   local patis, b, s, pid, i,j,k,l, siuid;
@@ -230,7 +277,7 @@ end
 
 HTML("<H1>Welcome to the Conquest DICOM server - version %s</H1>", version)
 
-local pats=queryserie() 
+local pats=queryserie_remote() 
 
 print("<table class='altrowstable' id='alternatecolor' RULES=ALL BORDER=1>");
 

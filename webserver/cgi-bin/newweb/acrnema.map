@@ -1,0 +1,28 @@
+/* **********************************************************
+ *                                                          *
+ * DICOM AE (Application entity) -> IP address / Port map   *
+ * (This is file ACRNEMA.MAP)                               *
+ *                                                          *
+ * All DICOM systems that want to retrieve images from the  *
+ * Conquest DICOM server must be listed here with correct   *
+ * AE name, (IP adress or hostname) and port number. The    *
+ * first entry is the Conquest server itself. The last ones *
+ * with * show wildcard mechanism. Add new entries above.   *
+ *                                                          *
+ * The syntax for each entry is :                           *
+ *   AE   <IP adress|Host name>   port number   compression *
+ *                                                          *
+ * For compression see manual. Values are un=uncompressed;  *
+ * ul=littleendianexplicit,ub=bigendianexplicit,ue=both     *
+ * j2=lossless jpeg;j3..j6=lossy jpeg;n1..n4=nki private    *
+ * js   =lossless jpegLS;  j7=lossy jpegLS                  *
+ * jk   =lossless jpeg2000;jl=lossy jpeg2000                *
+ * J3NN..j6NN, JLNN or J7NN overrides quality factor to NN% *
+ *                                                          *
+ ********************************************************** */
+
+CONQUESTSRV1		127.0.0.1	5678		un
+
+V*	        	*               1234            un
+W*	        	*               666             un
+S*		        *               5678            un

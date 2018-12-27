@@ -18,6 +18,8 @@
 -- 20170305   mvh   Added hint to save, fix zoom
 -- 20170430   mvh   Zoom no longer checks on version; assumes 1.4.19 plus
 -- 20180204   mvh   Removed 'getting image' print
+-- 20181128   mvh   Added anonymizer also to series viewer
+-- 20181223   mvh   Use remotequery (1.4.19d)
 
 -- default series information - this is here to allow debugging of the code usign ZeroBrane Studio, running from the server
 series2 = series2 or '0009703828:1.3.46.670589.5.2.10.2156913941.892665339.860724'
@@ -60,6 +62,20 @@ function errorpage(s)
   ]])
 end
 
+function remotequery(ae, level, q)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..q:Serialize()..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize();
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  local f = loadstring('return '..servercommand('lua:'..remotecode));
+  if f then return f() end
+end
+
 -- get some extra information at series and study level
 function getseriesinfo(source, patid, seriesuid)
   local b;
@@ -71,7 +87,7 @@ function getseriesinfo(source, patid, seriesuid)
   b.SeriesDescription = '';
   b.SeriesDate = '';
   b.SeriesTime = '';
-  a=dicomquery(source, 'SERIES', b);
+  a=remotequery(source, 'SERIES', b);
   if a==nil then
    errorpage('Wado viewer error, cannot query server at series level - check ACRNEMA.MAP for: ' .. source)
    return
@@ -79,17 +95,17 @@ function getseriesinfo(source, patid, seriesuid)
   
   b=newdicomobject();
   b.PatientID = patid
-  b.StudyInstanceUID = a[0].StudyInstanceUID;
+  b.StudyInstanceUID = a[1].StudyInstanceUID;
   b.PatientName = '';
   b.PatientSex = '';
   b.PatientBirthDate = '';
-  c=dicomquery(source, 'STUDY', b);
+  c=remotequery(source, 'STUDY', b);
   if c==nil then
    errorpage('Wado viewer error, cannot query server at image level: ' .. source)
    return
   end
   
-  return a[0], c[0]
+  return a[1], c[1]
 end
 
 -- get list of images (called once)
@@ -105,23 +121,23 @@ function queryimages(source, patid, seriesuid)
   b.ImageComments   = ''
   b.NumberOfFrames = ''
 
-  images=dicomquery(source, 'IMAGE', b);
+  images=remotequery(source, 'IMAGE', b);
   if images==nil then
    errorpage('Wado viewer error, cannot query server at image level: ' .. source)
    return
   end
 
   imaget={}
-  for k=0,#images-1 do
+  for k=1,#images do
     if (images[k].InstanceNumber or '') == '' then
       images[k].InstanceNumber = '0'
     end
-    imaget[k+1]={}
-    imaget[k+1].SOPInstanceUID=images[k].SOPInstanceUID
-    imaget[k+1].SliceLocation=images[k].SliceLocation or ''
-    imaget[k+1].ImageComments=images[k].ImageComments or ''
-    imaget[k+1].NumberOfFrames=images[k].NumberOfFrames or 1
-    imaget[k+1].InstanceNumber= tonumber(images[k].InstanceNumber or '0')
+    imaget[k]={}
+    imaget[k].SOPInstanceUID=images[k].SOPInstanceUID
+    imaget[k].SliceLocation=images[k].SliceLocation or ''
+    imaget[k].ImageComments=images[k].ImageComments or ''
+    imaget[k].NumberOfFrames=images[k].NumberOfFrames or 1
+    imaget[k].InstanceNumber= tonumber(images[k].InstanceNumber or '0')
   end
   table.sort(imaget, function(a,b) return a.InstanceNumber<b.InstanceNumber end)
 
@@ -157,7 +173,12 @@ if serverversion==nil then
 end
 serverversion = string.match(serverversion, 'version ([%d%.%a]*)');
 
--- collect all DICOM information needed
+anonymizer = ''
+if CGI('anonymize')~='' then
+  anonymizer = '&anonymize='..CGI('anonymize')
+end
+  
+  -- collect all DICOM information needed
 local patid, seriesuid = unpack(split(series2, ':'))
 local seriesinfo, patinfo = getseriesinfo(source, patid, seriesuid)
 local studyuid = seriesinfo.StudyInstanceUID
@@ -241,6 +262,7 @@ var bridge = ']]..bridge..[[';
 var size = ]]..size..[[;
 var serverversion = ']]..serverversion..[[';
 var script_name = ']]..(script_name or '')..[[';
+var anonymizer = ']]..(anonymizer or '')..[[';
 ]])
 
 -- here is all the js code defined; long string is rendered line by line below
@@ -385,6 +407,7 @@ function load()
     bridge+
     '&studyUID='+studyuid +
     '&seriesUID='+seriesuid +
+    anonymizer +
     '&objectUID=' + document.getElementById("form"+seriesno).slice.value.split("|")[0];
     document.getElementById("myframe").style.display='block';
     document.images[0].style.display='none';
@@ -501,7 +524,7 @@ function myKeyFunction(a)
   else if (a.keyCode==34) slicer(-1);
   else if (ch=='Q')
     PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='
-    +seriesuid+'&objectUID=' + document.getElementById("form"+seriesno).slice.value.split("|")[0], 'hoi', 700, 512);
+    +seriesuid+anonymizer+'&objectUID=' + document.getElementById("form"+seriesno).slice.value.split("|")[0], 'hoi', 700, 512);
 }
 
 // step through slices

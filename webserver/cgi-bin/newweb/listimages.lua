@@ -1,6 +1,7 @@
 -- 20160723   mvh   changed incorrect dum heading for image url
 -- 20170305   mvh   start with send etc functions (1.4.19)
 -- 20180203   mvh   Removed opacity control for s[1] which does not exist
+-- 20181215   mvh   Added remotequery to limit dependency on cgi functionality
 
 local query_pid = '';
 local query_pna = '';
@@ -53,6 +54,49 @@ function mc(fff)
   return fff or ''
 end;
  
+function remotequery(ae, level, q)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..q:Serialize()..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize();
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  local f = loadstring('return '..servercommand('lua:'..remotecode));
+  if f then return f() end
+end
+
+function queryimagem_remote()
+  InitializeVar()
+  local s = servercommand('get_param:MyACRNema')
+
+  local q=CGI('query', query)
+  i, j = string.find(q, "DICOMStudies.patientid = '")
+
+  local k, l = string.find(q, "' and")
+  local pid=(string.sub(q, j+1,k-1))       --> patientid
+  
+  i, j = string.find(q, "DICOMSeries.seriesinst = '")
+  local siuid=(string.sub(q, j+1))       --> seriesinst
+  siuid = string.gsub(siuid, "'", '')
+  --print(pid,siuid)
+
+  local b=DicomObject:new();
+  b.QueryRetrieveLevel='IMAGE'
+  b.PatientID        = pid
+  b.SeriesInstanceUID = siuid
+  b.SOPInstanceUID   = '';
+  b.InstanceNumber = '';
+  b.SliceLocation = '';
+  b.PatientName=''
+  b.ImageDate=''
+  b.StudyInstanceUID ='' 
+  local imaget=remotequery(s, 'IMAGE', b);
+  table.sort(imaget, function(a,b) return 0+a.InstanceNumber<0+b.InstanceNumber end)
+  return imaget
+end
  
 function queryimagem()
   local patis, q, b, s, pid, i, j, k, l, siuid;
@@ -274,7 +318,7 @@ end
 
 HTML("<H1>Welcome to the Conquest DICOM server - version %s</H1>", version)
 
-local pats=queryimagem() 
+local pats=queryimagem_remote() 
 --table.sort(pats, function(a,b) return a.SOPInstanceUID<b.SOPInstanceUID end)
 --table.sort(pats, mycomp)
 

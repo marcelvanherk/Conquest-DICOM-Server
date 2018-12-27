@@ -7,6 +7,7 @@
 -- 20170305   mvh   Added hint to save, fix zoom
 -- 20170430   mvh   Zoom no longer checks on version; assumes 1.4.19 plus
 -- 20180204   mvh   Removed 'getting image' print
+-- 20181223   mvh   Use remotequery (1.4.19d)
 
 -- defaults to allow debugging in zbs
 study2 = study2 or 'EG2005:'
@@ -54,6 +55,20 @@ function errorpage(s)
   ]])
 end
 
+function remotequery(ae, level, q)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..q:Serialize()..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize();
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  local f = loadstring('return '..servercommand('lua:'..remotecode));
+  if f then return f() end
+end
+
 -- get list of series
 function queryseries(source)
   local patis, b, i, j, k, l;
@@ -71,29 +86,30 @@ function queryseries(source)
   b.Modality         = '';
   b.SeriesTime       = '';
   b.NumberOfSeriesRelatedInstances = '';
-  series=dicomquery(source, 'SERIES', b);
+  series=remotequery(source, 'SERIES', b);
   if series==nil then
    errorpage('Wado viewer error, cannot query server at series level - check ACRNEMA.MAP for: ' .. source)
    return
   end
 
   -- convert returned DDO (userdata) to table; needed to allow table.sort
-  seriest={}
-  for k1=0,#series-1 do
-    seriest[k1+1]={}
-    seriest[k1+1].PatientName      = series[k1].PatientName or ''
-    seriest[k1+1].StudyDate        = series[k1].StudyDate or ''
-    seriest[k1+1].PatientID        = series[k1].PatientID or ''
-    seriest[k1+1].StudyDate        = series[k1].StudyDate or ''
-    seriest[k1+1].SeriesTime       = series[k1].SeriesTime or ''
-    seriest[k1+1].SeriesDate       = series[k1].SeriesDate or ''
-    seriest[k1+1].StudyInstanceUID = series[k1].StudyInstanceUID or ''
-    seriest[k1+1].SeriesDescription= series[k1].SeriesDescription or ''
-    seriest[k1+1].StudyDescription = series[k1].StudyDescription or ''
-    seriest[k1+1].SeriesInstanceUID= series[k1].SeriesInstanceUID or ''
-    seriest[k1+1].Modality         = series[k1].Modality or ''
-    seriest[k1+1].NumberOfSeriesRelatedInstances = series[k1].NumberOfSeriesRelatedInstances or 0
-  end
+  --seriest={}
+  --for k1=0,#series-1 do
+  --  seriest[k1+1]={}
+  --  seriest[k1+1].PatientName      = series[k1].PatientName or ''
+  --  seriest[k1+1].StudyDate        = series[k1].StudyDate or ''
+  --  seriest[k1+1].PatientID        = series[k1].PatientID or ''
+  --  seriest[k1+1].StudyDate        = series[k1].StudyDate or ''
+  --  seriest[k1+1].SeriesTime       = series[k1].SeriesTime or ''
+  --  seriest[k1+1].SeriesDate       = series[k1].SeriesDate or ''
+  --  seriest[k1+1].StudyInstanceUID = series[k1].StudyInstanceUID or ''
+  --  seriest[k1+1].SeriesDescription= series[k1].SeriesDescription or ''
+  --  seriest[k1+1].StudyDescription = series[k1].StudyDescription or ''
+  --  seriest[k1+1].SeriesInstanceUID= series[k1].SeriesInstanceUID or ''
+  --  seriest[k1+1].Modality         = series[k1].Modality or ''
+  --  seriest[k1+1].NumberOfSeriesRelatedInstances = series[k1].NumberOfSeriesRelatedInstances or 0
+  --end
+  seriest = series
   return seriest
 end
 
@@ -110,23 +126,23 @@ function queryimages(source, patid, seriesuid)
   b.ImageComments   = ''
   b.NumberOfFrames = ''
 
-  images=dicomquery(source, 'IMAGE', b);
+  images=remotequery(source, 'IMAGE', b);
   if images==nil then
    errorpage('Wado viewer error, cannot query server at image level: ' .. source)
    return
   end
 
   imaget={}
-  for k=0,#images-1 do
+  for k=1,#images do
     if (images[k].InstanceNumber or '') == '' then
       images[k].InstanceNumber = '0'
     end
-    imaget[k+1]={}
-    imaget[k+1].SOPInstanceUID=images[k].SOPInstanceUID
-    imaget[k+1].SliceLocation=images[k].SliceLocation or ''
-    imaget[k+1].ImageComments=images[k].ImageComments or ''
-    imaget[k+1].NumberOfFrames=images[k].NumberOfFrames or 1
-    imaget[k+1].InstanceNumber= tonumber(images[k].InstanceNumber or '0')
+    imaget[k]={}
+    imaget[k].SOPInstanceUID=images[k].SOPInstanceUID
+    imaget[k].SliceLocation=images[k].SliceLocation or ''
+    imaget[k].ImageComments=images[k].ImageComments or ''
+    imaget[k].NumberOfFrames=images[k].NumberOfFrames or 1
+    imaget[k].InstanceNumber= tonumber(images[k].InstanceNumber or '0')
   end
   table.sort(imaget, function(a,b) return a.InstanceNumber<b.InstanceNumber end)
 

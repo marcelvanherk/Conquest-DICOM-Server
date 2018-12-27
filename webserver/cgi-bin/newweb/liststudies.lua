@@ -3,6 +3,7 @@
 -- 20170305   mvh   start with send etc functions (1.4.19a)
 -- 20170430   mvh   Indicate viewer in menu
 -- 20180203   mvh   Removed opacity control for s[1] which does not exist
+-- 20181215   mvh   Added remotequery to depend less on web cgi functionality
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -63,6 +64,36 @@ function mc(fff)
  return fff or ''
 end;
 
+function remotequery(ae, level, q)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..q:Serialize()..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize();
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  local f = loadstring('return '..servercommand('lua:'..remotecode));
+  if f then return f() end
+end
+
+function querystudy_remote()
+  InitializeVar()
+  local s = servercommand('get_param:MyACRNema')
+  
+  local b=DicomObject:new();
+  b.QueryRetrieveLevel='STUDY'
+  b.Modality=''
+  b.StudyInstanceUID='' 
+  b.PatientID=query_pid
+  b.PatientName=query_pna
+  b.StudyDate = query_pst
+  b.StudyDescription=''
+
+  local patist=remotequery(s, 'STUDY', b);
+  return patist
+end;
 
 function querystudy()
   local patis, b, s;
@@ -234,7 +265,7 @@ function dropdown(i, item)
 end
 
 HTML("<H1>Welcome to the Conquest DICOM server - version %s</H1>", version)
-local pats=querystudy() 
+local pats=querystudy_remote() 
 if query_pna ~= '' then
   table.sort(pats, mycomp)
 end

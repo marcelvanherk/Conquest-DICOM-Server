@@ -7,6 +7,7 @@
 -- 20180203   mvh   Adapt zipper for Ladle mode (if write); removed zip.cq call
 -- 20180203   mvh   Try popup window for series and study viewer; provide filename for zippers
 -- 20181124   mvh   Added readOnly (no modify/delete) and viewOnly (no download) flags, pass compress to viewers
+-- 20181215   mvh   Added remotequery and remote get_amap to depend less on web cgi functionality
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 version = version  or ''
@@ -58,6 +59,33 @@ end;
 
 function mc(fff)
  return fff or ''
+end;
+
+function remotequery(ae, level, q)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..q:Serialize()..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize();
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  local f = loadstring('return '..servercommand('lua:'..remotecode));
+  if f then return f() end
+end
+
+function querypats_remote()
+  InitializeVar()
+  local s = servercommand('get_param:MyACRNema')
+  local b=DicomObject:new();
+  b.QueryRetrieveLevel='PATIENT'
+  b.PatientID        = query_pid;
+  b.PatientName      = query_pna;
+  b.PatientSex = '';
+  b.PatientBirthDate = '';
+  local patist=remotequery(s, 'PATIENT', b);
+  return patist
 end;
 
 function querypats()
@@ -123,7 +151,8 @@ end
 if CGI('parameter', '')=='sender' then
   print('Send '..CGI('item', '') .. ' to destination: ')
   for i=0,99 do
-    a = get_amap(i)
+    -- a = get_amap(i)
+    a = servercommand('lua: return get_amap('..i..')')
     if a==nil then break end
     if string.match(a, '*') then break end
     print('<br>'..a)
@@ -417,7 +446,7 @@ table.altrowstable Caption {
 
 HTML("<H1>Welcome to Conquest DICOM server - version %s</H1>", version)
 
-local pats=querypats() 
+local pats=querypats_remote() 
 if query_pna ~= '' then
   table.sort(pats, mycomp)
 end

@@ -3,6 +3,7 @@
 -- Marcel van Herk; 20181219
 -- Code can be configured by editing this file
 --------------------------------------------------------
+-- mvh 20181228: note, this code is not yet used, it documents lua code hardcoded in the GUI 
 
 local advancedDisplayConversion = true
 local advancedPrintConversion = true

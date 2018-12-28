@@ -24,6 +24,7 @@
 --              moved WadoTransferSyntaxUID to series level
 -- mvh 20181214 Made to work with help from lyakh92; uses compress and WebScriptAddress from dicom.ini
 -- mvh 20181227 Use remotequery to limit contralize access to server; use gpps WebScriptAddress
+-- mvh 20181229 Fixed section of WebScriptAddress
 
 local source_server = Global.WebCodeBase
 
@@ -155,7 +156,7 @@ end
 if parameter=='jnlp' then
 HTML("Content-Type: application/x-java-jnlp-file\n")
   local xmlline = string.format([[<argument>$dicom:get -w "%s?mode=weasis_starter&parameter=xml&compress=%s&%s&dum=.xml"</argument>]],
-    gpps('webdefaults', 'WebScriptAddress', ''), gpps('webdefaults', 'compress', 'un'), level..'='..ident)
+    gpps('sscscp', 'WebScriptAddress', ''), gpps('webdefaults', 'compress', 'un'), level..'='..ident)
   jnlp = split(jnlp, '\n')
   for k,v in ipairs(jnlp) do
     v = string.gsub(v, 'http://localhost:8080/', source_server)
@@ -266,7 +267,7 @@ if parameter=='xml' then
   xml = split(xml, '\n')
   for k,v in ipairs(xml) do
     if string.find(v, 'baseUrl=') then 
-      xml[k] = string.gsub(v, 'baseUrl=".-"', 'baseUrl="'..gpps('webdefaults', 'WebScriptAddress', '')..'"')
+      xml[k] = string.gsub(v, 'baseUrl=".-"', 'baseUrl="'..gpps('sscscp', 'WebScriptAddress', '')..'"')
     end
     if string.find(v, '<Patient', 1, true) and paq==nil then
       paq = xmltoquery(v)

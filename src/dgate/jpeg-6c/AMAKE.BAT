@@ -7,7 +7,7 @@ set path=%compiler%;%path%
 
 rem nmake -fmakefile.vc clean
 del *.obj *.lib
-nmake -fmakefile.vc conlibs=bufferoverflowu.lib
+nmake -fmakefile.vc conlibs=bufferoverflowu.lib ccompiler=%ccompiler%
 copy libjpeg.lib ..\build64
 
 set path=%spath%
@@ -16,7 +16,7 @@ set path=%compiler%;%path%
 
 rem nmake -fmakefile.vc clean
 del *.obj *.lib
-nmake -fmakefile.vc
+nmake -fmakefile.vc ccompiler=%ccompiler%
 copy libjpeg.lib ..\build32
 
 rem nmake -fmakefile.vc clean

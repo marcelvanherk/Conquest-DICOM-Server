@@ -6,14 +6,14 @@ set spath=%path%
 call ..\asetcompiler64.bat
 set path=%compiler%;%path%
 set include=%include%
-cl /Zi /MT /nologo /O2 /W3 /c /D_CRT_SECURE_NO_DEPRECATE /DNDEBUG all.c
+%ccompiler% /Zi /MT /nologo /O2 /W3 /c /D_CRT_SECURE_NO_DEPRECATE /DNDEBUG all.c
 copy all.obj ..\build64\openjp2.obj
 
 set path=%spath%
 call ..\asetcompiler32.bat
 set path=%compiler%;%path%
 set include=%include%
-cl /Zi /MT /nologo /O2 /W3 /c /D_CRT_SECURE_NO_DEPRECATE /DNDEBUG all.c
+%ccompiler% /Zi /MT /nologo /O2 /W3 /c /D_CRT_SECURE_NO_DEPRECATE /DNDEBUG all.c
 copy all.obj ..\build32\openjp2.obj
 
 set path=%spath%

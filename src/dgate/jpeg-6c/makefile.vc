@@ -32,7 +32,7 @@ SYSDEPMEM= jmemnobs.obj
 RM= del
 
 # mvh 20100116
-cc = cl
+cc = $(ccompiler)
 link = link
 O = obj
 

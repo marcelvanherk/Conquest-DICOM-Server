@@ -27,6 +27,9 @@
 -- 20160917 mvh   Added limited vstruct emulation based on ConvertBinaryData -> optional vstruct independent
 --                Did require some simplifying of formats used
 -- 20160921 mvh   Fix length of last format passed to ConvertBinaryData
+-- 20161019 mvh	  Block out print statements
+-- 20161022 mvh	  Added frame:fromCSV
+-- 20170226 mvh   Note: cannot assign to frame.name
 
 --[[
   R client software with native Lua representation of some R objects. 
@@ -520,6 +523,21 @@ function frame:readCSV(filename)
   collectgarbage()
 end
 
+-- CSV data access for frame
+function frame:fromCSV(data, names)
+  self.names = names
+  
+  -- transpose CSV table for frame format
+  self.contents = {}
+  for i=1, #self.names do
+    self.contents[i] = {}
+    for j=1, #data do
+      self.contents[i][j] = data[j][self.names[i]]
+    end
+  end
+  collectgarbage()
+end
+
 function frame:writeCSV(filename)
   local a = {}
   for i=1, #self.contents[1] do
@@ -918,11 +936,11 @@ end
 -- @param command   Optional command, default 3 = evaluate
 -------------------------------------
 function rclient.evaluate(rexp, rsserver, rsport, command)
-  if command==2 then
-    print('-- R > ' .. rexp)
-  else
-    print('-- R < ' .. rexp)
-  end
+--  if command==2 then
+--    print('-- R > ' .. rexp)
+--  else
+--    print('-- R < ' .. rexp)
+--  end
   
   rsserver = rsserver or server.host
   rsport   = rsport   or tonumber(server.port)

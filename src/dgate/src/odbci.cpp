@@ -175,6 +175,7 @@
 20160313   bcb	  Removed incorrect * in mysql_errno checks
 20160317   mvh	  Initialize th->n on dbase_open; rare accesses invalid index if non-init
 20180805   mvh    Added SQLiteStartup parameter; defaults to "PRAGMA synchronous=OFF" as it was
+20181231   mvh    Reset bind type array when binding 1, avoids write into unbound variables
 */
 
 /*
@@ -4671,6 +4672,11 @@ BOOL	Database :: BindField (	UWORD	Column,
 		*LengthNeeded = 4;
 		return TRUE;
 		}
+		
+	// disable non bound columns
+	if (Column==1)
+          for (int i=0; i<MAXFIELDS; i++)
+            CTypeCodes[i]=0;
 
 	// built-in dbf support (limited to simple single table queries)
 	if (dir[0])

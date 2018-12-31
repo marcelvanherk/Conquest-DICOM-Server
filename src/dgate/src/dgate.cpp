@@ -1098,11 +1098,15 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20181222	mvh     Added luadicomget; removed superfluous DCO from luadicomquery
 20181223	mvh     Put progress port back to TCP until new GUI committed
 20181227	mvh     -x!port uses TCP; -xport uses UDP
+20181229	mvh     Added luadicomstore
+20181231	mvh     Create all threads with 2MB stack space, Intel compiler seems to be less forgiving
+20181231	mvh     Allow luaservercommand to return NIL; increased HTML command buffer space
+20181231	mvh     Version to 1.5.0-alpha
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.4.19d"
+#define DGATE_VERSION "1.5.0-alpha"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -6140,6 +6144,7 @@ int console;
     char *b = NULL; // buffer to SendServerCommand (only used to pass filename for upload)
     char *t = NULL; // mode
     int c   = 0;     // filehandle or console
+    int rc = 1;
     BOOL html=FALSE; // convert to html
     BOOL upload=FALSE; // upload
     BOOL download=FALSE; // download
@@ -6155,9 +6160,9 @@ int console;
     else
       L2=L;
     if (lua_isstring(L,1)) 
-      SendServerCommand("", lua_tostring(L,1), c, b, html, upload, L2);
+      rc = SendServerCommand("", lua_tostring(L,1), c, b, html, upload, L2);
     if (download) close(c);
-    if (L2) return 1;
+    if (L2 && rc==-1) return 1;
     return 0;
   }
   static int luadictionary(lua_State *L)
@@ -6429,6 +6434,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
   static int luadicomquery(lua_State *L);
   static int luadicomprint(lua_State *L);
   static int luadicomget(lua_State *L);
+  static int luadicomstore(lua_State *L);
   
   static int luadicommove(lua_State *L)
   { const char *source = lua_tostring(L,1);
@@ -8204,6 +8210,7 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     lua_register      (*L, "serialize",     luaserialize);
     lua_register      (*L, "dicomprint",    luadicomprint);
     lua_register      (*L, "dicomget",      luadicomget);
+    lua_register      (*L, "dicomstore",    luadicomstore);
     
     lua_createtable   (*L, 0, 0); 
     lua_createtable   (*L, 0, 0);
@@ -8342,7 +8349,7 @@ void Startimport_forward_PDU_close_thread(void)
 
   #ifdef WIN32
   unsigned long ThreadID;
-  CreateThread(NULL, 0x000ff000, (LPTHREAD_START_ROUTINE) import_forward_PDU_close_thread, NULL, 0, &ThreadID);
+  CreateThread(NULL, 2097152, (LPTHREAD_START_ROUTINE) import_forward_PDU_close_thread, NULL, 0, &ThreadID);
 #else
   pthread_t ThreadID;
   pthread_create(&ThreadID, NULL, (void*(*)(void*))import_forward_PDU_close_thread, (void *)NULL);
@@ -10595,7 +10602,7 @@ struct conquest_queue *new_queue(int num, int size, int delay, BOOL (*process)(c
 
 #ifdef WIN32
   result->threadhandle = 
-    CreateThread(NULL, 0x000ff000, (LPTHREAD_START_ROUTINE) processthread, result, 0, &ThreadID);
+    CreateThread(NULL, 2097152, (LPTHREAD_START_ROUTINE) processthread, result, 0, &ThreadID);
 #else
   pthread_create(&result->threadhandle, NULL, (void*(*)(void*))processthread, (void *)result);
   pthread_detach(result->threadhandle);
@@ -11625,7 +11632,7 @@ struct conquest_queue *new_prefetcherqueue(void)
 
 #ifdef WIN32
   result->threadhandle = 
-    CreateThread(NULL, 0x000ff000, (LPTHREAD_START_ROUTINE) prefetcherthread, result, 0, &ThreadID);
+    CreateThread(NULL, 2097152, (LPTHREAD_START_ROUTINE) prefetcherthread, result, 0, &ThreadID);
 #else
   pthread_create(&result->threadhandle, NULL, (void*(*)(void*))prefetcherthread, (void *)result);
   pthread_detach(result->threadhandle);
@@ -12156,7 +12163,7 @@ void StartMonitorThread(char *global_folder)
 { 
 #ifdef WIN32
   unsigned long ThreadID;
-  CreateThread(NULL, 0x000ff000, (LPTHREAD_START_ROUTINE) monitorthread, global_folder, 0, &ThreadID);
+  CreateThread(NULL, 2097152, (LPTHREAD_START_ROUTINE) monitorthread, global_folder, 0, &ThreadID);
 #else
   pthread_t ThreadID;
   pthread_create(&ThreadID, NULL, (void*(*)(void*))monitorthread, (void *)global_folder);
@@ -12287,7 +12294,7 @@ void StartZipThread(void)
   GoZipThread = TRUE;
 #ifdef WIN32
   unsigned long ThreadID;
-  CreateThread(NULL, 0x000ff000, (LPTHREAD_START_ROUTINE) zipthread, NULL, 0, &ThreadID);
+  CreateThread(NULL, 2097152, (LPTHREAD_START_ROUTINE) zipthread, NULL, 0, &ThreadID);
 #else
   pthread_t ThreadID;
   pthread_create(&ThreadID, NULL, (void*(*)(void*))zipthread, (void *)NULL);
@@ -17826,7 +17833,7 @@ RetrieveOn (
 
 		// start the thread
 #ifdef WIN32
-		ratd->Handle     = CreateThread(NULL, 0x000ff000, 
+		ratd->Handle     = CreateThread(NULL, 2097152, 
                                     (LPTHREAD_START_ROUTINE) ReadAheadThread,
 			            ratd, 0, &ThreadID);
 #else
@@ -18457,7 +18464,7 @@ BOOL	DriverApp	::	Server ( BYTE	*port )
 		else
 			{
 #ifndef UNIX
-			if(!(ThreadHandle = CreateThread(NULL, 0x0000f000, (LPTHREAD_START_ROUTINE) DriverHelper,
+			if(!(ThreadHandle = CreateThread(NULL, 2097152, (LPTHREAD_START_ROUTINE) DriverHelper,
 					this, 0, &ThreadID)))
 #else	// UNIX
 			pthread_create(&ThreadID, NULL, DriverHelper, (void *)this);
@@ -18809,7 +18816,7 @@ void TestThreadedSave(char *filename)
 { 
 #ifdef WIN32
   unsigned long ThreadID;
-  CreateThread(NULL, 0x000ff000, (LPTHREAD_START_ROUTINE) testsavethread, filename, 0, &ThreadID);
+  CreateThread(NULL, 2097152, (LPTHREAD_START_ROUTINE) testsavethread, filename, 0, &ThreadID);
 #else
   pthread_t ThreadID;
   pthread_create(&ThreadID, NULL, (void*(*)(void*))testsavethread, (void *)filename);
@@ -23802,6 +23809,7 @@ int processhtml(char *out, char *in, int len)
 	return outlen;
 	}
 
+// returns 1 on failure, 0 on success, -1 if value is returned on con, buf or L
 static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, int con, char *buf, BOOL html, BOOL upload, lua_State *L)
 	{
 	PDU_Service		PDU;
@@ -23880,6 +23888,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
                                 else      memcpy(buf, vr->Data, len = vr->Length);
 				buf[len]=0;
 				if (len>1 && buf[len-1]==' ') len--;
+				rc = -1;
 				}
 			else if (L)
 				{
@@ -23887,6 +23896,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 				if (len>1 && ((char *)(vr->Data))[len-1]==' ') len--;
 				else if (len>1 && ((char *)(vr->Data))[len-1]==0) len--;
                                 lua_pushlstring(L, (char *)(vr->Data), len);
+				rc = -1;
 				}
 			else
 				{
@@ -23905,6 +23915,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 					if (len>1 && buf1[len-1]==0 && (len&1)==0) len--;
 					write(con, buf1, len);
 					free(buf1);
+					rc = -1;
 					}
 				else
 					{ int len = vr->Length;
@@ -23913,6 +23924,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 					  //if (memcmp(vr->Data, "Content-type: application/dicom\n", 32)==0)
 					    //len--;
 					write(con, vr->Data, len);
+					rc = -1;
 					}
 				}
 			}
@@ -24014,7 +24026,7 @@ static int htoin(const char *value, int len)
 
 static void HTML(const char *string, ...)
 { char n[2]="\n";
-  char s[1250];
+  char s[2500];
   va_list vargs;
 
   va_start(vargs, string);
@@ -27408,6 +27420,86 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	return 1;
       }
       return 1;
+    }
+    return 0;
+  }
+ 
+  static int luadicomstore(lua_State *L)
+  { const char *ae    = lua_tostring(L,1);
+    if (lua_isuserdata(L, 2)) 
+    { DICOMDataObject *O = NULL;
+      Array < DICOMDataObject * > *A = NULL;  
+      lua_getmetatable(L, 3);
+        lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
+        lua_getfield(L, -1, "ADDO");  A = (Array < DICOMDataObject * > *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+      if (A==NULL) 
+      { A = new Array < DICOMDataObject * >;
+        A->Add(O);
+      }
+      if (A) 
+      { unsigned char 	ip[64], port[64], compress[64], SOP[66];
+	VR		*vr;
+	UID		uid;
+	char 		*p;
+        RunTimeClassStorage	RTCStorage;
+		
+	ExtendedPDU_Service PDU;
+	PDU.AttachRTC(&VRType);
+
+	if(!GetACRNema((char *)ae, (char *)ip, (char *)port, (char *)compress))
+        { strcpy((char *)&ip, (char *)&ae);
+          p = strchr((char *)ip, ':');
+          if (p) 
+          { *p=0;
+            strcpy((char *)port, p+1);
+          }
+          else 
+            strcpy((char *)port, "5678");
+        }
+
+        PDU.SetRequestedCompressionType((char *)&compress);	// default
+
+	uid.Set("1.2.840.10008.3.1.1.1");
+        PDU.SetApplicationContext ( uid );
+        PDU.SetLocalAddress ( MYACRNEMA );
+        PDU.SetRemoteAddress ( (unsigned char *)&ip );
+        PDU.SetTimeOut(TCPIPTimeOut);
+
+        for (int i=0; i<A->GetSize(); i++)
+        { vr = A -> Get(i) -> GetVR(0x0008, 0x0016);
+          if (vr)
+          { SetUID ( uid, vr );
+            PDU.AddAbstractSyntax ( uid );
+  	  }
+	}
+
+        if (PDU.Connect((unsigned char *)&ip, (unsigned char *)&port))
+        { OperatorConsole.printf("*** dicomstore: Forward failed to connect to host %s\n", ae);
+          return 0;
+        }
+
+        for (int i=0; i<A->GetSize(); i++)
+        { vr = A -> Get(i) -> GetVR(0x0008, 0x0016);
+          if (!vr) continue;
+          SetUID ( uid, vr );
+          if (!PDU.IsAbstractSyntaxAccepted(uid)) continue;
+
+          // recompress data to be forwarded here according to accepted compression mode
+          p = PDU.GetAcceptedCompressionType(uid);
+          BOOL StripGroup2 = memicmp(p, "as", 2)!=0 && memicmp(p, "is", 2)!=0;
+	  DICOMDataObject *DDO = MakeCopy(A->Get(i));
+          recompress(&DDO, p, "", StripGroup2, &PDU);
+
+          RTCStorage.SetUID(uid);
+
+          if (!RTCStorage.Write(&PDU, DDO))
+          { OperatorConsole.printf("*** Test forward: Forward failed to send DICOM image to %s\n", ae);
+	  }
+	}
+      }
+    
+      return 0;
     }
     return 0;
   }

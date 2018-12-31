@@ -8,6 +8,7 @@
 -- 20180203   mvh   Try popup window for series and study viewer; provide filename for zippers
 -- 20181124   mvh   Added readOnly (no modify/delete) and viewOnly (no download) flags, pass compress to viewers
 -- 20181215   mvh   Added remotequery and remote get_amap to depend less on web cgi functionality
+-- 20181230   mvh   Removed dicomquery, only kept remotequery
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 version = version  or ''
@@ -85,30 +86,6 @@ function querypats_remote()
   b.PatientSex = '';
   b.PatientBirthDate = '';
   local patist=remotequery(s, 'PATIENT', b);
-  return patist
-end;
-
-function querypats()
-  local patis, b, s;
-
-  InitializeVar()
-  s = servercommand('get_param:MyACRNema')
-  b=newdicomobject();
-  b.QueryRetrieveLevel='PATIENT'
-  b.PatientID        = query_pid;
-  b.PatientName      = query_pna;
-  b.PatientSex = '';
-  b.PatientBirthDate = '';
-  patis=dicomquery(s, 'PATIENT', b);
-  
-  patist={}
-  for k1=0,#patis-1 do
-    patist[k1+1]={}
-    patist[k1+1].PatientID          = patis[k1].PatientID
-    patist[k1+1].PatientName        = patis[k1].PatientName
-    patist[k1+1].PatientSex         = patis[k1].PatientSex
-    patist[k1+1].PatientBirthDate   = patis[k1].PatientBirthDate
-  end
   return patist
 end;
 

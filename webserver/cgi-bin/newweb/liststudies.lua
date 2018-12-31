@@ -4,6 +4,7 @@
 -- 20170430   mvh   Indicate viewer in menu
 -- 20180203   mvh   Removed opacity control for s[1] which does not exist
 -- 20181215   mvh   Added remotequery to depend less on web cgi functionality
+-- 20181230   mvh   Removed dicomquery, only kept remotequery
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -94,46 +95,6 @@ function querystudy_remote()
   local patist=remotequery(s, 'STUDY', b);
   return patist
 end;
-
-function querystudy()
-  local patis, b, s;
-  
-  InitializeVar()
-  
-  s = servercommand('get_param:MyACRNema')
-  
-  b=newdicomobject();
-  b.QueryRetrieveLevel='STUDY'
-  b['0008,0061']=''; --Modality
-  b.StudyInstanceUID='' 
-  b.PatientID=query_pid
-  b.PatientName=query_pna
-  b.StudyDate = query_pst
-  b.StudyDescription=''
-
-  patis=dicomquery(s, 'STUDY', b);
-  
-  patist={}
-  for k1=0,#patis-1 do
-	patist[k1+1]={}
-	patist[k1+1].StudyInstanceUID = patis[k1].StudyInstanceUID
-	patist[k1+1].StudyDate = patis[k1].StudyDate
-	patist[k1+1].StudyTime = patis[k1].StudyTime
-	patist[k1+1].StudyID = patis[k1].StudyID
-	patist[k1+1].StudyDescription = patis[k1].StudyDescription
-	patist[k1+1].AccessionNumber = patis[k1].AccessionNumber
-	patist[k1+1].ReferPhysician = patis[k1].ReferPhysician
-	patist[k1+1].PatientsAge = patis[k1].PatientsAge
-	patist[k1+1].PatientsWeight = patis[k1].PatientsWeight
-	patist[k1+1].StudyModality = patis[k1]['0008,0061'] 
-	patist[k1+1].PatientName = patis[k1].PatientName
-	patist[k1+1].PatientBirthDate = patis[k1].PatientBirthDate
-	patist[k1+1].PatientSex = patis[k1].PatientSex
-	patist[k1+1].PatientID = patis[k1].PatientID
-  end
-  return patist
-end;
-
 
 HTML("Content-type: text/html\nCache-Control: no-cache\n");
 

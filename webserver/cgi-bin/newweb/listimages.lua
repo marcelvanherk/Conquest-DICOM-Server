@@ -2,6 +2,7 @@
 -- 20170305   mvh   start with send etc functions (1.4.19)
 -- 20180203   mvh   Removed opacity control for s[1] which does not exist
 -- 20181215   mvh   Added remotequery to limit dependency on cgi functionality
+-- 20181230   mvh   Removed dicomquery, only kept remotequery
 
 local query_pid = '';
 local query_pna = '';
@@ -97,53 +98,6 @@ function queryimagem_remote()
   table.sort(imaget, function(a,b) return 0+a.InstanceNumber<0+b.InstanceNumber end)
   return imaget
 end
- 
-function queryimagem()
-  local patis, q, b, s, pid, i, j, k, l, siuid;
- 
-  InitializeVar()
-  s = servercommand('get_param:MyACRNema')
-
-  q=CGI('query')
-  i, j = string.find(q, "DICOMStudies.patientid = '")
-
-  k, l = string.find(q, "' and")
-  pid=(string.sub(q, j+1,k-1))       --> patientid
-  
-  i, j = string.find(q, "DICOMSeries.seriesinst = '")
-  siuid=(string.sub(q, j+1))       --> seriesinst
-  siuid = string.gsub(siuid, "'", '')
-  --print(pid,siuid)
-
-  b=newdicomobject();
-  b.QueryRetrieveLevel='IMAGE'
-  b.PatientID        = pid
-  b.SeriesInstanceUID = siuid
-  b.SOPInstanceUID   = '';
-  b.InstanceNumber = '';
-  b.SliceLocation = '';
-  b.PatientName=''
-  b.ImageDate=''
-  b.StudyInstanceUID ='' 
-  images=dicomquery(s, 'IMAGE', b);
-  
-  -- convert returned DDO (userdata) to table; needed to allow table.sort
-  imaget={}
-  for k=0,#images-1 do
-    imaget[k+1]={}
-    imaget[k+1].SOPInstanceUID=images[k].SOPInstanceUID
-    imaget[k+1].PatientID        = images[k].PatientID
-    imaget[k+1].ImageDate        = images[k].ImageDate
-    imaget[k+1].PatientName        = images[k].PatientName
-    imaget[k+1].SeriesInstanceUID = images[k].SeriesInstanceUID
-    imaget[k+1].StudyInstanceUID   = images[k].StudyInstanceUID
-    imaget[k+1].InstanceNumber = images[k].InstanceNumber
-    imaget[k+1].SliceLocation = images[k].SliceLocation
-  end
-  table.sort(imaget, function(a,b) return 0+a.InstanceNumber<0+b.InstanceNumber end)
-  return imaget
-end
-
 
 HTML("Content-type: text/html\nCache-Control: no-cache\n");
 

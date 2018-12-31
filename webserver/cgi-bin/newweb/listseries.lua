@@ -6,6 +6,7 @@
 -- 20170430   mvh   Indicate viewer in menu
 -- 20180203   mvh   Removed opacity control for s[1] which does not exist
 -- 20181215   mvh   Added remotequery to limit dependency on cgi functionality
+-- 20181230   mvh   Removed dicomquery, only kept remotequery
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -90,61 +91,6 @@ function queryserie_remote()
   local seriest=remotequery(s, 'SERIES', b);
   return seriest
 end
-
-function queryserie()
-  local patis, b, s, pid, i,j,k,l, siuid;
- 
-  InitializeVar()
-  s = servercommand('get_param:MyACRNema')
-
-  q=CGI('query')
-  --print(q) 
-  i, j = string.find(q, "DICOMStudies.patientid = '")
-
-  k, l = string.find(q, "' and")
-  pid=(string.sub(q, j+1,k-1))       --> patientid
-  
-  i, j = string.find(q, "DICOMSeries.studyinsta = '")
-  siuid=(string.sub(q, j+1))       --> studyinsta
-  siuid = string.gsub(siuid, "'", '')
-
-
-  b=newdicomobject();
-  b.QueryRetrieveLevel='SERIES'
-  b.PatientName = ''
-  b.PatientID        = pid
-  b.StudyDate        = ''; 
-  b.StudyInstanceUID = siuid;
-  b.StudyDescription = '';
-  b.SeriesDescription= '';
-  b.SeriesInstanceUID= '';
-  b.SeriesDate= '';
-  b.Modality         = '';
-  b.SeriesTime       = '';
-
-  series=dicomquery(s, 'SERIES', b);
-
-  -- convert returned DDO (userdata) to table; needed to allow table.sort
-  seriest={}
-  for k1=0,#series-1 do
-    seriest[k1+1]={}
-	--series[k1].PatientName=querypats(series[k1].PatientID)
-    seriest[k1+1].PatientName      = series[k1].PatientName
-	
-    seriest[k1+1].StudyDate        = series[k1].StudyDate
-    seriest[k1+1].PatientID        = series[k1].PatientID
-    seriest[k1+1].StudyDate        = series[k1].StudyDate
-    seriest[k1+1].SeriesTime       = series[k1].SeriesTime
-    seriest[k1+1].SeriesDate       = series[k1].SeriesDate
-    seriest[k1+1].StudyInstanceUID = series[k1].StudyInstanceUID
-    seriest[k1+1].SeriesDescription= series[k1].SeriesDescription
-    seriest[k1+1].StudyDescription = series[k1].StudyDescription
-    seriest[k1+1].SeriesInstanceUID= series[k1].SeriesInstanceUID
-    seriest[k1+1].Modality         = series[k1].Modality
-  end
-  return seriest
-end
-
 
 HTML("Content-type: text/html\nCache-Control: no-cache\n");
 

@@ -32,6 +32,7 @@
 -- 20181129 Copy acrnema.map to web server to deal with SeLinux security; added Iframe viewer
 -- 20181229 Fix cornerstone_starter, iframe_starter, added dumpvars; take dwv and papaya out of study viewers
 --          Added WebScriptAddress and WebCodeBase to cgi-bin/dicom.ini (for Weasis)
+-- 20181230 Removed acrnema.map from web install; no longer needed
 
 function errorpage(s)
   HTML('Content-type: text/html\n\n');
@@ -298,7 +299,7 @@ source = start.lua
 ]]..s)
 
     copyfile(server..sep..'dgate.dic', cgiweb..'newweb'..sep..'dgate.dic')
-    copyfile(server..sep..'acrnema.map', cgiweb..'newweb'..sep..'acrnema.map')
+    --copyfile(server..sep..'acrnema.map', cgiweb..'newweb'..sep..'acrnema.map')
     if cgiclient=='dgate.exe' then
       copyfile(server..'install32'..sep..cgiclient, cgiweb..'newweb'..sep..cgiclient)
     else

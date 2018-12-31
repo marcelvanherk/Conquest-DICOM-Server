@@ -4,6 +4,7 @@
 -- mvh 20170211: Protect counttrials against missing UIDmods table
 -- mvh 20180204: Some cleanup, report when ladle is used
 -- mvh 20181111: Added missing Global.WebCodeBase for conquest icon
+-- mvh 20181230: Removed no longer needed acrnema.map test, all access is remote
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -43,6 +44,7 @@ if s==nil then
   return
 end
 
+--[[
 for i=0,100 do
   local AE,IP,P,C = get_amap(i)
   if AE==nil then break end
@@ -64,6 +66,7 @@ if found==false then
   errorpage('AE port of DICOM server '..(s)..' is misconfigured; in cgi-bin/dicom.ini: '..s..'; while this AE is not defined in acrnema.map')
   return;
 end
+]]
 
 local a = newdicomobject()
 a.InstanceNumber = 'test'

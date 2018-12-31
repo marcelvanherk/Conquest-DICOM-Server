@@ -651,6 +651,7 @@ When            Who     What
 20181221	mvh     Print through progress socket, avoiding missing images
 20181227	mvh     Use KPACS define; use -x! for TCP progress socket;
                         fix process number display in progress socket
+20181231	mvh     Version to 1.5.0-alpha
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -686,8 +687,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.4.19d';
-const BUILDDATE = '20181221';
+const VERSION = '1.5.0alpa';
+const BUILDDATE = '20181231';
 const testmode = 0;
 
 {************************************************************************}

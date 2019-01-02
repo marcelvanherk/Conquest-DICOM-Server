@@ -38,6 +38,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+// mvh 20190102 Lower optimize for Intel to avoid crash
+
 #include "opj_includes.h"
 
 /* ----------------------------------------------------------------------- */
@@ -383,6 +385,10 @@ void opj_tcd_makelayer_fixed(opj_tcd_t *tcd, OPJ_UINT32 layno, OPJ_UINT32 final)
         }
 }
 
+#ifdef __ICL
+#pragma optimization_level 1
+#endif
+
 OPJ_BOOL opj_tcd_rateallocate(  opj_tcd_t *tcd,
                                                                 OPJ_BYTE *dest,
                                                                 OPJ_UINT32 * p_data_written,
@@ -570,6 +576,9 @@ OPJ_BOOL opj_tcd_rateallocate(  opj_tcd_t *tcd,
 
         return OPJ_TRUE;
 }
+#ifdef __ICL
+#pragma optimization_level 2
+#endif
 
 OPJ_BOOL opj_tcd_init( opj_tcd_t *p_tcd,
                                            opj_image_t * p_image,

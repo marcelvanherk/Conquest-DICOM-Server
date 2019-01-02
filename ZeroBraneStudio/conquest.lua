@@ -14,6 +14,7 @@
 -- 20181111: 1.4.19c, Fixed typo
 -- 20181216: 1.4.19d, Added listitems, Serialize and serialize
 -- 20181222: 1.4.19d, Added dicomprint and dicomget
+-- 20190101: 1.5.0-alpha, Added dicomstore
 
 --[[
 -- read/write data, create sequences, and write into sequences (if [] not passed, [0] is assumed)
@@ -541,6 +542,18 @@ return {
   returns = "()",
   type = "function"
   },
+  dicomprint = {
+  args = "(image(s): userdata, AE: string, annotation_format: string, callback)",
+  description = "print object(s) on DICOM printer",
+  returns = "error string",
+  type = "function"
+  },
+  dicomstore = {
+  args = "(image(s): userdata, AE: string)",
+  description = "store object(s) on DICOM archive",
+  returns = "error string",
+  type = "function"
+  },
   newdicomdelete = {
   args = "(query: userdata, threadnum: integer)",
   description = "delete data from local DICOM server, threadnum only used for progress information",
@@ -557,12 +570,6 @@ return {
   args = "(query: userdata, script:string; threadnum: integer)",
   description = "copies data in local DICOM server, script e.g. newuids;lua:Data.PatientID='aap', threadnum only used for progress information",
   returns = "()",
-  type = "function"
-  },
-  dicomprint = {
-  args = "(image(s): userdata, AE: string, annotation_format: string, callback)",
-  description = "print object(s) on DICOM printer",
-  returns = "error string",
   type = "function"
   },
   heapinfo = {

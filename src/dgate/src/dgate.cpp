@@ -1102,6 +1102,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20181231	mvh     Create all threads with 2MB stack space, Intel compiler seems to be less forgiving
 20181231	mvh     Allow luaservercommand to return NIL; increased HTML command buffer space
 20181231	mvh     Version to 1.5.0-alpha
+20190101	mvh     Fix some leaks in new lua functions; all calls to NewDeleteDICOM get patid & 3 UIDs, can be empty
+20190102	mvh     Improved error handling in lua functions; removes superfluous DCO from virtualquery
 
 ENDOFUPDATEHISTORY
 */
@@ -2231,6 +2233,8 @@ DeleteStudy(char *ID, BOOL KeepImages, int Thread)
 
 	if (p==0)
 		{
+		SetStringVR(&vr, 0x0010, 0x0020, ""); 
+		DDO.Push(vr);
 		SetStringVR(&vr, 0x0020, 0x000d, ID); 
 		DDO.Push(vr);
 		SetStringVR(&vr, 0x0020, 0x000e, ""); 
@@ -2309,6 +2313,10 @@ DeleteSeries(char *ID, BOOL KeepImages, int Thread)
 
 	if (p==0)
 		{
+		SetStringVR(&vr, 0x0010, 0x0020, ""); 
+		DDO.Push(vr);
+		SetStringVR(&vr, 0x0020, 0x000d, ""); 
+		DDO.Push(vr);
 		SetStringVR(&vr, 0x0020, 0x000e, ID); 
 		DDO.Push(vr);
 		SetStringVR(&vr, 0x0008, 0x0018, ""); 
@@ -2319,9 +2327,9 @@ DeleteSeries(char *ID, BOOL KeepImages, int Thread)
 		*p=0;
 		SetStringVR(&vr, 0x0010, 0x0020, ID); 
 		DDO.Push(vr);
-		SetStringVR(&vr, 0x0020, 0x000e, p+1); 
-		DDO.Push(vr);
 		SetStringVR(&vr, 0x0020, 0x000d, ""); 
+		DDO.Push(vr);
+		SetStringVR(&vr, 0x0020, 0x000e, p+1); 
 		DDO.Push(vr);
 		SetStringVR(&vr, 0x0008, 0x0018, ""); 
 		DDO.Push(vr);
@@ -2354,6 +2362,8 @@ DeleteImage(char *ID, BOOL KeepImages, int Thread)
 
 	if (p==0)
 		{
+		SetStringVR(&vr, 0x0010, 0x0020, ""); 
+		DDO.Push(vr);
 		SetStringVR(&vr, 0x0020, 0x000d, ""); 
 		DDO.Push(vr);
 		SetStringVR(&vr, 0x0020, 0x000e, ""); 
@@ -14369,7 +14379,7 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 
 	// Start a Patient/StudyRootQuery
 
-	if (level==1)      strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.1.1"); // PatientRootQuery
+	/* if (level==1)      strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.1.1"); // PatientRootQuery
 	else if (level==5) strcpy((char*) SOP, "1.2.840.10008.5.1.4.31");      // WorklistQuery
 	else               strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.2.1"); // StudyRootQuery
 	vr = new VR (0x0000, 0x0002, strlen((char*)SOP), (void*) SOP, FALSE);
@@ -14386,6 +14396,7 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 	messageid = 0x0003;
 	vr = new VR (0x0000, 0x0110, 0x0002, &messageid, FALSE);
 	DCO.Push(vr);
+	*/
 
 	DDOPtr  = MakeCopy(DDO);
 	DDOPtr2 = MakeCopy(DDO);
@@ -26575,27 +26586,6 @@ char *heapinfo( void )
 		return ( 0 );
 
 	// Start a Patient/StudyRootQuery
-
-	/* if (level==1)      strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.1.1"); // PatientRootQuery
-	else if (level==5) strcpy((char*) SOP, "1.2.840.10008.5.1.4.31");      // WorklistQuery
-	else if (level>=6) strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.3.1"); // PatientStudyOnlyQuery
-	else               strcpy((char*) SOP, "1.2.840.10008.5.1.4.1.2.2.1"); // StudyRootQuery
-	vr = new VR (0x0000, 0x0002, strlen((char*)SOP), (void*) SOP, FALSE);
-	DCO.Push(vr);
-	command = 0x0020;
-	vr = new VR (0x0000, 0x0100, 0x0002, &command, FALSE);
-	DCO.Push(vr);
-	priority = 0;	// MEDIUM
-	vr = new VR (0x0000, 0x0700, 0x0002, &priority, FALSE);
-	DCO.Push(vr);
-	datasettype = 0x0102;	
-	vr = new VR (0x0000, 0x0800, 0x0002, &datasettype, FALSE);
-	DCO.Push(vr);
-	messageid = 0x0003;
-	vr = new VR (0x0000, 0x0110, 0x0002, &messageid, FALSE);
-	DCO.Push(vr);
-	*/
-
 	// Use passed data object and Level for query
 
 	if (strcmp(Level, "PATIENTP")==0)
@@ -27272,13 +27262,6 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	szImageDisplayFormat,
 	pszAnnotation,
 	szFilmOrientation, L);
-  if (rc != DCM_E_OK)
-  { /* The printing is destructive. When failed, clean the mess ourselves... */
-    while (pADDO->GetSize())
-    { delete pADDO->Get(0);
-      pADDO->RemoveAt(0);
-    }
-  }
   return rc;
 }
 
@@ -27286,6 +27269,7 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
   { if (lua_isuserdata(L,1)) 
     { DICOMDataObject *O = NULL;
       Array < DICOMDataObject * > *A=NULL;
+      int rc=0;
 
       lua_getmetatable(L, 1);
         lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
@@ -27293,12 +27277,16 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
       lua_pop(L, 1);
 
       if (A) 
-	DcmPrintADDO(A, (char *)lua_tostring(L, 2), (char *)lua_tostring(L, 3), (char *)lua_tostring(L, 4), L);
+	rc=DcmPrintADDO(A, (char *)lua_tostring(L, 2), (char *)lua_tostring(L, 3), (char *)lua_tostring(L, 4), L);
       if (O) 
       { Array<DICOMDataObject*>	ADDO;
         DICOMDataObject *O2 = MakeCopy(O);
         ADDO.Add(O2);
-	DcmPrintADDO(&ADDO, (char *)lua_tostring(L, 2), (char *)lua_tostring(L, 3), (char *)lua_tostring(L, 4), L);
+	rc=DcmPrintADDO(&ADDO, (char *)lua_tostring(L, 2), (char *)lua_tostring(L, 3), (char *)lua_tostring(L, 4), L);
+      }
+      if (rc!=DCM_E_OK)
+      { lua_pushstring(L, "Failed to print DICOM image(s)");
+        return 1;
       }
       return 0;
     }	      
@@ -27313,12 +27301,8 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
       lua_getmetatable(L, 3);
         lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
       lua_pop(L, 1);
-      Array < DICOMDataObject * > *A = new Array < DICOMDataObject * >;
-      luaCreateObject(L, NULL, A, TRUE); 
       if (O) 
-      { DICOMDataObject *P = MakeCopy(O);
-
-        unsigned char 	ip[64], port[64], compress[64], SOP[66];
+      { unsigned char 	ip[64], port[64], compress[64], SOP[66];
 	VR		*vr;
 	UID		uid;
 	LE_UINT16	command, datasettype, messageid, priority;
@@ -27357,11 +27341,13 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 
 	// Make the association for the FIND on port/ip
 	if(!PDU.Connect(ip, port))
-		return ( 0 );
+	  return ( 0 );
 
 	// Use passed data object and Level for query
 
-	if (strcmp(Level, "PATIENTP")==0)
+	DICOMDataObject *P = MakeCopy(O);
+
+        if (strcmp(Level, "PATIENTP")==0)
 	  P->ChangeVR(0x0008, 0x0052, "PATIENT", 'CS', TRUE);
 	else if (strcmp(Level, "STUDYP")==0)
 	  P->ChangeVR(0x0008, 0x0052, "STUDY", 'CS', TRUE);
@@ -27403,11 +27389,17 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 
 	// Make the association for the GET on port/ip
 	if(!PDU.Connect(ip, port))
-		return ( 0 );
+        { delete P;
+          delete P2;
+	  return ( 0 );
+	}
 
 	MyPatientRootGetGeneric mg;
 	MyStudyRootGetGeneric sg;
 	MyPatientStudyOnlyGetGeneric psg;
+
+        Array < DICOMDataObject * > *A = new Array < DICOMDataObject * >;
+        luaCreateObject(L, NULL, A, TRUE); 
 
 	if      (level==1) mg.WriteGet(&PDU, P2, A);
 	else if (level>=6) psg.WriteGet(&PDU, P2, A);
@@ -27419,13 +27411,14 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
         delete P2;
 	return 1;
       }
-      return 1;
+      return 0;
     }
     return 0;
   }
  
   static int luadicomstore(lua_State *L)
   { const char *ae    = lua_tostring(L,1);
+    BOOL flag=FALSE;
     if (lua_isuserdata(L, 2)) 
     { DICOMDataObject *O = NULL;
       Array < DICOMDataObject * > *A = NULL;  
@@ -27436,6 +27429,7 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
       if (A==NULL) 
       { A = new Array < DICOMDataObject * >;
         A->Add(O);
+	flag=TRUE;
       }
       if (A) 
       { unsigned char 	ip[64], port[64], compress[64], SOP[66];
@@ -27443,6 +27437,7 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	UID		uid;
 	char 		*p;
         RunTimeClassStorage	RTCStorage;
+	int		nfail=0;
 		
 	ExtendedPDU_Service PDU;
 	PDU.AttachRTC(&VRType);
@@ -27475,8 +27470,9 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	}
 
         if (PDU.Connect((unsigned char *)&ip, (unsigned char *)&port))
-        { OperatorConsole.printf("*** dicomstore: Forward failed to connect to host %s\n", ae);
-          return 0;
+        { OperatorConsole.printf("*** dicomstore: failed to connect to host %s\n", ae);
+          lua_pushstring(L, "Failed to connect to host");
+          return 1;
         }
 
         for (int i=0; i<A->GetSize(); i++)
@@ -27494,9 +27490,16 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
           RTCStorage.SetUID(uid);
 
           if (!RTCStorage.Write(&PDU, DDO))
-          { OperatorConsole.printf("*** Test forward: Forward failed to send DICOM image to %s\n", ae);
+          { OperatorConsole.printf("*** dicomstore: failed to send DICOM image to %s\n", ae);
+            nfail++;
 	  }
 	}
+	
+	if (flag) delete A;
+        if (nfail)
+        { lua_pushstring(L, "Failed to send DICOM image(s) to host");
+          return 1;
+        }
       }
     
       return 0;

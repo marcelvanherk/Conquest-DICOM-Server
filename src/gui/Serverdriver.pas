@@ -652,7 +652,6 @@ When            Who     What
 20181227	mvh     Use KPACS define; use -x! for TCP progress socket;
                         fix process number display in progress socket
 20181231	mvh     Version to 1.5.0-alpha
-20190103	mvh     Typo and allow Progress while debug log on
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -688,8 +687,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0alpha';
-const BUILDDATE = '20180103';
+const VERSION = '1.5.0alpa';
+const BUILDDATE = '20181231';
 const testmode = 0;
 
 {************************************************************************}
@@ -7278,6 +7277,9 @@ procedure TForm1.ProgressSocketDataAvailable(Sender: TObject;
   pg : TProgressBar;
   mem: Pchar;
 begin
+  if CheckBoxDebugLog.Checked then
+    exit;
+
   buffer[0] := #00; // for when recieve fails
   i := ProgressSocket.Receive(@buffer, 80191);
 

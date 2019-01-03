@@ -1,5 +1,3 @@
--- for 1.5.0-alpha; use new tickcount function, and repeat a few times
-
 images = {'ok', 't1', 't2', 't3'}
 
 testcompression = {
@@ -25,23 +23,17 @@ function filesize(f)
 end
 
 for i,v in ipairs(images) do
-	testimage = [[e:\software\dicomserver\problem images\]]..v..[[.dcm]]
+	testimage = [[C:\software\dicomserver\problem images\]]..v..[[.dcm]]
   print(v..'.dcm', filesize(testimage)/1024, 'kb')
   for k,compression in ipairs(testcompression) do
+    t = os.time()
     d = DicomObject:new()
     d:Read(testimage)
     d1 = d:GetImage(0)
-    local t = tickcount()
-    local elapsed = 0
-    local count=0
-    while elapsed < 300 do
-      d:Script('compression '..compression)
-    -- d:Write(testimage..compression..'.dcm')
-      d:Script('compression '..'un')
-      elapsed = tickcount()-t
-      count=count+1
-    end
+    d:Script('compression '..compression)
+    d:Write(testimage..compression..'.dcm')
+    d:Script('compression '..'un')
     e1 = d:GetImage(0)
-    print('compression', compression,'lossless = ', d1==e1, 'time', string.format("%.1f", elapsed/count), 'ratio', filesize(testimage..compression..'.dcm')/filesize(testimage))
+    print('compression', compression,'lossless = ', d1==e1, 'time', os.time()-t, 'ratio', filesize(testimage..compression..'.dcm')/filesize(testimage))
   end
 end

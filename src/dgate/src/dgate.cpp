@@ -1104,6 +1104,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20181231	mvh     Version to 1.5.0-alpha
 20190101	mvh     Fix some leaks in new lua functions; all calls to NewDeleteDICOM get patid & 3 UIDs, can be empty
 20190102	mvh     Improved error handling in lua functions; removes superfluous DCO from virtualquery
+20190103	mvh     Fixed dicomstore; protect ImportConverters (e.g. move:) against crash
+			Fix deletestudies: command; added Lua tickcount() function
+			Fix leaks in deletepatient: dicomstore() and dicomget()
 
 ENDOFUPDATEHISTORY
 */
@@ -2192,7 +2195,7 @@ PrintKFactorFile()
 BOOL
 DeletePatient(char *PID, BOOL KeepImages, int Thread)
 	{
-	VR		*vr = new VR(0x0010, 0x0020, strlen(PID), (void*)PID, (BOOL) FALSE );
+	VR		*vr;
 	DICOMDataObject	DDO;
 
 	if (PID==NULL || *PID==0) return FALSE;
@@ -2285,6 +2288,8 @@ DeleteStudies(char *date, BOOL KeepImages, int Thread)
 		OperatorConsole.printf("Deleting database entries for studies on date: %s\n", date);
 
 	SetStringVR(&vr, 0x0008, 0x0020, date); 
+	DDO.Push(vr);
+	SetStringVR(&vr, 0x0010, 0x0020, ""); 
 	DDO.Push(vr);
 	SetStringVR(&vr, 0x0020, 0x000d, ""); 
 	DDO.Push(vr);
@@ -6445,6 +6450,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
   static int luadicomprint(lua_State *L);
   static int luadicomget(lua_State *L);
   static int luadicomstore(lua_State *L);
+  static int luatickcount(lua_State *L);
   
   static int luadicommove(lua_State *L)
   { const char *source = lua_tostring(L,1);
@@ -8221,6 +8227,7 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     lua_register      (*L, "dicomprint",    luadicomprint);
     lua_register      (*L, "dicomget",      luadicomget);
     lua_register      (*L, "dicomstore",    luadicomstore);
+    lua_register      (*L, "tickcount",     luatickcount);
     
     lua_createtable   (*L, 0, 0); 
     lua_createtable   (*L, 0, 0);
@@ -21857,8 +21864,8 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 
 		if (pDDO) 
 			{
-			recompress(&pDDO, p, "", p[0]=='n' || p[0]=='N', &PDU);
-			SaveDICOMDataObject(q, pDDO);
+			if (p) recompress(&pDDO, p, "", p[0]=='n' || p[0]=='N', &PDU);
+			if (q) SaveDICOMDataObject(q, pDDO);
 			ImagesToDicomFromGui++;
 			delete pDDO;
 			}
@@ -22140,7 +22147,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 	else if (memcmp(SilentText, "grabimagesfromserver:", 21)==0)
 		{
 		if (p) *p++=0;				// points after 1st comma
-		GrabImagesFromServer((unsigned char *)SilentText+21, p, (char *)MYACRNEMA, Thread);
+		if (p) GrabImagesFromServer((unsigned char *)SilentText+21, p, (char *)MYACRNEMA, Thread);
 		GrabFromGui++;
 		}
 	else if (memcmp(SilentText, "prefetch:", 9)==0)
@@ -22230,7 +22237,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		  }
 		}
 		// prefetch_queue("submit patient ", SilentText+17, "", p, q, "", "", "", r1, r2, r3, 1, "call submit.cq");
-		prefetch_queue("submit patient ", SilentText+17, "", p, q, "", "", "", r1, r2, r3, 1, r4);
+		if (r4) prefetch_queue("submit patient ", SilentText+17, "", p, q, "", "", "", r1, r2, r3, 1, r4);
 		/*
 		char	fields[2048];	
 		char	values[2048];	
@@ -22254,22 +22261,22 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 	else if (memcmp(SilentText, "attachrtplantortstruct:", 23)==0)
 		{
 		if (p) *p++=0;				// points after 1st comma
-		AttachRTPLANToRTSTRUCT(SilentText+23, p, &PDU);
+		if (p) AttachRTPLANToRTSTRUCT(SilentText+23, p, &PDU);
 		}
 	else if (memcmp(SilentText, "attachanytopatient:", 19)==0)
 		{
 		if (p) *p++=0;
-		AttachAnyToPatient(SilentText+19, p, &PDU);
+		if (p) AttachAnyToPatient(SilentText+19, p, &PDU);
 		}
 	else if (memcmp(SilentText, "attachanytostudy:", 17)==0)
 		{
 		if (p) *p++=0;
-		AttachAnyToStudy(SilentText+17, p, &PDU);
+		if (p) AttachAnyToStudy(SilentText+17, p, &PDU);
 		}
 	else if (memcmp(SilentText, "attachanytoseries:", 18)==0)
 		{
 		if (p) *p++=0;
-		AttachAnyToSeries(SilentText+18, p, &PDU);
+		if (p) AttachAnyToSeries(SilentText+18, p, &PDU);
 		}
 	else if (memcmp(SilentText, "submit:", 7)==0)
 		{
@@ -22298,7 +22305,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		  }
 		}
 		// DcmSubmitData(SilentText+7, p, q, r1, "call submit.cq", "sftp", r2, 22, r3);
-		DcmSubmitData(SilentText+7, p, q, r1, r4, "sftp", r2, 22, r3, Thread);
+		if (r2) DcmSubmitData(SilentText+7, p, q, r1, r4, "sftp", r2, 22, r3, Thread);
 		}
 	else if (memcmp(SilentText, "submit2:", 7)==0)
 		{
@@ -22326,7 +22333,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		    }
 		  }
 		}
-		DcmSubmitData(SilentText+8, p, q, r1, r4, "other", r2, 22, r3, Thread);
+		if (r2) DcmSubmitData(SilentText+8, p, q, r1, r4, "other", r2, 22, r3, Thread);
 		}
 	else if (memcmp(SilentText, "export:", 7)==0)
 		{
@@ -22358,11 +22365,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		  r2 = tempfile;
 		}
 
-		DcmSubmitData(SilentText+7, p, q, r1, r3, "zip", r2, 0, NULL, Thread);
+		if (r2) DcmSubmitData(SilentText+7, p, q, r1, r3, "zip", r2, 0, NULL, Thread);
 		}
 	else if (memcmp(SilentText, "move:", 5)==0)
 		{
-		char *r2="", *r3="";
+		char *empty="";
+		char *r2=empty, *r3=empty;
 		if (p) 					// dest
 		{ *p++=0;				// points after 1st comma
 		  q = strchr(p, ',');			// patid
@@ -22378,17 +22386,21 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			if (r3) 
 			{ *r3++=0;                      // points after 5th comma
 			}
+		        else r3=empty;
 		      }
+		     else r2=empty;
 		    }
+		    else r1=empty;
 		  }
 		}
-		if (DcmMove(q, SilentText+5, p, r1, r2, "", "", "", r3, "", "", 10, "", Thread))
-		  sprintf(Response, "1 Move failed from %s to %s", SilentText+5, p);
-		else
-		{ MoveSeriesFromGui++;
-		  strcpy(Response, "0");
+		if (q)
+		{ if (DcmMove(q, SilentText+5, p, r1, r2, "", "", "", r3, "", "", 10, "", Thread))
+		    sprintf(Response, "1 Move failed from %s to %s", SilentText+5, p);
+		  else
+		  { MoveSeriesFromGui++;
+		    strcpy(Response, "0");
+		  }
 		}
-
 		}
 	}
 
@@ -27370,6 +27382,7 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	if      (level==1) mq.Write(&PDU, P, Q);
 	else if (level>=6) psq.Write(&PDU, P, Q);
 	else               sq.Write(&PDU, P, Q);
+        
 	PDU.Close();
 
 	// now execute the get
@@ -27391,6 +27404,8 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	if(!PDU.Connect(ip, port))
         { delete P;
           delete P2;
+  	  for (int i=0; i<Q->GetSize(); i++) delete (DICOMDataObject *)(Q->Get(i));
+	  delete Q;
 	  return ( 0 );
 	}
 
@@ -27409,6 +27424,8 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 
         delete P;
         delete P2;
+  	for (int i=0; i<Q->GetSize(); i++) delete (DICOMDataObject *)(Q->Get(i));
+	delete Q;
 	return 1;
       }
       return 0;
@@ -27422,7 +27439,7 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
     if (lua_isuserdata(L, 2)) 
     { DICOMDataObject *O = NULL;
       Array < DICOMDataObject * > *A = NULL;  
-      lua_getmetatable(L, 3);
+      lua_getmetatable(L, 2);
         lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
         lua_getfield(L, -1, "ADDO");  A = (Array < DICOMDataObject * > *) lua_topointer(L, -1); lua_pop(L, 1);
       lua_pop(L, 1);
@@ -27434,7 +27451,7 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
       if (A) 
       { unsigned char 	ip[64], port[64], compress[64], SOP[66];
 	VR		*vr;
-	UID		uid;
+	UID		uid, appuid;
 	char 		*p;
         RunTimeClassStorage	RTCStorage;
 	int		nfail=0;
@@ -27443,7 +27460,7 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	PDU.AttachRTC(&VRType);
 
 	if(!GetACRNema((char *)ae, (char *)ip, (char *)port, (char *)compress))
-        { strcpy((char *)&ip, (char *)&ae);
+        { strcpy((char *)ip, (char *)ae);
           p = strchr((char *)ip, ':');
           if (p) 
           { *p=0;
@@ -27453,12 +27470,13 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
             strcpy((char *)port, "5678");
         }
 
-        PDU.SetRequestedCompressionType((char *)&compress);	// default
+	PDU.SetRequestedCompressionType("");	// default
+        PDU.SetRequestedCompressionType((char *)compress);	// default
 
-	uid.Set("1.2.840.10008.3.1.1.1");
-        PDU.SetApplicationContext ( uid );
+	appuid.Set("1.2.840.10008.3.1.1.1");
+        PDU.SetApplicationContext ( appuid );
         PDU.SetLocalAddress ( MYACRNEMA );
-        PDU.SetRemoteAddress ( (unsigned char *)&ip );
+        PDU.SetRemoteAddress ( (unsigned char *)ae );
         PDU.SetTimeOut(TCPIPTimeOut);
 
         for (int i=0; i<A->GetSize(); i++)
@@ -27469,7 +27487,10 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
   	  }
 	}
 
-        if (PDU.Connect((unsigned char *)&ip, (unsigned char *)&port))
+	uid.Set("1.2.840.10008.1.1");		// This one should always accept: verification
+        PDU.AddAbstractSyntax(uid);		// assures connect will not 
+
+	if (!PDU.Connect((unsigned char *)ip, (unsigned char *)port))
         { OperatorConsole.printf("*** dicomstore: failed to connect to host %s\n", ae);
           lua_pushstring(L, "Failed to connect to host");
           return 1;
@@ -27479,7 +27500,10 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
         { vr = A -> Get(i) -> GetVR(0x0008, 0x0016);
           if (!vr) continue;
           SetUID ( uid, vr );
-          if (!PDU.IsAbstractSyntaxAccepted(uid)) continue;
+          if (!PDU.IsAbstractSyntaxAccepted(uid)) 
+	  { nfail++;
+	    continue;
+	  }
 
           // recompress data to be forwarded here according to accepted compression mode
           p = PDU.GetAcceptedCompressionType(uid);
@@ -27493,6 +27517,7 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
           { OperatorConsole.printf("*** dicomstore: failed to send DICOM image to %s\n", ae);
             nfail++;
 	  }
+	  delete DDO;
 	}
 	
 	if (flag) delete A;
@@ -27507,3 +27532,12 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
     return 0;
   }
  
+  static int luatickcount(lua_State *L)
+  { 
+#ifdef WIN32
+    lua_pushinteger(L, GetTickCount());
+#else
+    lua_pushinteger(L, time(NULL)*1000);
+#endif
+    return 1;
+  }

@@ -2,6 +2,7 @@
 -- It times c-store over the local network and read from file (still in cache) and decompression
 -- Author: Marcel van Herk, 20130818
 -- mvh 20160221; Added SD calculation; shorten dicom.ini with 1.4.17d defs
+-- mvh 20190103; For 1.5.0-alpha, use tickcount and ConvertBinaryData
 
 require('niftyutil')
 
@@ -17,7 +18,7 @@ function filesize(f)
 end
 
 receivecompression = {
-  'j1', 'j2', 'j3', 'j4', 'j450', 'j5', 'j6', 
+  'un', 'j1', 'j2', 'j3', 'j4', 'j450', 'j5', 'j6', 
   'js', 'j7', 'j702', 'j710', 'j720',  'j740', 'j780',
   'n2', 'n3', 'n4',
   'jk', 'jl', 'jl25', 'jl10', 'jl05',
@@ -97,22 +98,22 @@ end
 
     -- send it count times to test server
     print('compression', serversidecompression, clientsidecompression)
-    t = os.clock()
+    t = tickcount()
     for i=0, count-1 do
       d.SOPInstanceUID = genuid()
       if (i%10)==0 then d.SeriesInstanceUID = genuid() end
       if (i%100)==0 then d.StudyInstanceUID = genuid() end
       d:Script('forward compressed as '.. clientsidecompression.. ' to testserver channel *')
     end
-    sending = os.clock()-t
+    sending = tickcount()-t
 
     -- list filenames of all files stored in test server
     os.execute('dgate64.exe -wtestserver "--imagelister:local|||%s|testserver\\files.txt"')
     
     -- do a test read with uncompress in the test server
-    t = os.clock()
+    t = tickcount()
     os.execute('dgate64.exe -wtestserver "--lua:dofile([[testserver/test.lua]])"')
-    readtime = os.clock()-t
+    readtime = tickcount()-t
     
     -- measure the compression on the first file
     e = DicomObject:new()
@@ -132,22 +133,24 @@ end
     if d:GetRow(0)==nil or e:GetRow(0)==nil then
       sd = 'no pixel data'
     else
-      sum=0
-      sumsq=0
-      for i=0, d.Rows-1 do
-        a = d:GetRow(i)
-        b = e:GetRow(i)
-        for j=0, d.Columns-1 do
+      local sum=0
+      local sumsq=0
+      local N = d.Rows*d.Columns
+      local a=ConvertBinaryData(N..'*u2', d:GetImage())
+      local b=ConvertBinaryData(N..'*u2', e:GetImage())
+      local diff=0
+      if not lossless then
+        for j=1, N do
           diff = a[j]-b[j]
           sum = sum + diff
           sumsq = sumsq + diff*diff
         end
       end
-      sd = math.sqrt((sumsq-(sum*sum/(d.Rows*d.Columns)))/(d.Rows*d.Columns))
+      sd = math.sqrt((sumsq-(sum*sum/N))/N)
     end
     
     -- log the results
-    g:write(serversidecompression, '\t', clientsidecompression, '\t', sending/count, '\t', readtime/count, '\t', tostring(lossless), '\t', ratio, '\t', sd, '\n')
+    g:write(serversidecompression, '\t', clientsidecompression, '\t', string.format("%.1f", sending/count), '\t', string.format("%.1f", readtime/count), '\t', tostring(lossless), '\t', ratio, '\t', sd, '\n')
     
     -- remove the test server
     os.execute('dgate64.exe -wtestserver --quit:')

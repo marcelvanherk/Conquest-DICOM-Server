@@ -15,6 +15,7 @@
 -- 20181216: 1.4.19d, Added listitems, Serialize and serialize
 -- 20181222: 1.4.19d, Added dicomprint and dicomget
 -- 20190101: 1.5.0-alpha, Added dicomstore
+-- 20190103: Added tickcount
 
 --[[
 -- read/write data, create sequences, and write into sequences (if [] not passed, [0] is assumed)
@@ -420,6 +421,12 @@ return {
   args = "(ms: integer)",
   description = "sleep a number of ms",
   returns = "()",
+  type = "function"
+  },
+  tickcount = {
+  args = "()",
+  description = "returns elapsed ms",
+  returns = "(integer)",
   type = "function"
   },
   get_amap = {

@@ -653,6 +653,7 @@ When            Who     What
                         fix process number display in progress socket
 20181231	mvh     Version to 1.5.0-alpha
 20190103	mvh     Typo and allow Progress while debug log on
+20190103	mvh     Newweb no longer needs acrnema.map; removed cqdicom related code; unused variables
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -696,38 +697,11 @@ const testmode = 0;
 {*                               TYPES                                  *}
 {************************************************************************}
 
-// record for use with CQDICOM
-
-type Psingle   = ^Single;
-
-type MyQueryData = record
-  data:       PAnsiChar;
-  len:        integer;
-  dummy1:     integer;
-  dummy2:     integer;
-
-  dims:       array[0..4] of integer;
-  ndim:       integer;
-
-  dummy3:     Psingle;
-  dummy4:     array[0..4] of single;
-  dummy5:     array[0..4] of single;
-  dummy6:     integer;
-  dummy7:     integer;
-end;
-
-// types and allocator routine for use with CQDICOM
-type
-  PMyQueryData   = ^MyQueryData;
-  PPMyQueryData  = ^PMyQueryData;
-  TMyAlloc      = function(size: integer): Pointer; stdcall;
-  TMyProgress   = function(percentage: integer; status: PAnsichar): integer; stdcall;
-
 procedure SplitAE(AE: AnsiString; var AEName, IPaddress, Port: AnsiString);
 
 procedure ServerTask(text, args: string);
 
-// functions in the CQDICOM.DLL
+// function in CQDICOM.DLL
 function DcmEcho(LocalAE, RemoteAE, RemoteIP, RemotePort, NKIcommand1,
                    NKIcommand2: ansistring):integer; stdcall;
                    external 'cqDicom.dll' name 'DcmEcho'
@@ -1264,10 +1238,6 @@ type
     procedure WMDropFiles(var Message: TWMDropFiles); message WM_DROPFILES;
     procedure WMQueryEndSession(var Message: TWMQueryEndSession); message WM_QUERYENDSESSION;
     procedure CheckDicomSubmits;
-    function  GetMissingPatients(PacsQueryResult,
-      SourceQueryResult: PMyQueryData): string;
-    // procedure GrabPatients(AE: string; Date: string);
-
     { Private declarations }
   public
     Table1, Table2, Table3, Table4 : TDataset;
@@ -4679,10 +4649,10 @@ begin
     if not FileExists(curdir + '\webserver\cgi-bin\newweb\dgate.exe') then
       CopyFile(PChar(curdir + '\install32\dgate.exe'), PChar(curdir + '\webserver\cgi-bin\newweb\dgate.exe'), false);
     i_f := TIniFile.Create(curdir + '\webserver\cgi-bin\newweb\dicom.ini');
-    i_f.WriteString('sscscp', 'ACRNemaMap', ' acrnema.map');
+//    i_f.WriteString('sscscp', 'ACRNemaMap', ' acrnema.map');
     i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
     i_f.Free;
-    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
+//    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
   end;
 
   if FileExists(ExtractFileDir(ParamStr(0)) + '\jukebox.ini') then
@@ -5622,7 +5592,7 @@ begin
     ServerTask('Re-reading acrnema.map from GUI', 'read_amap:');
 
     CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\acrnema.map'), false);
-    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
+//    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
   end;
   //KillAndRestartTheServerClick(self);
 end;
@@ -7585,7 +7555,6 @@ begin
       scale := round(Printer.PageWidth / footerbmp.width);
       height := height - round(scale * footerbmp.Height);
     end;
-    end;
 
         scale := Printer.PageWidth / (Bmp.Width * cols);
         if scale > height / (Bmp.Height * rows) then
@@ -7605,6 +7574,7 @@ begin
         Printer.Canvas.MoveTo(0,0);             // required otherwise StretchDraw
         Printer.Canvas.LineTo(0,0);             // ... sometimes fails
         Printer.Canvas.StretchDraw(rc, Bmp);
+    end;
       finally
         Bmp.Free;
         DeleteFile(tmp);
@@ -8129,119 +8099,6 @@ end;
 
 var StopCopying: integer;
 
-// Make query structure that is used in CQDICOM.DLL
-procedure MakeQuery(var query:PMyQueryData; Level, PatientID, PatientName,
-                        StudyDate, SeriesNo, ImageNo, StudyUID, SeriesUID, ImageUID, SeriesDesc: ansistring);
-var i: integer;
-  procedure AddData(vr: ansistring; entry: ansistring);
-  var j: integer;
-  begin
-    entry  := TrimRight(entry);
-    for j:=1 to Length(vr)    do query^.Data[(query^.dims[1]*2+0)*64+j-1] := vr[j];
-    for j:=1 to Length(entry) do query^.Data[(query^.dims[1]*2+1)*64+j-1] := entry[j];
-    inc(query^.dims[1]);
-  end;
-begin
-
-  // remove anything after a space in the level (sop class description)
-  i := Pos(' ', Level);
-  if i>0 then Level := Copy(Level, 1, i-1);
-  if Level = 'Modality' then Level := '';
-
-  GetMem(query, sizeof(MyQueryData));
-  FillChar(query^, sizeof(MyQueryData), Byte(0) );
-
-  with query^ do
-  begin
-    GetMem  (Data,    2*20*64);
-    FillChar(Data^,   2*20*64, Byte(0));
-
-    GetMem  (dummy3,  4*sizeof(Single));
-    FillChar(dummy3^, 4*sizeof(Single), Byte(0));
-
-    len     := 64;
-    dummy1  := 0;
-    dummy2  := 1;
-    dims[0] := 2;
-    dims[1] := 11;
-    dummy6  := 2;
-    dummy7  := 0;
-
-    // truncate QUERY request depending of level
-
-    if Level = ''        then dims[1] := 4;
-    if Level = 'PATIENT' then dims[1] := 3;
-    if Level = 'STUDY'   then dims[1] := 4;
-    if Level = 'SERIES'  then dims[1] := 7;
-    if Level = 'IMAGE'   then dims[1] := 9;
-    if Level = 'IMAGE2'  then dims[1] := 11;
-
-    // PATIENT
-    Move(ansistring('(0008,0052)'), Data[ 0*64], 11); // query level
-    Move(ansistring('(0010,0020)'), Data[ 2*64], 11); // patid
-    Move(ansistring('(0010,0010)'), Data[ 4*64], 11); // patientname
-
-    if Level = '' then
-      Move(ansistring('(0008,0050)'), Data[ 6*64], 11) // accessionnumber
-
-    // STUDY
-    else
-      Move(ansistring('(0008,0020)'), Data[ 6*64], 11); // study date
-
-    // SERIES
-    Move(ansistring('(0020,0011)'), Data[ 8*64], 11); // series no
-    Move(ansistring('(0008,0060)'), Data[10*64], 11); // modality
-    Move(ansistring('(0008,103e)'), Data[12*64], 11); // series description
-
-    // IMAGE
-    Move(ansistring('(0020,0013)'), Data[14*64], 11); // imageno
-    Move(ansistring('(0008,0018)'), Data[16*64], 11); // sop instance UID
-
-    // IMAGE2
-    Move(ansistring('(0020,000D)'), Data[18*64], 11); // study instance UID
-    Move(ansistring('(0020,000E)'), Data[20*64], 11); // series instance UID
-
-    Level       := TrimRight(Level);       if Odd(Length(Level)) then Level := Level + ' ';
-    PatientID   := TrimRight(PatientID);   if odd(Length(PatientID)) then PatientID := PatientID + ' ';
-    PatientName := TrimRight(PatientName); if odd(Length(PatientName)) then PatientName := PatientName + ' ';
-    StudyDate   := TrimRight(StudyDate);   if odd(Length(StudyDate)) then StudyDate := StudyDate + ' ';
-    SeriesNo    := TrimRight(SeriesNo);    if odd(Length(SeriesNo)) then SeriesNo := SeriesNo + ' ';
-    ImageNo     := TrimRight(ImageNo);     if odd(Length(ImageNo)) then ImageNo := ImageNo + ' ';
-    StudyUID    := TrimRight(StudyUID);
-    SeriesUID   := TrimRight(SeriesUID);
-    ImageUID    := TrimRight(ImageUID);
-    SeriesDesc  := TrimRight(SeriesDesc);  if odd(Length(SeriesDesc)) then SeriesDesc := SeriesDesc + ' ';
-
-    for i:=1 to Length(Level)      do Data[ 1*64+i-1] := Level[i];
-    for i:=1 to Length(PatientID)  do Data[ 3*64+i-1] := PatientID[i];
-    for i:=1 to Length(PatientName)do Data[ 5*64+i-1] := PatientName[i];
-    for i:=1 to Length(StudyDate)  do Data[ 7*64+i-1] := StudyDate[i];
-    for i:=1 to Length(SeriesNo)   do Data[ 9*64+i-1] := SeriesNo[i];
-    // modality requested but not queried
-    for i:=1 to Length(SeriesDesc) do Data[13*64+i-1] := SeriesDesc[i];
-    for i:=1 to Length(ImageNo)    do Data[15*64+i-1] := ImageNo[i];
-    for i:=1 to Length(ImageUID)   do Data[17*64+i-1] := ImageUID[i];
-    for i:=1 to Length(StudyUID)   do Data[19*64+i-1] := StudyUID[i];
-    for i:=1 to Length(SeriesUID)  do Data[21*64+i-1] := SeriesUID[i];
-
-    if Form1.Label14.Caption<>'Series number:' then
-    begin
-      if Level = 'STUDY '  then
-        AddData(ansistring('(0020,000D)'), StudyUID);
-      if Level = 'SERIES' then
-      begin
-        AddData(ansistring('(0020,000D)'), StudyUID);
-        AddData(ansistring('(0020,000E)'), SeriesUID);
-      end;
-      if Level = 'IMAGE ' then
-      begin
-        AddData(ansistring('(0020,000D)'), StudyUID);
-        AddData(ansistring('(0020,000E)'), SeriesUID);
-      end;
-    end;
-  end;
-end;
-
 // Make query string that is used in Lua code
 function MakeQueryString(Level, PatientID, PatientName,
                         StudyDate, SeriesNo, ImageNo, StudyUID, SeriesUID, ImageUID, SeriesDesc: ansistring): string;
@@ -8253,6 +8110,7 @@ begin
   if Level = 'Modality' then Level := '';
 
   // truncate QUERY request depending of level
+  nlevel := 0;
   if Level = ''         then nlevel := 4;
   if Level = 'PATIENT'  then nlevel := 3;
   if Level = 'STUDY'    then nlevel := 4;
@@ -8311,20 +8169,6 @@ begin
     end;
   end;
   Result := Result + '}';
-end;
-
-// release memory of a query
-procedure FreeQuery(var query:PMyQueryData);
-begin
-  if query = nil then exit;
-
-  with query^ do
-  begin
-    FreeMem(Data);
-    FreeMem(dummy3);
-  end;
-
-  FreeMem(query);
 end;
 
 // split an AE string as used in the dicom system dropdown lists
@@ -8498,12 +8342,9 @@ end;
 
 // query a DICOM server, using Lua code
 procedure TForm1.QueryButtonClick(Sender: TObject);
-var query: PMyQueryData;
-    output: PMyQueryData;
-    RemoteAE, RemoteIP, RemotePort, s, t, u: ansistring;
-    errorcode, i, j, k, iSOP, n, total: integer;
+var RemoteAE, RemoteIP, RemotePort, s, t: ansistring;
+    i, total: integer;
     first : boolean;
-    iStrSize: integer;
     q, code, level: string;
     strings: TStringList;
 begin
@@ -8712,8 +8553,7 @@ end;
 
 procedure TForm1.MoveButtonClick(Sender: TObject);
 var RemoteAE, RemoteIP, RemotePort, TargetAE, s, t, level, q, code: AnsiString;
-    errorcode, iSOP, i, p: integer;
-    strings: TStringlist;
+    i, p: integer;
 begin
   DeleteFile('move.txt');
   if StopCopying = 0 then
@@ -8799,18 +8639,16 @@ end;
 
 // only used in mode 5 and 6
 procedure TForm1.SendImageToClick(Sender: TObject);
-var query: PMyQueryData;
-    RemoteIP, RemotePort, TargetAE, RemoteAE: AnsiString;
+var RemoteIP, RemotePort, TargetAE, RemoteAE: AnsiString;
     Bookmark: TBookmark;
     PatID, StudyUID, SeriesUID, ImageUID, what, q, code: string;
-    errorcode, iSOP, index, tag, i, count: integer;
+    index, tag, i, count: integer;
 begin
   if not Table4.Active then exit;
   if Length(Table4.FieldByName('OBJECTFILE').AsString)=0 then exit;
 
   Index := (Sender as TMenuItem).GroupIndex; // 1..4 = image..patient
   Tag   := (Sender as TMenuItem).Tag;	     // item for target
-  errorcode := 0;
 
   // get target AE (IP address and port not used)
   SplitAE(TargetSystem.Items[Tag], TargetAE, RemoteIP, RemotePort);
@@ -9121,8 +8959,7 @@ begin
 end;
 
 procedure TForm1.PrintImage1Click(Sender: TObject);
-var  rc: integer;
-     code: string;
+var  code: string;
 begin
   if Length(Table4.FieldByName('OBJECTFILE').AsString)=0 then exit;
 
@@ -11259,8 +11096,7 @@ var     t: string;
         Year, Month, Day, H, M, S, MS: WORD;
         i, j: integer;
         bCheckSubmitAEs: bool;
-        Query, PacsQueryResult, SourceQueryResult: PMyQueryData;
-        ec, iNbItems: integer;
+        iNbItems: integer;
         RemoteAE, RemoteIP, RemotePort: Ansistring;
         ResultLog, MissingPatients: string;
         q, code: AnsiString;
@@ -11382,104 +11218,6 @@ SEND_MAIL:
     end;
     mailer.MailMessage.Add(ResultLog);
   end;
-
-  FreeQuery(Query);
-end;
-
-
-function TForm1.GetMissingPatients(PacsQueryResult,
-        SourceQueryResult: PMyQueryData): string;
-var     pPacsData, pSourceData: PAnsiChar;
-        iPacsInstUidOffset, iSourceInstUidOffset: integer;
-        iSourcePatientIdOffset: integer;
-        i, j: integer;
-        iPacsRecordSize, iSourceRecordSize: integer;
-        iNbPacsRecords, iNbSourceRecords: integer;
-        pTmp: PAnsiChar;
-        bFound: bool;
-        List: TStringList;
-begin
-  (* Assume every patient was submitted to the Pacs *)
-  result := '';
-
-  (* When there are no patients on the Source, we are done *)
-  if SourceQueryResult = nil then
-    exit;
-
-  // supress some warning messages
-  pPacsData       := nil;
-  iPacsRecordSize := 0;
-  iNbPacsRecords  := 0;
-
-  (* Search relevant info in the queryresult *)
-  iPacsInstUidOffset := -1;
-  if PacsQueryResult <> nil then
-  begin
-    pPacsData := PacsQueryResult.data;
-    for i:=0 to PacsQueryResult.dims[0] - 1 do
-      if StrComp(pPacsData + i * PacsQueryResult.len, 'SOPInstanceUID') = 0 then
-        iPacsInstUidOffset := i * PacsQueryResult.len;
-  end;
-
-  pSourceData := SourceQueryResult.data;
-  iSourceInstUidOffset   := -1;
-  iSourcePatientIdOffset := -1;
-  for i:=0 to SourceQueryResult.dims[0] - 1 do
-    if StrComp(pSourceData + i * SourceQueryResult.len, 'SOPInstanceUID') = 0 then
-      iSourceInstUidOffset := i * SourceQueryResult.len
-    else if StrComp(pSourceData + i * SourceQueryResult.len, 'PatientID') = 0 then
-      iSourcePatientIdOffset := i * SourceQueryResult.len;
-
-  (* Fail when relevant info in the queryresult is missing *)
-  if ((iPacsInstUidOffset = -1) and (PacsQueryResult <> nil)) or
-     (iSourceInstUidOffset = -1) or
-     (iSourcePatientIdOffset = -1) then
-  begin
-    if ((iPacsInstUidOffset = -1) and (PacsQueryResult <> nil)) then
-      result := result + 'PacsQueryResult does not contain SOPInstanceUIDs' + #13 + #10;
-    if (iSourceInstUidOffset = -1) then
-      result := result + 'SourceQueryResult does not contain SOPInstanceUIDs' + #13 + #10;
-    if (iSourcePatientIdOffset = -1) then
-      result := result + 'SourceQueryResult does not contain PatientIDs' + #13 + #10;
-    exit;
-  end;
-
-  if PacsQueryResult <> nil then
-  begin
-    iNbPacsRecords  := PacsQueryResult.dims[1];
-    iPacsRecordSize := PacsQueryResult.dims[0] * PacsQueryResult.len;
-  end;
-  iNbSourceRecords  := SourceQueryResult.dims[1];
-  iSourceRecordSize := SourceQueryResult.dims[0] * SourceQueryResult.len;
-
-  List := TStringList.Create;
-
-  (* Loop over all records in the Source *)
-  for i:=1 to iNbSourceRecords - 1 do
-  begin
-    pTmp := pSourceData + i * iSourceRecordSize;
-    bFound := false;
-    (* Find the SOPInstanceUID in the Pacs *)
-    if PacsQueryResult <> nil then
-      for j:=1 to iNbPacsRecords - 1 do
-        if StrComp(pTmp + iSourceInstUidOffset,
-          pPacsData + j * iPacsRecordSize + iPacsInstUidOffset) = 0 then
-        begin
-          bFound := true;
-          break;
-        end;
-    if not bFound then
-    begin
-      (* Is this patient a 'new' missing patient? *)
-      if List.IndexOf(LowerCase(AnsiString(pTmp + iSourcePatientIdOffset)))<0 then
-      begin
-        List.Add(LowerCase(AnsiString(pTmp + iSourcePatientIdOffset)));
-        result := result + LowerCase(AnsiString(pTmp + iSourcePatientIdOffset)) + #13 + #10;
-      end;
-    end;
-  end;
-
-  List.Free;
 end;
 
 {************************************************************************}

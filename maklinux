@@ -38,7 +38,7 @@ do
 			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
-			g++ -std=c++11 -I/usr/local/mysql/include -I/usr/include/mysql -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DUSEMYSQL -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/lua.o $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -L/usr/local/mysql/lib -L/usr/lib/mysql -lmysqlclient -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
+			g++ -std=c++11 -I/usr/local/mysql/include -I/usr/include/mysql -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DUSEMYSQL -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/lua.o $SRC/luasocket/luasocket.a $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -L/usr/local/mysql/lib -L/usr/lib/mysql -lmysqlclient -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
 			break;
 			;;
         "postgres")

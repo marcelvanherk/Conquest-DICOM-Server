@@ -1,5 +1,7 @@
 -- Utility functions for test suite
 -- 1.5.0alpha
+-- mvh 20190111 Avoid writing many items in acrnema.map that appear as leaks
+-- mvh 20190112 Allow database to be configured in test server
 
 function fileexists(f)
   local h = io.open(f)
@@ -139,39 +141,58 @@ end
 
 -- stop temporary test server
 function QuitTestServer()
-  os.execute('dgate64.exe -wtestserver --quit:')
+  system('dgate64.exe -wtestserver --quit:')
   sleep(100)
   os.execute('del /q/s testserver\\*.*')
   os.execute('rmdir /q/s testserver')
 end
 
 -- make and run temporary test server (AE testserver), configure compression level
-function RunTestServer(serversidecompression)
+function RunTestServer(serversidecompression, database)
   serversidecompression = serversidecompression or 'UN'
+  database = database or 'SqLite'
   QuitTestServer()
-
+  
+  local db=''
+  if database=='SqLite' then
+    db = 'SqLite=1\nSQLServer=testserver\\testserver.db3'
+  elseif database=='DBase' then
+    db = 'SQLServer=testserver\\'
+  elseif database=='MySQL' then
+    db = 'MySQL=1\nSQLServer=test\nUsername=root\nPassword=\nDoubleBackSlashToDB=1'
+  elseif database=='PostGres' then
+    db = 'PostGres=1\nSQLServer=test\nUsername=postgres\nPassword=postgres\nDoubleBackSlashToDB=1\nUseEscapeStringConstants=1'
+  elseif database=='ODBC' then
+    db = 'SQLServer=test'
+  end
+  
   -- add testserver to ACRNEMA.MAP in memory (last item, be aware of conflicting wildcard entries)
-  servercommand('put_amap:99,testserver,127.0.0.1,4433')
-
+  for i=1, 99 do
+    if get_amap(i)=='testserver' then break end
+    if i==99 then servercommand('put_amap:99,testserver,127.0.0.1,4433') end
+  end
+  
   -- create minimal server (4 files and a data folder)
   script('mkdir testserver')
   script('mkdir testserver\\data')
   filecopy('acrnema.map',  'testserver\\acrnema.map')
   filecopy('dgate.dic',    'testserver\\dgate.dic')
   filecopy('dicom.sql',    'testserver\\dicom.sql')
-  syntax = '4'
+  local syntax = '4'
   if string.sub(serversidecompression, 1, 1)=='n' then syntax=3 end
-  f = io.open('testserver\\dicom.ini', 'wt')
+  
+  local f = io.open('testserver\\dicom.ini', 'wt')
   f:write([[
 [sscscp]
 MicroPACS                = sscscp
 TCPPort                  = 4433
-SqLite                   = 1
-SQLServer                = testserver\testserver.db3
+]]..db..[[
+
 MAGDevice0               = testserver\Data\
 FileNameSyntax           = ]]..syntax..[[
 
 incomingcompression      = ]]..serversidecompression..[[
+
 ]])
   f:close()
     
@@ -188,7 +209,7 @@ end
   f:close()
     
   -- initialize the test server's database and start it
-  os.execute('dgate64.exe -wtestserver -v -r')
-  servercommand("luastart:os.execute('dgate64 -wtestserver -v')")
+  system('dgate64.exe -wtestserver -v -r')
+  servercommand("luastart:os.execute('dgate64.exe -wtestserver -v')")
   sleep(100)
 end

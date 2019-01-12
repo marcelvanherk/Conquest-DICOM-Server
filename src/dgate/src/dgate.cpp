@@ -1107,11 +1107,12 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20190103	mvh     Fixed dicomstore; protect ImportConverters (e.g. move:) against crash
 			Fix deletestudies: command; added Lua tickcount() function
 			Fix leaks in deletepatient: dicomstore() and dicomget()
+20190112	mvh     Use strrchr to find ':' in patientID:uid pair; allows : in patientID
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-alpha"
+#define DGATE_VERSION "1.5.0-alpha-test1"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -2232,7 +2233,7 @@ DeleteStudy(char *ID, BOOL KeepImages, int Thread)
 
 	if (ID==NULL || *ID==0) return FALSE;
 
-	char *p = strchr(ID, ':');
+	char *p = strrchr(ID, ':');
 
 	if (p==0)
 		{
@@ -2314,7 +2315,7 @@ DeleteSeries(char *ID, BOOL KeepImages, int Thread)
 
 	if (ID==NULL || *ID==0) return FALSE;
 
-	char *p = strchr(ID, ':');
+	char *p = strrchr(ID, ':');
 
 	if (p==0)
 		{
@@ -2363,7 +2364,7 @@ DeleteImage(char *ID, BOOL KeepImages, int Thread)
 
 	if (ID==NULL || *ID==0) return FALSE;
 
-	char *p = strchr(ID, ':');
+	char *p = strrchr(ID, ':');
 
 	if (p==0)
 		{
@@ -2447,10 +2448,10 @@ DICOMDataObject *LoadForGUI(char *filename)
 	
 	PDU.AttachRTC(&VRType);
 
-	          sop = strchr(filename, '|');
-	if (!sop) sop = strchr(filename, '?');
-	if (!sop) sop = strchr(filename, '*');
-	if (!sop) sop = strchr(filename, ':');
+	          sop = strrchr(filename, '|');
+	if (!sop) sop = strrchr(filename, '?');
+	if (!sop) sop = strrchr(filename, '*');
+	if (!sop) sop = strrchr(filename, ':');
 	if (sop && (sop[1] != '\\'))
 		{
 		*sop++= 0;
@@ -25116,7 +25117,7 @@ static void DgateCgi(char *query_string, char *ext)
     HTML("<H2>Conquest DICOM server - version %s</H2>", DGATE_VERSION);
     sprintf(command, "moveseries:%s,%s,%s", source, dest, series2);
     if (study2[0])
-    { p1 = strchr(study2, ':'); if(!p1) p1 = study2; else p1++;
+    { p1 = strrchr(study2, ':'); if(!p1) p1 = study2; else p1++;
       sprintf(command+strlen(command), ",%s", p1);
     }
     SendServerCommand("", command, 0, buf);
@@ -25477,7 +25478,7 @@ static void DgateCgi(char *query_string, char *ext)
 
   /* transmits the series in zipped dicom format */
   if (strcmp(mode, "zipseries")==0)
-  { char *p = strchr(series2, ':');
+  { char *p = strrchr(series2, ':');
     if (p) 
     { *p++ = ',';
       memmove(p, p-1, strlen(p-1)+1);
@@ -25491,7 +25492,7 @@ static void DgateCgi(char *query_string, char *ext)
 
   /* transmits the study in zipped dicom format */
   if (strcmp(mode, "zipstudy")==0)
-  { char *p = strchr(study2, ':');
+  { char *p = strrchr(study2, ':');
     if (p) *p = ',';
 
     sprintf(command, "export:%s,,,cgi,call zip.cq", study2);
@@ -25503,7 +25504,7 @@ static void DgateCgi(char *query_string, char *ext)
   if (strcmp(mode, "imagelisturls")==0)
   { char *p;
 
-    p = strchr(series2, ':');
+    p = strrchr(series2, ':');
     if (p) *p = '|';
 
     sprintf(command, "imagelister:local|%s|:%s?%s&mode=dicom&slice=%%s:%%s&dsize=%s&compress=%s&dum=.dcm|cgi", series2, WebScriptAddress, extra, dsize, compress);
@@ -25515,7 +25516,7 @@ static void DgateCgi(char *query_string, char *ext)
   if (strcmp(mode, "imagelisthttp")==0)
   { char *p;
 
-    p = strchr(series2, ':');
+    p = strrchr(series2, ':');
     if (p) *p = '|';
 
     sprintf(command, "imagelister:local|%s|@%s/%%0.0s%%s*|cgi", series2, WebMAG0Address);
@@ -25527,7 +25528,7 @@ static void DgateCgi(char *query_string, char *ext)
   if (strcmp(mode, "imagelistfiles")==0)
   { char *p;
 
-    p = strchr(series2, ':');
+    p = strrchr(series2, ':');
     if (p) *p = '|';
 
     sprintf(command, "imagelister:local|%s|%%s|cgi", series2);// %% warning, bcb -> ok but wrong change ;->>> mvh
@@ -25558,7 +25559,7 @@ static void DgateCgi(char *query_string, char *ext)
     HTML(">");
     HTML("<PARAM name=DCMFilelist value=");
 
-    p = strchr(series2, ':');
+    p = strrchr(series2, ':');
     if (p) *p = '|';
     sprintf(command, "imagelister:local|%s|:%s?%s&mode=dicom&slice=%%s:%%s&dsize=%s&compress=%s*", series2, WebScriptAddress, extra, dsize, compress);
     SendServerCommand("", command, console);
@@ -25591,7 +25592,7 @@ static void DgateCgi(char *query_string, char *ext)
     HTML(">");
     HTML("<PARAM name=DCMFilelist value=");
 
-    char *p = strchr(series2, ':');
+    char *p = strrchr(series2, ':');
     if (p) *p = '|';
 
     if (memcmp(wwwserveraddress, "file", 4)==0)
@@ -25646,7 +25647,7 @@ static void DgateCgi(char *query_string, char *ext)
     HTML("<PARAM NAME = dicURL VALUE = '%sdicomviewer100/Dicom.dic'>", WebCodeBase);
     HTML("<PARAM NAME = imgURL0 VALUE = ");
 
-    p = strchr(series2, ':');
+    p = strrchr(series2, ':');
     if (p) *p = '|';
     sprintf(command, "imagelister:local|%s|:%s?%s&mode=dicom&slice=%%s:%%s&dsize=%s&compress=%s*", series2, WebScriptAddress, extra, dsize, "un");
     SendServerCommand("", command, console);
@@ -25662,7 +25663,7 @@ static void DgateCgi(char *query_string, char *ext)
   if (strcmp(mode, "serversideviewer")==0)
   { char *p;
 
-    p = strchr(series2, ':');
+    p = strrchr(series2, ':');
     if (p) *p = '|';
 
     if (size[0]==0) strcpy(size, "80%25%25");
@@ -25817,7 +25818,7 @@ windowname = AiViewer V1.00
 
     if (study2[0])
     { strcpy(temp, study2);
-      p = strchr(temp, ':');
+      p = strrchr(temp, ':');
       if (p) 
       { *p = 0;
         strcpy(patid2, temp);
@@ -25826,7 +25827,7 @@ windowname = AiViewer V1.00
       }
     
       strcpy(temp, study);
-      p = strchr(temp, ':');
+      p = strrchr(temp, ':');
       if (p) 
       { *p = 0;
         strcpy(patid, temp);
@@ -25835,7 +25836,7 @@ windowname = AiViewer V1.00
 
     if (series2[0])
     { strcpy(temp, series2);
-      p = strchr(temp, ':');
+      p = strrchr(temp, ':');
       if (p) 
       { *p = 0;
         strcpy(patid2, temp);
@@ -25844,7 +25845,7 @@ windowname = AiViewer V1.00
       }
     
       strcpy(temp, series);
-      p = strchr(temp, ':');
+      p = strrchr(temp, ':');
       if (p) 
       { *p = 0;
         strcpy(patid, temp);
@@ -25853,7 +25854,7 @@ windowname = AiViewer V1.00
 
     if (slice2[0])
     { strcpy(temp, slice2);
-      p = strchr(temp, ':');
+      p = strrchr(temp, ':');
       if (p) 
       { *p = 0;
         strcpy(patid2, temp);
@@ -25862,7 +25863,7 @@ windowname = AiViewer V1.00
       }
     
       strcpy(temp, slice);
-      p = strchr(temp, ':');
+      p = strrchr(temp, ':');
       if (p) 
       { *p = 0;
         strcpy(patid, temp);

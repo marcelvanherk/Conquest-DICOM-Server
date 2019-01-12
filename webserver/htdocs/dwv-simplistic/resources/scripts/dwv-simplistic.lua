@@ -21,7 +21,7 @@
 
 -- Get ids
 
-local patientid = string.gsub(series2, ':.*$', '')
+local patientid = string.gsub(series2, ':[^:]-$', '')
 local seriesuid = string.gsub(series2, '^.*:', '')
 
 -- Functions declaration

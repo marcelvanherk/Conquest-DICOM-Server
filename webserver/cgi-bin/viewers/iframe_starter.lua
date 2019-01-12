@@ -1,5 +1,6 @@
 -- mvh 20181130 Created from wadostudyviewer.lua
 -- mvh 20181227 Use remotequery to limit contralize access to server 
+-- mvh 20180112 Fix to allow : in patientID
 
 -- defaults to allow debugging in zbs
 study2 = study2 or 'EG2005:'
@@ -7,7 +8,7 @@ version = version or ''
 size = size or 560
  
 -- split query information
-local patid = string.gsub(study2, ':.*$', '')
+local patid = string.gsub(study2, ':[^:]-$', '')
 local studyuid = string.gsub(study2, '^.*:', '')
 
 ------------------------------------------------------------------------

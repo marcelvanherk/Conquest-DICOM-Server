@@ -5,6 +5,7 @@
 -- 20180203   mvh   Removed opacity control for s[1] which does not exist
 -- 20181215   mvh   Added remotequery to depend less on web cgi functionality
 -- 20181230   mvh   Removed dicomquery, only kept remotequery
+-- 20190112   mvh   Use | to separate items to help with special characters in patientID
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -253,7 +254,7 @@ for i=1,#pats do
   --end
   s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,mc(pats[i].PatientName),mc(pats[i].StudyDate),
     mc(pats[i].StudyDescription),mc(pats[i].StudyModality),
-    dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..':'..pats[i].StudyInstanceUID));
+    dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'|'..pats[i].StudyInstanceUID));
   print(s)
 end 
 	

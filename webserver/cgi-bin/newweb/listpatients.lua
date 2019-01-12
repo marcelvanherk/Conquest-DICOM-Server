@@ -9,6 +9,7 @@
 -- 20181124   mvh   Added readOnly (no modify/delete) and viewOnly (no download) flags, pass compress to viewers
 -- 20181215   mvh   Added remotequery and remote get_amap to depend less on web cgi functionality
 -- 20181230   mvh   Removed dicomquery, only kept remotequery
+-- 20190112   mvh   Use | to separate items to help with special characters in patientID
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 version = version  or ''
@@ -139,7 +140,7 @@ if CGI('parameter', '')=='sender' then
   return
 end  
 if CGI('parameter', '')=='send' then
-  local items= split(CGI('item'), ':')
+  local items= split(CGI('item'), '|')
   local script = string.format('%s,%s,%s,%s,%s,%s',servercommand('get_param:MyACRNema'),CGI('Destination'),
     items[1],items[2] or '',items[3] or '',items[4] or '')
   servercommand('luastart:servercommand[[move:'..script..']]')
@@ -158,7 +159,7 @@ if CGI('parameter', '')=='anonymizer' then
   return
 end  
 if CGI('parameter', '')=='anonymize' then
-  local items= split(CGI('item'), ':')
+  local items= split(CGI('item'), '|')
   local script = string.format('%s,%s,%s,%s,1,lua/anonymize_script.lua(%s)',
     items[1],items[2] or '',items[3] or '',items[4] or '', CGI('newid'))
   servercommand('luastart:servercommand[[modifier:'..script..']]');
@@ -177,7 +178,7 @@ if CGI('parameter', '')=='changerid' then
   return
 end  
 if CGI('parameter', '')=='changeid' then
-  local items= split(CGI('item'), ':')
+  local items= split(CGI('item'), '|')
   local script = string.format([[%s,%s,%s,%s,1,lua "script('newuids');Data.PatientID='%s'"]],
     items[1],items[2] or '',items[3] or '',items[4] or '',CGI('newid'))
   servercommand('luastart:servercommand[[modifier:'..script..']]');
@@ -185,7 +186,7 @@ if CGI('parameter', '')=='changeid' then
 end
 
 if CGI('parameter', '')=='deleter' then
-  local items= split(CGI('item'), ':')
+  local items= split(CGI('item'), '|')
   local n = 
     servercommand('lua:s=newdicomobject();s.PatientID=[['..(items[1] or '')..
                 ']];s.StudyInstanceUID="'..(items[2] or '')..
@@ -203,7 +204,7 @@ if CGI('parameter', '')=='deleter' then
   return
 end  
 if CGI('parameter', '')=='delete' then
-  local items= split(CGI('item'), ':')
+  local items= split(CGI('item'), '|')
   servercommand('lua:s=newdicomobject();s.PatientID=[['..(items[1] or '')..
                 ']];s.StudyInstanceUID="'..(items[2] or '')..
 		'";s.SeriesInstanceUID="'..(items[3] or '')..
@@ -225,7 +226,7 @@ if CGI('parameter', '')=='zipperanonymized' then
   return
 end  
 if CGI('parameter', '')=='zipanonymized' then
-  local items= split(CGI('item'), ':')
+  local items= split(CGI('item'), '|')
   if write then
     local tempname = 'z.zip'
     local script=string.format('%s,%s,%s,%s,%s,lua/anonymize_script.lua(%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', tempname, CGI('newid'))
@@ -255,7 +256,7 @@ if CGI('parameter', '')=='zipper' then
   return
 end  
 if CGI('parameter', '')=='zip' then
-  local items= split(CGI('item'), ':')
+  local items= split(CGI('item'), '|')
   if write then
     local tempname = 'z.zip'
     local script=string.format('%s,%s,%s,%s,%s', items[1] or '', items[2] or '', items[3] or '', items[4] or '', tempname)
@@ -277,7 +278,7 @@ end
 if CGI('parameter', '')=='viewerstudy' then
   local studyviewer=gpps('webdefaults', 'studyviewer', '');
   local compress=gpps('webdefaults', 'compress', '');
-  local items= split(CGI('item'), ':')
+  local items= split(CGI('item'), '|')
   local u = string.format("%s?level=Study&mode=%s&study=%s:%s&compress=%s", script_name, studyviewer, string.gsub(items[1], ' ', '+'),items[2],compress); 
   print([[<a href=# onclick="window.open(']]..u..[[', 'title', 'toolbar=no')">Open study viewer</a><br>]])
   print([[<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="window.open(']]..u..[[', 'title', 'toolbar=no');" />]])
@@ -287,7 +288,7 @@ end
 if CGI('parameter', '')=='viewerseries' then
   local viewer=gpps('webdefaults', 'viewer', '');
   local compress=gpps('webdefaults', 'compress', '');
-  local items= split(CGI('item'), ':')
+  local items= split(CGI('item'), '|')
   local u = string.format("%s?level=Series&mode=%s&series=%s:%s&compress=%s", script_name, viewer, string.gsub(items[1], ' ', '+'),items[3],compress); 
   print([[<a href=# onclick="window.open(']]..u..[[', 'title', 'toolbar=no')">Open series viewer</a><br>]])
   print([[<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="window.open(']]..u..[[', 'title', 'toolbar=no');" />]])

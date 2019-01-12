@@ -20,6 +20,7 @@
 -- 20180204   mvh   Removed 'getting image' print
 -- 20181128   mvh   Added anonymizer also to series viewer
 -- 20181223   mvh   Use remotequery (1.4.19d)
+-- 20180112   mvh   Fix to allow : in patientID
 
 -- default series information - this is here to allow debugging of the code usign ZeroBrane Studio, running from the server
 series2 = series2 or '0009703828:1.3.46.670589.5.2.10.2156913941.892665339.860724'
@@ -179,7 +180,8 @@ if CGI('anonymize')~='' then
 end
   
   -- collect all DICOM information needed
-local patid, seriesuid = unpack(split(series2, ':'))
+local patid = string.gsub(series2, ':[^:]-$', '')
+local seriesuid = string.gsub(series2, '^.*:', '')
 local seriesinfo, patinfo = getseriesinfo(source, patid, seriesuid)
 local studyuid = seriesinfo.StudyInstanceUID
 local modality = seriesinfo.Modality

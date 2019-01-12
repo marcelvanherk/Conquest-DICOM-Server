@@ -25,6 +25,7 @@
 -- mvh 20181214 Made to work with help from lyakh92; uses compress and WebScriptAddress from dicom.ini
 -- mvh 20181227 Use remotequery to limit contralize access to server; use gpps WebScriptAddress
 -- mvh 20181229 Fixed section of WebScriptAddress
+-- mvh 20180112 Fix to allow : in patientID
 
 local source_server = Global.WebCodeBase
 
@@ -246,7 +247,7 @@ if parameter=='xml' then
 
   -- start of xml generator
   -- split query information
-  local patid = string.gsub(ident, ':.*$', '')
+  local patid = string.gsub(ident, ':[^:]-$', '')
   local uid = string.gsub(ident, '^.*:', '')
   local compress = CGI('compression', 'un')
   local source = servercommand('get_param:MyACRNema')

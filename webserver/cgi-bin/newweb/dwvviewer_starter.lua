@@ -22,6 +22,7 @@
 --              reports error for study use
 -- mvh 20181213 server_name does not copy port; use relative link instead
 -- mvh 20181227 Use remotequery to limit contralize access to server 
+-- mvh 20180112 Fix to allow : in patientID
 
 local source = servercommand('get_param:MyACRNema')
 
@@ -215,7 +216,7 @@ if series2=='' then
 end
 
 -- Get ids
-local patientid = string.gsub(series2, ':.*$', '')
+local patientid = string.gsub(series2, ':[^:]-$', '')
 local seriesuid = string.gsub(series2, '^.*:', '')
 local studyuid = getstudyuid(patientid, seriesuid)
 local images = queryimages(patientid, seriesuid)

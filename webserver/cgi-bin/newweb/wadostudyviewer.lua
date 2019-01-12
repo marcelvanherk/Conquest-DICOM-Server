@@ -8,6 +8,7 @@
 -- 20170430   mvh   Zoom no longer checks on version; assumes 1.4.19 plus
 -- 20180204   mvh   Removed 'getting image' print
 -- 20181223   mvh   Use remotequery (1.4.19d)
+-- 20180112   mvh   Fix to allow : in patientID
 
 -- defaults to allow debugging in zbs
 study2 = study2 or 'EG2005:'
@@ -15,7 +16,7 @@ version = version or ''
 size = size or 560
  
 -- split query information
-local patid = string.gsub(study2, ':.*$', '')
+local patid = string.gsub(study2, ':[^:]-$', '')
 local studyuid = string.gsub(study2, '^.*:', '')
 
 ------------------------------------------------------------------------

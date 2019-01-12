@@ -16,6 +16,7 @@
           supporting documentation or derivative works (source code and
           supporting documentation) must include this copyright notice.
 ****************************************************************************/
+//20190109   mvh    Made MaxSubLen configurable from outside
 
 /***************************************************************************
  *
@@ -98,6 +99,7 @@ class	PDataTF
 	public:
 		INT		MsgStatus;
 		UINT	Endian;
+		UINT	MaxSubLen;
 		PDV		pdv;
 		BYTE	PresentationContextID;
 		BYTE	MsgHeader;

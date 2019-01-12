@@ -40,6 +40,7 @@
 //		    So it is a race in the operating system. 
 //20180316   mvh    Implemented buffer size change proposed by lsp
 //20181123   mvh    Changed that to 16k, restored compatibility with carestream viewer
+//20190109   mvh    Made MaxSubLen configurable from outside
 
 #	include	"dicom.hpp"
 
@@ -197,7 +198,7 @@ BOOL	PDataTF	::	Write(Buffer	&Link)
 #endif
 
 	TotalSize = VRBuffer.GetOutgoingSize();
-	BlockSize = 16384; // was 4096;
+	BlockSize = MaxSubLen; //16384; // was 4096;
 	SentSize = 0;
 	TLength = Length;
 	while(SentSize < TotalSize)
@@ -245,6 +246,7 @@ PDataTF	::	PDataTF()
     MsgStatus(0),
     Endian(NATIVE_ENDIAN),
     pdv(),
+    MaxSubLen(16384),
     PresentationContextID(0),
     MsgHeader(0) {}
 

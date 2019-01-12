@@ -44,6 +44,7 @@
 20141009    mvh    Added many debug messages to identify sources of failure
 20160221    mvh	   Clear ItemType to avoid endloss loop after connection lost
 20160827    mvh	   Released with 32768 PDU max size
+20190109    mvh    Pass incoming MaxSubLength to PDataTF (print for now)
 */
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -1063,6 +1064,8 @@ BOOL	PDU_Service	::	Connect ( BYTE *ip, BYTE *port )
 				Link.Close();
 				return ( FALSE );
 				}
+			printf("MaxSubLength=%d\n", AAssociateAC :: UserInfo.GetMax());
+			PDataTF::MaxSubLen = AAssociateAC :: UserInfo.GetMax();
 			return ( TRUE );	// this is what we want to happen
 		case	0x03:
 			if (!AAssociateRJ :: ReadDynamic ( * this ))

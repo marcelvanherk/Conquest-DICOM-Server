@@ -258,6 +258,7 @@
 20181113	mvh	Fixed unsigned signed error in RGB conversion
 20181123	mvh	Changed TransferSyntaxUID back to IU (is in preamble)
 20181222	mvh	Added WriteGet for C-GET client; results in image information in ADDO
+20190114	mvh	Set compression to "un" for C-GET (was "" behaved as as-is)
 */
 
 //#define bool BOOL
@@ -670,7 +671,9 @@ BOOL	StandardRetrieveNKI	::	Read (
 			}
 		else
 			{
-			AcceptedCompress = UsedPDU->GetAcceptedCompressionType(iUID);
+			if (!cget) AcceptedCompress = UsedPDU->GetAcceptedCompressionType(iUID);
+			else AcceptedCompress = "un";
+
 			StripGroup2 = memicmp(AcceptedCompress, "as", 2)!=0 && memicmp(AcceptedCompress, "is", 2)!=0;
 
 			if ( !RetrieveOn (ADDO.Get(Index), &iDDO, &SStorage, DCO, &ADDO, ExtraBytes))

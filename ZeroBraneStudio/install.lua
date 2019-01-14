@@ -27,6 +27,7 @@ completion and full debugging facilities.
 20151115: mvh Install socket/core.so for linux system (assumed 64 bits)
 20180113: mvh Use conquest_auto; no configuration needed (port 5678, modify in user.lua), startzconquest plugin
 20181119: mvh Copy dgate binary and dgate.dic; install dgate.exe and dgate. remove socket
+20190114: mvh Fix install of dgate.exe on windows
 ]]
 
   -- configuration
@@ -67,7 +68,7 @@ app = string.gsub(app, installfile, '')
 print(config.appname .. ' is at: ' .. app)
 
 -- copy binaries needed for running dgate as gateway
-if string.find(zbs, '.exe') then
+if ds=='\\' then
   wx.wxCopyFile(app..ds..'install32'..ds..'dgate.exe', app..ds..'ZeroBraneStudio'..ds..'dgate.exe')
 else
   wx.wxCopyFile(app..ds..'dgate',     app..ds..'ZeroBraneStudio'..ds..'dgate')

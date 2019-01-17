@@ -654,6 +654,7 @@ When            Who     What
 20181231	mvh     Version to 1.5.0-alpha
 20190103	mvh     Typo and allow Progress while debug log on
 20190103	mvh     Newweb no longer needs acrnema.map; removed cqdicom related code; unused variables
+20190114	mvh     Remove writing of registry on startup
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -690,7 +691,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0alpha';
-const BUILDDATE = '20180103';
+const BUILDDATE = '20180114';
 const testmode = 0;
 
 {************************************************************************}
@@ -2633,7 +2634,7 @@ begin
   // create the DICOM.SQL file if required
   if not NewInstall then CreateDICOM_SQL;
 
-  Registry := TRegistry.Create;
+  {Registry := TRegistry.Create;
 
   Registry.RootKey := HKEY_LOCAL_MACHINE;
 
@@ -2673,6 +2674,7 @@ begin
   end;
   end;
   Registry.CloseKey;
+  }
 
   // read the registry to know serverstatussocket of installed service (if any)
   text := '';

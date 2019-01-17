@@ -41,6 +41,7 @@
 //20180316   mvh    Implemented buffer size change proposed by lsp
 //20181123   mvh    Changed that to 16k, restored compatibility with carestream viewer
 //20190109   mvh    Made MaxSubLen configurable from outside
+//20190117   mvh    Default MaxSubLen to 4096 for if not set
 
 #	include	"dicom.hpp"
 
@@ -246,7 +247,7 @@ PDataTF	::	PDataTF()
     MsgStatus(0),
     Endian(NATIVE_ENDIAN),
     pdv(),
-    MaxSubLen(16384),
+    MaxSubLen(4096),
     PresentationContextID(0),
     MsgHeader(0) {}
 

@@ -42,6 +42,7 @@
 //20181123   mvh    Changed that to 16k, restored compatibility with carestream viewer
 //20190109   mvh    Made MaxSubLen configurable from outside
 //20190117   mvh    Default MaxSubLen to 4096 for if not set
+//20190126   mvh    Reduced blocksize by 6; now DCMGETSCU etc work
 
 #	include	"dicom.hpp"
 
@@ -199,7 +200,7 @@ BOOL	PDataTF	::	Write(Buffer	&Link)
 #endif
 
 	TotalSize = VRBuffer.GetOutgoingSize();
-	BlockSize = MaxSubLen; //16384; // was 4096;
+	BlockSize = MaxSubLen-6; //16384; // was 4096;
 	SentSize = 0;
 	TLength = Length;
 	while(SentSize < TotalSize)

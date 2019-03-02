@@ -655,6 +655,7 @@ When            Who     What
 20190103	mvh     Typo and allow Progress while debug log on
 20190103	mvh     Newweb no longer needs acrnema.map; removed cqdicom related code; unused variables
 20190114	mvh     Remove writing of registry on startup
+20190302	mvh     Fixed a small bug in that
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -2634,9 +2635,9 @@ begin
   // create the DICOM.SQL file if required
   if not NewInstall then CreateDICOM_SQL;
 
-  {Registry := TRegistry.Create;
+  Registry := TRegistry.Create;
 
-  Registry.RootKey := HKEY_LOCAL_MACHINE;
+  {Registry.RootKey := HKEY_LOCAL_MACHINE;
 
   // list dicom servers from registry
   list := TStringList.Create;

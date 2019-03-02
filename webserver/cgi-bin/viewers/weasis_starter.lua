@@ -12,8 +12,10 @@
 -- This file runs as one of the following four modes, 2 create the jnlp starter, 2 create xml manifests
 -- dgate.exe?mode=weasis_starter&study=patid:studyuid
 -- dgate.exe?mode=weasis_starter&series=patid:seriesuid
+-- dgate.exe?mode=weasis_starter&accession=accessionnumber
 -- dgate.exe?mode=weasis_starter&parameter=xml&study=patid:studyuid
 -- dgate.exe?mode=weasis_starter&parameter=xml&series=patid:seriesuid
+-- dgate.exe?mode=weasis_starter&parameter=xml&accession=accessionnumber
 --
 -- optional parameters:
 --   compress, WebScriptAddress and WebCodebase are taken from dicom.ini
@@ -26,17 +28,23 @@
 -- mvh 20181227 Use remotequery to limit contralize access to server; use gpps WebScriptAddress
 -- mvh 20181229 Fixed section of WebScriptAddress
 -- mvh 20180112 Fix to allow : in patientID
+-- mvh 20180302 Added accession= access for external use
 
 local source_server = Global.WebCodeBase
 
 local parameter = CGI('parameter', 'jnlp')
 local study = CGI('study', '')
 local series = CGI('series', '')
+local accession = CGI('accession', '')
 local level = 'study'
 local ident = study
 if study=='' then
   level = 'series'
   ident = series
+end
+if series=='' then
+  level = 'accession'
+  ident = accession
 end
 
 -- for testing
@@ -305,6 +313,14 @@ if parameter=='xml' then
   if level=='study' then
     seq.StudyInstanceUID = uid
     stq.StudyInstanceUID = uid
+  end
+  if level=='accession' then
+    stq.AccessionNumber = uid
+    stq.StudyInstanceUID = ''
+    str = remotequery(source, 'STUDY', stq)
+    seq.StudyInstanceUID = str[1].StudyInstanceUID
+    stq.StudyInstanceUID = str[1].StudyInstanceUID
+    stq.AccessionNumber = ''
   end
   
   -- loop over levels and print xml patient data

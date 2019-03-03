@@ -29,6 +29,7 @@
 -- mvh 20181229 Fixed section of WebScriptAddress
 -- mvh 20180112 Fix to allow : in patientID
 -- mvh 20180302 Added accession= access for external use
+-- mvh 20180303 Some fixes in that code
 
 local source_server = Global.WebCodeBase
 
@@ -315,12 +316,13 @@ if parameter=='xml' then
     stq.StudyInstanceUID = uid
   end
   if level=='accession' then
-    stq.AccessionNumber = uid
+    stq.AccessionNumber = ident
     stq.StudyInstanceUID = ''
+    stq.PatientID = ''
     str = remotequery(source, 'STUDY', stq)
+    paq.PatientID = str[1].PatientID
     seq.StudyInstanceUID = str[1].StudyInstanceUID
     stq.StudyInstanceUID = str[1].StudyInstanceUID
-    stq.AccessionNumber = ''
   end
   
   -- loop over levels and print xml patient data

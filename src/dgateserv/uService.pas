@@ -19,6 +19,7 @@
   20101113    mvh    Fix for vista - stop does not reach service                
   20101116    mvh    Stop before uninstall fixes uninstall for vista
   20181218    mvh    Adapt for Delphi XE8; note that original author is unknown
+  20190316    mvh    Delphi XE8 version does not seem to work (command line passing to slave issue)
 }
 
 unit uService;

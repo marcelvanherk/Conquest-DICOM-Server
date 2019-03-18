@@ -46,6 +46,7 @@
 20160827    mvh	   Released with 32768 PDU max size
 20190109    mvh    Pass incoming MaxSubLength to PDataTF (print for now)
 20190118    mvh    Take out print statement
+20190318    mvh    Deal with zero returned MaxSubLength; use 8192 pdusize for Linux
 */
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -89,7 +90,11 @@ DestructAttachedRTC(FALSE),
 UsedTransferSyntaxUID(),
 ValidPresContexts(0),
 Link(),
+#ifdef UNIX
+pdusize(8192)
+#else
 pdusize(32768)
+#endif
 	{
 	// PDU Level services are always big endian architecture
 	Buffer :: SetIncomingEndian(BIG_ENDIAN);
@@ -1067,6 +1072,7 @@ BOOL	PDU_Service	::	Connect ( BYTE *ip, BYTE *port )
 				}
 			// printf("MaxSubLength=%d\n", AAssociateAC :: UserInfo.GetMax());
 			PDataTF::MaxSubLen = AAssociateAC :: UserInfo.GetMax();
+			if (PDataTF::MaxSubLen==0) PDataTF::MaxSubLen = pdusize;
 			return ( TRUE );	// this is what we want to happen
 		case	0x03:
 			if (!AAssociateRJ :: ReadDynamic ( * this ))

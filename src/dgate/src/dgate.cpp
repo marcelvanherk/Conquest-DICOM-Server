@@ -1108,11 +1108,12 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			Fix deletestudies: command; added Lua tickcount() function
 			Fix leaks in deletepatient: dicomstore() and dicomget()
 20190112	mvh     Use strrchr to find ':' in patientID:uid pair; allows : in patientID
+20190318	mvh     Made it test2
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-alpha-test1"
+#define DGATE_VERSION "1.5.0-alpha-test2"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1

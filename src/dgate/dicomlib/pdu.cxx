@@ -47,6 +47,7 @@
 20190109    mvh    Pass incoming MaxSubLength to PDataTF (print for now)
 20190118    mvh    Take out print statement
 20190318    mvh    Deal with zero returned MaxSubLength; use 8192 pdusize for Linux
+20190319    mvh    Image corruption only stops at 4096 pdusize for Linux
 */
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -91,7 +92,7 @@ UsedTransferSyntaxUID(),
 ValidPresContexts(0),
 Link(),
 #ifdef UNIX
-pdusize(8192)
+pdusize(4096)
 #else
 pdusize(32768)
 #endif

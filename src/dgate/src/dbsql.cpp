@@ -227,6 +227,8 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20170419	mvh	Fixed merging code (MergeUIDs), added stage (merge) if stage in database
 20171010        mvh     Fix case of database table names
 20171122	mvh	Added DT_ISTR (case insensitive query string)
+20190320	mvh	Added conversion from ISO_IR 100 to UTF8 in MakeSafeStringValues
+			Setting UTF8ToDB default 0 for now
 */
 
 #define NCACHE 256
@@ -336,8 +338,9 @@ static int	MaxFieldLength=0;
 static int	FixPhilips=0;
 static int	AllowEmptyPatientID=0;
 int	FixKodak=0;
-int	DoubleBackSlashToDB=0;
 int	UseEscapeStringConstants=0;
+int	DoubleBackSlashToDB=0;
+int	UTF8ToDB=0;
 
 int	FileCompressMode=0;
 char	PatientQuerySortOrder[256]="";
@@ -387,6 +390,10 @@ ConfigDBSpecials(void)
 	MyGetPrivateProfileString ( RootSC, "DoubleBackSlashToDB", "0",
 		(char*) Temp, 128, ConfigFile);
 	DoubleBackSlashToDB = atoi(Temp);
+
+	MyGetPrivateProfileString ( RootSC, "UTF8ToDB", "0",
+		(char*) Temp, 128, ConfigFile);
+	UTF8ToDB = atoi(Temp);
 
 	MyGetPrivateProfileString ( RootSC, "UseEscapeStringConstants", "0",
 		(char*) Temp, 128, ConfigFile);
@@ -2359,8 +2366,8 @@ MakeSafeStringValues (
 	char	*string )
 	{
 	unsigned int Length;
-	char	*sout;
-	char	*sin;
+	unsigned char	*sout;
+	unsigned char	*sin;
 	char	*s;
 	UINT	Index;
 
@@ -2372,8 +2379,8 @@ MakeSafeStringValues (
 
 	s = SetString(vr, NULL, 0);
 	Length = strlen(s);
-	sin = (char*)s;
-	sout = string;
+	sin = (unsigned char *)s;
+	sout = (unsigned char *)string;
 
 	if (UseEscapeStringConstants)
 		if (strchr(s, '\\'))
@@ -2383,8 +2390,14 @@ MakeSafeStringValues (
 
 	Index = 0;
 	while(Index < Length)
-		{
-		switch (*sin)
+		{ // Convert to UTF-8, assuming ISO_IR 100 for now (ISO/IEC 8859-1 = Latin-1) 
+		  if (UTF8ToDB && (*sin&128)) 
+			{ 
+			*sout++=0xc2+(*sin>0xbf);
+			*sout++=(*sin++&0x3f)+0x80;
+			}
+		  
+		  else switch (*sin)
 			{
 			case	'\'':
 				(*sout) = '\'';++sout;

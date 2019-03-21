@@ -73,6 +73,7 @@
 20131013	mvh	DT_MSTR warning for DBASEIII reports now to console
 20131017        ea      Put the changes of 20120701 back because dgate fails for PatientID with '_'
 20171122	mvh	Added DT_ISTR (case insensitive query string)
+20190321	mvh	Added optional conversion from ISO_IR 100 to UTF8 in MakeSafeString
 */
 
 #ifndef	WHEDGE
@@ -103,6 +104,8 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 
 void RemoveQueryDuplicates(const char *Level, Array < DICOMDataObject * > *ADDO);
 
+extern int	UTF8ToDB;
+
 BOOL
 MakeSafeString (
 	VR	*vr,
@@ -110,8 +113,8 @@ MakeSafeString (
 	Database *db )
 	{
 	unsigned int Length;
-	char	*sout;
-	char	*sin;
+	unsigned char	*sout;
+	unsigned char	*sin;
 	char	*s;
 	UINT	Index;
 	BOOL	AddEscape = FALSE;
@@ -119,8 +122,8 @@ MakeSafeString (
 
 	s = SetString(vr, NULL, 0);
 	Length = strlen(s);
-	sin = (char*)s;
-	sout = string;
+	sin = (unsigned char*)s;
+	sout = (unsigned char *)string;
 
 	// convert ** query to * query (efilm problem)
 	if (Length==2 && s[0]=='*' && s[1]=='*') Length--;
@@ -145,7 +148,13 @@ MakeSafeString (
 		Index = 0;
 		while(Index < Length)
 			{
-			switch (*sin)
+		  	if (UTF8ToDB && (*sin&128)) 
+				{ 
+				*sout++=0xc2+(*sin>0xbf);
+				*sout++=(*sin++&0x3f)+0x80;
+				}
+
+			else switch (*sin)
 				{
 				case	'*':
 					(*sout) = '%';++sout;
@@ -354,8 +363,8 @@ MakeSafeString (
 	
 	// redone these special characters: mvh 20110105
 	//20120701: seems this is not needed and highly complicates further processing
-	if (AddEscape && db->db_type==DT_POSTGRES) strcpy(sout-1, " ESCAPE E'\\\\'");
-	else if (AddEscape) strcpy(sout-1, " ESCAPE '\\'");
+	if (AddEscape && db->db_type==DT_POSTGRES) strcpy((char *)sout-1, " ESCAPE E'\\\\'");
+	else if (AddEscape) strcpy((char *)sout-1, " ESCAPE '\\'");
 	// end redone these special characters: mvh 20110105
 
 	delete s;

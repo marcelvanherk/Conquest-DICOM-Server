@@ -229,6 +229,7 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20171122	mvh	Added DT_ISTR (case insensitive query string)
 20190320	mvh	Added conversion from ISO_IR 100 to UTF8 in MakeSafeStringValues
 			Setting UTF8ToDB default 0 for now
+20190322	mvh	Fixed that; added backwards conversion as well (WIP)
 */
 
 #define NCACHE 256
@@ -2394,7 +2395,7 @@ MakeSafeStringValues (
 		  if (UTF8ToDB && (*sin&128)) 
 			{ 
 			*sout++=0xc2+(*sin>0xbf);
-			*sout++=(*sin++&0x3f)+0x80;
+			*sout++=(*sin&0x3f)+0x80;
 			}
 		  
 		  else switch (*sin)
@@ -3610,12 +3611,13 @@ ConstructVRFromSQL (
 	LE_UINT16	tuint16;
 	LE_UINT32	tuint32;
 	VR		*vr = NULL;
+	unsigned char	*sout;
+	unsigned char	*sin;
 	
 	SQLResultString[Length] = '\0';
 		
 	if(Length&0x01)
 		++Length;
-	
 
 	switch ( DBE?DBE->DICOMType:DT_STR )
 		{
@@ -3634,10 +3636,41 @@ ConstructVRFromSQL (
 			vr = new VR (Group, Element, Length, (BOOL) TRUE );
 			if(Length)
 				{
-				memset(vr->Data, ' ', vr->Length);
-				memcpy(vr->Data, (void*)SQLResultString, strlen(SQLResultString));
+				//memset(vr->Data, ' ', vr->Length);
+				//memcpy(vr->Data, (void*)SQLResultString, strlen(SQLResultString));
+				int Index=0, Len=0;
+				sin = (unsigned char *)SQLResultString;
+				sout = (unsigned char *)vr->Data;
+				while(Index < Length)
+					{ // Convert from UTF-8, assuming ISO_IR 100 for now (ISO/IEC 8859-1 = Latin-1) 
+					if (sin[0]==0)
+						break;
+					else if (UTF8ToDB && ((sin[0]&0xc0)==0xc0)) 
+						{ 
+						int i=1; while ((sin[i]&0xc0)==0x80) i++; // length of multibyte character
+						if      (i==2 && sin[0]==0xc2) *sout++ = 0x80+(sin[1]&0x3f);
+						else if (i==2 && sin[0]==0xc3) *sout++ = 0xc0+(sin[1]&0x3f);
+						else                         *sout++='_'; // unrecognised character
+						sin+=i;
+						Index+=i-1;
+						Len++;
+						}
+					else
+						{	
+						*sout++ = *sin++;
+						Len++;
+						}
+					Index++;
+					}
+				if (Len&1)
+					{
+					*sout++=' ';
+					Len++;
+					}
+				vr->Length = Len;
 				}
 			break;
+
 		case	DT_UINT16:
 			vr = new VR (Group, Element, 2, (BOOL) TRUE );
 			tuint16 = (LE_UINT16) atoi(SQLResultString);

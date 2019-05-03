@@ -74,6 +74,7 @@
 20131017        ea      Put the changes of 20120701 back because dgate fails for PatientID with '_'
 20171122	mvh	Added DT_ISTR (case insensitive query string)
 20190321	mvh	Added optional conversion from ISO_IR 100 to UTF8 in MakeSafeString
+20190322	mvh	Fixed that
 */
 
 #ifndef	WHEDGE
@@ -151,7 +152,7 @@ MakeSafeString (
 		  	if (UTF8ToDB && (*sin&128)) 
 				{ 
 				*sout++=0xc2+(*sin>0xbf);
-				*sout++=(*sin++&0x3f)+0x80;
+				*sout++=(*sin&0x3f)+0x80;
 				}
 
 			else switch (*sin)

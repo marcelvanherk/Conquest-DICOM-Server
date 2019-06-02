@@ -24,7 +24,9 @@
  ***************************************************************************/
 
 /*
- bcb 20140513: Created this file.*/
+ bcb 20140513: Created this file.
+ mvh 20190602: Fix To8BitGray and To16BitGray, shifts were reversed
+ */
 
 #include "uncompconv.hpp"
 #ifdef _WIN32
@@ -44,7 +46,7 @@ UINT32 To8BitGray(unsigned char** dataH,  UINT32 length, UINT16 dataWidth, BOOL 
     outPtr = outData;
     inPtr = *dataH;
     endPtr = inPtr + length;
-    mask = (1 >> dataWidth) - 1;
+    mask = (1 << dataWidth) - 1; //20190601, made >> into <<
     shiftCnt = 0;
     while (inPtr < endPtr)
     {
@@ -53,13 +55,13 @@ UINT32 To8BitGray(unsigned char** dataH,  UINT32 length, UINT16 dataWidth, BOOL 
     //If dataWidth <= 4 will loop, else twice.
         while (shiftCnt < 8)//Never shift more than 8 places.
         {
-            *outPtr++ = ((data & mask) << shiftCnt) & 0xFF;//Get and align the data.
-            mask = mask >> dataWidth;//Move the mask up to the mext group.
+            *outPtr++ = ((data & mask) >> shiftCnt) & 0xFF;//Get and align the data. //20190601, made << into >>
+            mask = mask << dataWidth;//Move the mask up to the mext group. //20190601, made >> into <<
             shiftCnt += dataWidth;//Further to shift.
         }
     //Realign for the next 8 bits of data.
         shiftCnt -= 8;
-        mask = mask << 8;
+        mask = mask >> 8; //20190601, made << into >>
     }
     if(freeBuf) free(*dataH);
     *dataH = outData;
@@ -80,7 +82,7 @@ UINT32 To16BitGray(unsigned char** dataH,  UINT32 length, UINT16 dataWidth, BOOL
     outPtr = outData;
     inPtr = (UINT16*)*dataH;
     endPtr = inPtr + length/2;
-    mask = (1 >> dataWidth) - 1;
+    mask = (1 << dataWidth) - 1; //20190601, made >> into <<
     shiftCnt = 0;
     while (inPtr < endPtr)
     {
@@ -88,13 +90,13 @@ UINT32 To16BitGray(unsigned char** dataH,  UINT32 length, UINT16 dataWidth, BOOL
         data += *inPtr++ * 0x10000;
         while (shiftCnt < 16)//Never shift more than 16 places.
         {
-            *outPtr++ = ((data & mask) << shiftCnt) & 0xFFFF;//Get and align the data.
-            mask = mask >> dataWidth;//Move the mask up to the mext group.
+            *outPtr++ = ((data & mask) >> shiftCnt) & 0xFFFF;//Get and align the data. //20190601, made << into >>
+            mask = mask << dataWidth;//Move the mask up to the mext group. //20190601, made >> into <<
             shiftCnt += dataWidth;//Further to shift.
         }
         //Realign for the next 8 bits of data.
         shiftCnt -= 16;
-        mask = mask << 16;
+        mask = mask >> 16; //20190601, made << into >>
     }
     if(freeBuf) free(*dataH);
     *dataH = (unsigned char*)outData;

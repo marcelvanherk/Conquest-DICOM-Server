@@ -259,6 +259,7 @@
 20181123	mvh	Changed TransferSyntaxUID back to IU (is in preamble)
 20181222	mvh	Added WriteGet for C-GET client; results in image information in ADDO
 20190114	mvh	Set compression to "un" for C-GET (was "" behaved as as-is)
+20190602	mvh	Disable jpeg compression for <8 bits; adapt To8bitMonochromeOrRGB for other than 8 or 16 bits
 */
 
 //#define bool BOOL
@@ -4312,7 +4313,17 @@ CompressJPEGImage(DICOMDataObject **pDDO, int lFileCompressMode, int *ActualMode
                                                memcmp(pVR->Data, "SR", 2)==0 ||
                                                memcmp(pVR->Data, "RT", 2)==0))
 			{
-			OperatorConsole.printf("[CompressJPEGImage]: JPEG compression not allowed for PR/SR/RT\n");
+			SystemDebug.printf("[CompressJPEGImage]: JPEG compression not allowed for PR/SR/RT\n");
+	        	return FALSE;
+			}
+		}
+
+	pVR = (*pDDO)->GetVR(0x0028, 0x0100);
+	if (pVR) 
+		{
+			if (pVR->Length>=2 && atoi((char *)pVR->Data) < 8)
+			{
+			SystemDebug.printf("[CompressJPEGImage]: JPEG compression skipped for <8 bits data\n");
 	        	return FALSE;
 			}
 		}
@@ -5054,6 +5065,8 @@ ExtendedPDU_Service	::	GetAcceptedCompressionType(UID uid)
 
 /* Downsize and convert image to 8 bit monochrome or RGB */
 
+#include "uncompconv.hpp"
+
 static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, int *Dimy, unsigned char **out, int RGBout=0, int level=0, int window=0, unsigned int frame=0, float gamma=1)
 { int			i, j, dum;
   VR*			pVR;
@@ -5126,6 +5139,20 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
   pVR = pDDO->GetVR(0x7fe0, 0x0010);	/* Pixeldata */
   if (!pVR)
     return FALSE;
+
+  int newLength=0;
+  int bitsAllocated = pDDO->GetUINT16(0x0028, 0x0100); // allow < 8 bits data
+  if (bitsAllocated<8)
+  { if ((newLength = To8BitGray((unsigned char **)&(pVR->Data), pVR->Length, bitsAllocated , TRUE)) == 0)
+       return FALSE;
+    pVR-> Length = newLength;
+  }
+  if (bitsAllocated>8 && bitsAllocated<16)
+  { if ((newLength = To16BitGray((unsigned char **)&(pVR->Data), pVR->Length, bitsAllocated , TRUE)) == 0)
+       return FALSE;
+    pVR-> Length = newLength;
+  }
+
   iImageSize = pVR->Length;
 
   if ((iImageSize < iNbPixels) ||

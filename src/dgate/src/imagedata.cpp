@@ -28,6 +28,7 @@
  bcb 20160203: Fix error to work with OsiriX JPEG-LS and strncpy warning.
  mvh 20160619: bcb added sgnd flag
  mvh 20161204: mvh catch imageVR not present
+ mvh 20190602: mvh Fix conversion, reload after To8BitGray and To16BitGray
 */
 
 #ifdef _WIN32
@@ -408,6 +409,9 @@ BOOL ImageData   ::   MakeStdGray()
             return FALSE;
         }
         imageVR->Length = newLength;
+	inPtr = (char *)imageVR->Data; // 20190601
+	inEndPtr = (char *)imageVR->Data+newLength; // 20190601
+
         precision_allocated = 8;
         if (pddo->ChangeVR( 0x0028, 0x0100, (UINT8)8, 'US') > 0) return TRUE;
         OperatorConsole.printf("***[%s]: Can not change VR 0x0028, 0x0100 to 8 bits wide.\n", who);
@@ -420,6 +424,8 @@ BOOL ImageData   ::   MakeStdGray()
             return FALSE;
         }
     imageVR->Length = newLength;
+    inPtr = (char *)imageVR->Data; // 20190601
+    inEndPtr = (char *)imageVR->Data+newLength; // 20190601
     precision_allocated = 16;
     if (pddo->ChangeVR( 0x0028, 0x0100, (UINT8)16, 'US') == 0)
     {

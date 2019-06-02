@@ -230,6 +230,7 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20190320	mvh	Added conversion from ISO_IR 100 to UTF8 in MakeSafeStringValues
 			Setting UTF8ToDB default 0 for now
 20190322	mvh	Fixed that; added backwards conversion as well (WIP)
+20190423	mvh	Added separate UTF8FromDB flag
 */
 
 #define NCACHE 256
@@ -342,6 +343,7 @@ int	FixKodak=0;
 int	UseEscapeStringConstants=0;
 int	DoubleBackSlashToDB=0;
 int	UTF8ToDB=0;
+int	UTF8FromDB=0;
 
 int	FileCompressMode=0;
 char	PatientQuerySortOrder[256]="";
@@ -395,6 +397,10 @@ ConfigDBSpecials(void)
 	MyGetPrivateProfileString ( RootSC, "UTF8ToDB", "0",
 		(char*) Temp, 128, ConfigFile);
 	UTF8ToDB = atoi(Temp);
+
+	MyGetPrivateProfileString ( RootSC, "UTF8FromDB", "0",
+		(char*) Temp, 128, ConfigFile);
+	UTF8FromDB = atoi(Temp);
 
 	MyGetPrivateProfileString ( RootSC, "UseEscapeStringConstants", "0",
 		(char*) Temp, 128, ConfigFile);
@@ -3645,7 +3651,7 @@ ConstructVRFromSQL (
 					{ // Convert from UTF-8, assuming ISO_IR 100 for now (ISO/IEC 8859-1 = Latin-1) 
 					if (sin[0]==0)
 						break;
-					else if (UTF8ToDB && ((sin[0]&0xc0)==0xc0)) 
+					else if (UTF8FromDB && ((sin[0]&0xc0)==0xc0)) 
 						{ 
 						int i=1; while ((sin[i]&0xc0)==0x80) i++; // length of multibyte character
 						if      (i==2 && sin[0]==0xc2) *sout++ = 0x80+(sin[1]&0x3f);

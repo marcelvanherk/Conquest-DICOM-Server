@@ -1109,11 +1109,13 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			Fix leaks in deletepatient: dicomstore() and dicomget()
 20190112	mvh     Use strrchr to find ':' in patientID:uid pair; allows : in patientID
 20190318	mvh     Made it test2
+20190501	mvh     Fixed definition of HandleError to BOOL
+20190501	mvh     Made it test3
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-alpha-test2"
+#define DGATE_VERSION "1.5.0-alpha-test3"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -26691,7 +26693,7 @@ class MyGrayscalePrintManagement : public BasicGrayscalePrintManagementMeta
 		{
 			return;
 		}
-		virtual int		HandleError (
+		virtual BOOL	HandleError (
 				const	ErrorDescription	&theError ) const
 			{
 			OperatorConsole.printf("HandleError: (%s:%d) %s::%s Msg = %s\n", 

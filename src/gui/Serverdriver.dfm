@@ -28,7 +28,7 @@ object Form1: TForm1
     Top = 0
     Width = 818
     Height = 554
-    ActivePage = TabSheet4
+    ActivePage = TabSheet6
     Align = alClient
     ParentShowHint = False
     ShowHint = False
@@ -1494,10 +1494,6 @@ object Form1: TForm1
     end
     object TabSheet6: TTabSheet
       Caption = 'Server status'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -1697,6 +1693,7 @@ object Form1: TForm1
         Hint = 
           'Starts small built-in webserver on port 8086 (right click to sho' +
           'w it)'
+        Anchors = [akTop, akRight]
         Caption = 'Enable built-in web server '
         ParentShowHint = False
         ShowHint = True
@@ -1707,6 +1704,10 @@ object Form1: TForm1
     end
     object TabSheet7: TTabSheet
       Caption = 'Query / Move'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       DesignSize = (
         810
         526)

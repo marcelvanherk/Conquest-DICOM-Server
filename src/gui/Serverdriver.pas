@@ -656,6 +656,9 @@ When            Who     What
 20190103	mvh     Newweb no longer needs acrnema.map; removed cqdicom related code; unused variables
 20190114	mvh     Remove writing of registry on startup
 20190302	mvh     Fixed a small bug in that
+20191011	mvh     Fixed anchor of internal web server button; Added LadlePort config
+			Also nightly zip DicomAnonymized_Log\* files (wip)
+20191019	mvh     Cast for compile issue in xe8, version to 1.5.0alpha-t4
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -691,8 +694,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0alpha';
-const BUILDDATE = '20180114';
+const VERSION = '1.5.0alpha-t4';
+const BUILDDATE = '20191019';
 const testmode = 0;
 
 {************************************************************************}
@@ -1080,8 +1083,8 @@ type
     LabelSeriesSequence: TLabel;
     Label25: TLabel;
     MenuMergeStudies: TMenuItem;
-    CheckBoxWebServer: TCheckBox;
     ProgressBar3: TProgressBar;
+    CheckBoxWebServer: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure RestoreconfigButtonClick(Sender: TObject);
     procedure SaveConfigButtonClick(Sender: TObject);
@@ -1287,7 +1290,7 @@ uses ServerAbout, HeaderLister, AboutNew, SendSelected, EditDatabaseForm, printe
 var DataDir, DataSource, SQLHost, SqlUser, SqlPassWord, MySql, FSqLite, FPostGres,
     FileNameSyntax, MaxFileNameLength, FixPhilips, FixKodak,
     DoubleBackSlashToDB, UseEscapeStringConstants, AllowEmptyPatientID: string;
-var ExternalViewer, DemoViewer, DemoCopy: string;
+var ExternalViewer, DemoViewer, DemoCopy, LadlePort: string;
 var NewInstall, NewInstallDone: boolean;
 var PreRunning: boolean;
 var ThreadedProcess, ActiveProcess: integer;
@@ -3324,6 +3327,10 @@ begin
       Runexternalviewer1.visible := true;
       ExternalViewer := GetData(s);
     end;
+
+    LadlePort := '8086';
+    if Copy(s, 0, length('ladleport')) = 'ladleport' then
+      LadlePort := GetData(s);
 
     if Copy(s, 0, length('demoviewer')) = 'demoviewer' then
       DemoViewer := GetData(s);
@@ -6464,9 +6471,9 @@ begin
                         Table2.FieldByName('STUDYINSTA').AsString,
                         Table3.FieldByName('SERIESINST').AsString);
 {$ELSE}
-  webaddress := 'http://127.0.0.1:8086/dgate.exe?mode=wadoseriesviewer&series=' +
+  webaddress := 'http://127.0.0.1:'+LadlePort+'/dgate.exe?mode=wadoseriesviewer&series=' +
                  Table1.FieldByName('PATIENTID').AsString+':'+Table3.FieldByName('SERIESINST').AsString;
-  ServerTask('', 'luastart:dofile[[lua/ladle.lua]]');
+  ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];dofile[[lua/ladle.lua]]');
   ShellExecute(0, 'open', PWideChar(webaddress), nil, nil, SW_SHOWNORMAL);
 {$ENDIF KPACS}
 end;
@@ -6941,7 +6948,7 @@ end;
 procedure TForm1.CheckBoxWebServerClick(Sender: TObject);
 begin
   if (Sender as TCheckBox).Checked then
-    ServerTask('', 'luastart:dofile[[lua/ladle.lua]]')
+    ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];dofile[[lua/ladle.lua]]')
   else
     ServerTask('', 'luastart:dofile[[lua/quitladle.lua]]');
 end;
@@ -6951,7 +6958,7 @@ procedure TForm1.CheckBoxWebServerMouseDown(Sender: TObject;
 begin
   if not (Sender as TCheckBox).Checked then exit;
   if Button <> mbRight then exit;
-  ShellExecute(0, 'open', 'http://127.0.0.1:8086/dgate.exe?mode=start', nil, nil, SW_SHOWNORMAL);
+  ShellExecute(0, 'open', PWideChar('http://127.0.0.1:'+LadlePort+'/dgate.exe?mode=start'), nil, nil, SW_SHOWNORMAL);
 end;
 
 {************************************************************************}
@@ -10063,6 +10070,8 @@ begin
             glHoldFlush := true;
 
             RunProgramBlocking(curdir + '\7za.exe', curdir, ['-tzip', '-mx=9', 'a', ZipFileName, '*.log *.ini *.sql *.map *.lst']);
+
+            RunProgramBlocking(curdir + '\7za.exe', curdir, ['-tzip', '-mx=9', 'a', '-r', '-sdel', '-y', ZipFileName, 'DicomAnonymized_Log\*.*']);
 
             // and delete them if possible
             if FindFirst(curdir + '\*.log', faAnyFile, sr) = 0 then

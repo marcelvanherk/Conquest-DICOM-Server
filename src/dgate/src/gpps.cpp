@@ -22,6 +22,7 @@
 // 20110331	mvh	Added FlushPrivateProfileStringCache
 // 20110407	mvh	Extended FlushPrivateProfileStringCache to reset timestamp
 //			Fixed that was reading beyond current section
+// 20191019	mvh     Attemp to fix buffer overrun when reading long entries
 
 int      gpps=0, gppstime=0;
 
@@ -35,6 +36,7 @@ int      gpps=0, gppstime=0;
 #include <time.h>
 #include "gpps.hpp"
 #include "dicom.hpp"
+#include "dprintf.hpp"	// Debug output
 
 #ifndef WIN32
 #define stricmp(s1, s2) strcasecmp(s1, s2) //DUCKHEAD92
@@ -318,6 +320,11 @@ MyGetPrivateProfileString(const char *theSection,	// section name
 							strncpy(&theReturnBuffer[aReturnLength],
 								aValue, aLineLength);
 							aReturnLength += aLineLength;
+							if (aReturnLength >= theReturnBufferLength)
+							{
+								aReturnLength = theReturnBufferLength-1;
+								OperatorConsole.printf("***Ini file item '%s:%s' trucated\n", theSection, theKey);
+							}								
 							if(aReturnLength < theReturnBufferLength)
 							{
 								theReturnBuffer[aReturnLength] = '\0';

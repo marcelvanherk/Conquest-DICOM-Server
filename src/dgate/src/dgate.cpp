@@ -1111,11 +1111,15 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20190318	mvh     Made it test2
 20190501	mvh     Fixed definition of HandleError to BOOL
 20190501	mvh     Made it test3
+20191017	mvh     Added attachfile server command and web page
+20191019	mvh     Set ConfigFile and BaseDir in cgi mode, chdir to it, added -hAE
+20191019	mvh     Retired scheduletransfer and some unused web interfaces bacause of compiler limit
+20191019	mvh     Allow numbers inside Dicom names; 1.5.0-alpha-t4
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-alpha-test3"
+#define DGATE_VERSION "1.5.0-alpha-t4"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -4507,7 +4511,7 @@ int SearchDICOMObject(DICOMObject *DDO, const char *desc, char *result, Array < 
 	  int j;
           RTCElement Entry;
 	  strcpy(d, desc+i);
-	  j=0; while (isalpha(d[j])) j++;
+	  j=0; while (isalnum(d[j])) j++; //20191019 isalpha-->isalnum
 	  d[j]=0;
 	  Entry.Description = d;
           if (VRType.GetGroupElement(&Entry))
@@ -9193,7 +9197,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
 	int j;
         RTCElement Entry;
 	strcpy(d, line+4);
-	j=0; while (isalpha(d[j])) j++;
+	j=0; while (isalnum(d[j])) j++; //20191019 isalpha-->isalnum
 	d[j]=0;
 	Entry.Description = d;
         if (VRType.GetGroupElement(&Entry))
@@ -9225,7 +9229,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
 	int j;
         RTCElement Entry;
 	strcpy(d, line+offset+1);
-	j=0; while (isalpha(d[j])) j++;
+	j=0; while (isalnum(d[j])) j++; //20191019 isalpha-->isalnum
 	d[j]=0;
 	Entry.Description = d;
         if (VRType.GetGroupElement(&Entry))
@@ -12338,7 +12342,7 @@ PrintOptions ()
 	fprintf(stderr, "Usage:\n");
 	fprintf(stderr, "(1) DGATE <-!#|-v|-u#>        Report as in dicom.ini|stdout|UDP(#=port)\n");
 	fprintf(stderr, "          [-^|-l|-Lfile]      GUI/Normal/Debug log to file\n");
-	fprintf(stderr, "          [-p#|-qIP|-b]       Set port|Set target IP|run debug 1-thread mode\n");
+	fprintf(stderr, "          [-p#|-hAE|-qIP|-b]  Set port|AE|Target IP|Single thread debug mode\n");
 	fprintf(stderr, "          [-wDIR]             Set the working directory for dgate(ini,dic,...)\n");
 	fprintf(stderr, "          [-i|-r|-arDEVICE]   Init|Init/regenerate DB|Regen single device\n");
 	fprintf(stderr, "          [-d|-m|-k]          List (-d) devices (-m) AE map (-k) DICOM.SQL\n");
@@ -12403,6 +12407,7 @@ PrintOptions ()
 	fprintf(stderr, "    --attachanytostudy:any,sample        patient|study|series in sample file\n" );
 	fprintf(stderr, "    --attachanytoseries:any,sample       Do not attach same at different levels\n" );
 	fprintf(stderr, "    --attachrtplantortstruct:plan,struc Attach rtplan to rtstruct\n" );
+	fprintf(stderr, "    --attachfile:file,script  Process dicom file with script and load\n" );
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Maintenance options:\n");
 	fprintf(stderr, "    --initializetables:       Clear and create database\n" );
@@ -12593,12 +12598,12 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 			{
 			switch ( argv[valid_argc][1] )
 				{
-				case	'h':	// wait e.g., to allow attaching debugger
-				case	'H':
+				//case	'h':	// wait e.g., to allow attaching debugger
+				//case	'H':
 #ifdef WIN32
-					getch();
+				//	getch();
 #endif
-					break;	//Done already.
+				//	break;	//Done already.
 
 				case	'w':	// set workdir for ini, map, dic
 				case	'W':
@@ -12697,14 +12702,18 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 					strcpy((char*)Port, argv[valid_argc]+2);
 					++Valid;
 					break;
-					// fall through was not intended !
 
 				case	'q':	// override dicom.ini ServerCommandAddress (for dgate -- options)
 				case	'Q':
 					strcpy((char*)ServerCommandAddress, argv[valid_argc]+2);
 					++Valid;
 					break;
-					// fall through was not intended !
+
+				case	'h':	// override dicom.ini MYACRNEMA
+				case	'H':
+					strcpy((char*)MYACRNEMA, argv[valid_argc]+2);
+					++Valid;
+					break;
 
 				case	'r':	// init and regenerate database
 				case	'R':
@@ -22214,7 +22223,8 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		ChangeUIDBack(SilentText+14, uid, NULL, NULL);
 		sprintf(Response, "%s", uid);
 		}
-	else if (memcmp(SilentText, "scheduletransfer:", 17)==0)
+
+/*	else if (memcmp(SilentText, "scheduletransfer:", 17)==0)
 		{
 		char scr[] = "call submit.cq";		// default script
 		char *r2=NULL, *r3=NULL, *r4=NULL;
@@ -22242,7 +22252,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		}
 		// prefetch_queue("submit patient ", SilentText+17, "", p, q, "", "", "", r1, r2, r3, 1, "call submit.cq");
 		if (r4) prefetch_queue("submit patient ", SilentText+17, "", p, q, "", "", "", r1, r2, r3, 1, r4);
-		/*
+		///// *
 		char	fields[2048];	
 		char	values[2048];	
 		strcpy(fields,  "HostDicom,PortDicom,HostWebsrv,PortWebSrv" );
@@ -22256,8 +22266,9 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			DB.AddRecord("SUBMISSIONS", fields, values);
 			DB.Close();
 			}
-		*/
+		* ////
 		}
+		*/
 	else if (memcmp(SilentText, "checksum:", 9)==0)
 		{
 		sprintf(Response, "%u", ComputeCRC(SilentText+9, strlen(SilentText+9)));
@@ -22281,6 +22292,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		{
 		if (p) *p++=0;
 		if (p) AttachAnyToSeries(SilentText+18, p, &PDU);
+		}
+	else if (memcmp(SilentText, "attachfile:", 11)==0)
+		{
+		char rFilename[1024];
+		if (p) *p++=0;
+		if (p) AttachFile(SilentText+11, p, rFilename, &PDU);
 		}
 	else if (memcmp(SilentText, "submit:", 7)==0)
 		{
@@ -23181,7 +23198,7 @@ void ConfigDgate(void)
 	}
 
 // main as console app or child process
-static void DgateCgi(char *query_string, char *ext); // forward reference
+static void DgateCgi(char *query_string, char *ext, char *argv0); // forward reference
 
 int
 main ( int	argc, char	*argv[] )
@@ -23209,7 +23226,7 @@ main ( int	argc, char	*argv[] )
 #else
 		char *ext=strrchr(argv[0], '.');
 #endif
-		DgateCgi(query_string, ext);
+		DgateCgi(query_string, ext, argv[0]);
 		exit(0);
 		}
 
@@ -23221,7 +23238,7 @@ main ( int	argc, char	*argv[] )
 #else
 		char *ext=strrchr(argv[0], '.');
 #endif
-		DgateCgi(query_string, ext);
+		DgateCgi(query_string, ext, argv[0]);
 		exit(0);
 		}
 		
@@ -24246,19 +24263,27 @@ static void replace(char *string, const char *key, const char *value)
 
 static BOOL DgateWADO(char *query_string, char *ext);
 
-static void DgateCgi(char *query_string, char *ext)
+static void DgateCgi(char *query_string, char *ext, char *argv0)
 { char mode[512], command[8192], size[32], dsize[32], iconsize[32], slice[512], slice2[512], query[512], buf[512], 
        patientidmatch[512], patientnamematch[512], studydatematch[512], startdatematch[512], 
        db[256], series[512], study[512], compress[64], WebScriptAddress[256], WebMAG0Address[256], 
        WebServerFor[64], WebCodeBase[512], lw[64], source[64], dest[64], series2[512], study2[512],
        DefaultPage[256], AnyPage[256], key[512], AnyPageExceptions[512];
-  char ex[128], extra[256], graphic[32], viewer[128], studyviewer[128];
+  char ex[128], extra[256], graphic[32], viewer[128], studyviewer[128], script[1024];
   unsigned int  i, j;
   DBENTRY *DBE;
   char  RootSC[64];
   char  Temp[128];
   char  *p1;
-
+  
+  if (strrchr(argv0, PATHSEPCHAR))
+  { strcpy(ConfigFile, argv0);
+    *(strrchr(ConfigFile, PATHSEPCHAR) + 1) = 0;
+    strcpy(BaseDir, ConfigFile);
+    strcat(ConfigFile, "dicom.ini");
+    chdir(BaseDir);
+  }
+  
   *uploadedfile=0;
   if (DgateWADO(query_string, ext)) return;
 
@@ -24354,6 +24379,7 @@ static void DgateCgi(char *query_string, char *ext)
   CGI(source,  "source",   "(local)");  // source for move
   CGI(dest,    "dest",     "");		// destination for move
   CGI(key,     "key",      "");		// key for mark
+  CGI(script,  "script",   "");		// script for attachfile
 
   j = 0;
   for(i=0; i<strlen(slice2); i++) if (slice2[i]==' ') { slice[j++]='%'; slice[j++]='2'; slice[j++]='0'; } else slice[j++]=slice2[i];
@@ -24671,7 +24697,7 @@ static void DgateCgi(char *query_string, char *ext)
     exit(0);
   };
 
-  if (strcmp(mode, "updateconfig")==0)
+/*  if (strcmp(mode, "updateconfig")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -24682,6 +24708,7 @@ static void DgateCgi(char *query_string, char *ext)
     HTML("</BODY>");
     exit(0);
   };
+*/
 
   /************************** local browsers **************************/
 
@@ -24970,6 +24997,7 @@ static void DgateCgi(char *query_string, char *ext)
   };
 
   /* unused */
+/*
   if (strcmp(mode, "dicomfind")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
@@ -25000,6 +25028,7 @@ static void DgateCgi(char *query_string, char *ext)
     HTML("</BODY>");
     exit(0);
   };
+  */
 
   /************************** movers **************************/
 
@@ -25141,6 +25170,22 @@ static void DgateCgi(char *query_string, char *ext)
     HTML(uploadedfile);
     char com[512], file[512];
     sprintf(com, "addimagefile:%s", uploadedfile);
+    strcpy(file, uploadedfile);
+    SendServerCommand("", com, 0, uploadedfile, FALSE, TRUE);
+    unlink(file);
+    exit(0);
+  };
+
+  if (strcmp(mode, "attachfile")==0)
+  { HTML("Content-type: text/html\nCache-Control: no-cache\n");
+    HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
+    HTML("<BODY BGCOLOR='CFDFCF'>");
+    HTML("<H2>Conquest DICOM server - version %s</H2>", DGATE_VERSION);
+    HTML("</BODY>");
+    HTML("Uploaded and scripted processed file:");
+    HTML(uploadedfile);
+    char com[512], file[512];
+    sprintf(com, "attachfile:%s,%s", uploadedfile, script);
     strcpy(file, uploadedfile);
     SendServerCommand("", com, 0, uploadedfile, FALSE, TRUE);
     unlink(file);
@@ -25541,7 +25586,7 @@ static void DgateCgi(char *query_string, char *ext)
   };
 
   /* k-pacs viewer in an OCX; internet explorer only */
-  if (strcmp(mode, "seriesviewer")==0)
+/*  if (strcmp(mode, "seriesviewer")==0)
   { char *p;
   
     if (size[0]==0) strcpy(size, "80%25%25");
@@ -25572,9 +25617,10 @@ static void DgateCgi(char *query_string, char *ext)
     HTML("</BODY>");
     exit(0);
   };
+  */
 
   /* k-pacs viewer in an OCX; internet explorer only; data access through http served image files */
-  if (strcmp(mode, "seriesviewer2")==0)
+  /*if (strcmp(mode, "seriesviewer2")==0)
   { char wwwserveraddress[512] = "http://";
     strcat(wwwserveraddress, getenv("SERVER_NAME"));
 
@@ -25610,6 +25656,7 @@ static void DgateCgi(char *query_string, char *ext)
     HTML("</BODY>");
     exit(0);
   };
+  */
 
   /* no viewer */
   if (strcmp(mode, "noviewer")==0)
@@ -25627,7 +25674,7 @@ static void DgateCgi(char *query_string, char *ext)
   };
 
   /* The Japanese java-based viewer; requires some modifications to work */
-  if (strcmp(mode, "aiviewer")==0)
+  /*if (strcmp(mode, "aiviewer")==0)
   { char *p;
 
     HTML("Content-type: text/html\n");
@@ -25661,6 +25708,7 @@ static void DgateCgi(char *query_string, char *ext)
     HTML("</BODY>");
     exit(0);
   };
+  */
 
   /* very simple jave-script based viewer with server side processing */
   if (strcmp(mode, "serversideviewer")==0)

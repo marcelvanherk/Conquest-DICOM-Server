@@ -231,6 +231,9 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 			Setting UTF8ToDB default 0 for now
 20190322	mvh	Fixed that; added backwards conversion as well (WIP)
 20190423	mvh	Added separate UTF8FromDB flag
+20190914	mvh	Cache changeUID and changeUIDTo (UIDCache); accelerates anomymisation enormously
+20191011	mvh	Fixed this for non-staged operation
+20191019	mvh	Extended TempString to 1024 to avoid buffer overrun
 */
 
 #define NCACHE 256
@@ -1254,7 +1257,7 @@ AddToTable(
 	VR				FakeVR;
 	char		Columns [ 4096 ];
 	char		Values [ 4096 ];
-	char		TempString [ 512 ];
+	char		TempString [ 1024 ];
 
 
 	Index = 0;CIndex = 0;
@@ -1373,7 +1376,7 @@ UpdateOrAddToTable(
 	char			Values [ 4096 ];
 	char			Updates [ 8192 ];
 	char			Where [512];
-	char			TempString [ 512 ];
+	char			TempString [ 1024 ];
 	SQLLEN			sdword;
 	char			*pTmp;
 	char			*pTmp2;
@@ -1979,6 +1982,72 @@ dbGenUID(char	*oString)
 // Generates a new UID from an old one, but use UIDMODs table to maintain history of changes
 // A new request to change the old UID returns the previously changed UID
 
+char			UIDsCache[NCACHE][129];
+char			UIDsResult[NCACHE][65];
+int			UIDCheckSums[NCACHE];
+CRITICAL_SECTION 	UIDCritical;
+int			UIDTop=0, UIDBottom=0;
+
+int UIDCache(char *in, char *out, char *stage)
+	{ 
+	int i, sum, r;
+	char *p = in;
+
+	sum = 0;
+	while(*p) sum+=*p++;
+
+	if (stage)
+		{
+		p = stage;
+		while(*p) sum+=*p++;
+		}
+
+	if (UIDTop==0 && UIDBottom==0)
+		InitializeCriticalSection(&UIDCritical);
+
+	EnterCriticalSection(&UIDCritical);
+
+	/* clear cache if it is empty */
+	if (UIDTop==0 && UIDBottom==0)
+		for (i=0; i<NCACHE; i++)
+			{
+			UIDsCache[i][0]=0;
+			UIDsResult[i][0]=0;
+			}
+
+	for (i=UIDTop; i!=UIDBottom; i=(i==0 ? NCACHE-1 : i-1))
+		{
+		if (UIDCheckSums[i] == sum)
+			if (memcmp(UIDsCache[i], in, strlen(in))==0) 
+				if (stage && memcmp(UIDsCache[i]+strlen(in), stage, strlen(stage))==0)
+					{
+					strcpy(out, UIDsResult[i]);
+					LeaveCriticalSection(&UIDCritical);
+					return -1;
+					}
+				else
+					{
+					strcpy(out, UIDsResult[i]);
+					LeaveCriticalSection(&UIDCritical);
+					return -1;
+					}
+		}
+
+	if ((UIDTop+1)%NCACHE == UIDBottom)
+		UIDBottom = (UIDBottom+1)%NCACHE;	// delete oldest entry
+
+	strcpy(UIDsCache[UIDTop], in);
+	if(stage) strcat(UIDsCache[UIDTop], stage);
+        UIDCheckSums[UIDTop] = sum;
+	r = UIDTop;
+
+      	UIDTop = (UIDTop+1)%NCACHE;
+
+	LeaveCriticalSection(&UIDCritical);
+
+	return r;
+  	}
+
 CRITICAL_SECTION ChangeUIDCritical;
 BOOL ChangeUIDCriticalInit=FALSE;
 
@@ -1991,12 +2060,16 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 	SQLLEN		sdword;
 	int 		len;
 	BOOL 		hasStage = TRUE;
+	int 		r;
 
 	if (OldUID[0]==0) 
 		{
 		*NewUID = 0;
 		return TRUE;
 		}
+		
+	r = UIDCache(OldUID, NewUID, Stage);
+	if (r<0) return TRUE;
 
 	if (!ChangeUIDCriticalInit)
 	{ InitializeCriticalSection(&ChangeUIDCritical);
@@ -2080,10 +2153,14 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 				}
 			LeaveCriticalSection(&ChangeUIDCritical);
 			}
+		strcpy(UIDsResult[r], NewUID);
 		return TRUE;
 		}
-		else
-			SystemDebug.printf("OldUID = %s, Stage = %s, NewUID = %s\n", OldUID, Stage, NewUID);
+	else
+		{
+		SystemDebug.printf("OldUID = %s, Stage = %s, NewUID = %s\n", OldUID, Stage, NewUID);
+		strcpy(UIDsResult[r], NewUID);
+		}
 
         LeaveCriticalSection(&ChangeUIDCritical);
 	return ( TRUE );
@@ -2101,12 +2178,16 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
 	SQLLEN		sdword;
 	int 		len;
 	BOOL 		hasStage = TRUE;
+	int		r;
 
 	if (OldUID[0]==0) 
 		{
 		*NewUID = 0;
 		return TRUE;
 		}
+
+	r = UIDCache(OldUID, NewUID, Stage);
+	if (r<0) return TRUE;
 
 	if (!ChangeUIDCriticalInit)
 	{ InitializeCriticalSection(&ChangeUIDCritical);
@@ -2190,11 +2271,15 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
 				return ( FALSE );
 				}
 			}
+		strcpy(UIDsResult[r], NewUID);
                 LeaveCriticalSection(&ChangeUIDCritical);
 		return TRUE;
 		}
-		else
-			SystemDebug.printf("OldUID = %s, NewUID = %s\n", OldUID, NewUID);
+	else
+		{
+		SystemDebug.printf("OldUID = %s, NewUID = %s\n", OldUID, NewUID);
+		strcpy(UIDsResult[r], NewUID);
+		}
 
         LeaveCriticalSection(&ChangeUIDCritical);
 	return ( TRUE );

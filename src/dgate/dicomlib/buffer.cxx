@@ -11,7 +11,7 @@ Spectra-0019:	Thu, 6 Mar 2014 17:02:42 -0300: Fix mismatched new/delete in buffe
 20140528    lsp  Kept member initialization only in constructors: not GNUC specific
 20160221    mvh  Clear data if buffer read fails; avoids infinite loop if connection is broken
 20180316    mvh  Implemented buffer size changes proposed by lsp
-20190314    mvh  Buffer size for linux back to 8192
+20190318    mvh  DEFAULT_BREAK_SIZE back to 8192 for linux
 */
 
 /****************************************************************************
@@ -52,7 +52,7 @@ Spectra-0019:	Thu, 6 Mar 2014 17:02:42 -0300: Fix mismatched new/delete in buffe
 #	include	"dicom.hpp"
 
 #ifdef UNIX
-#	define	DEFAULT_BREAK_SIZE	8192  // was 8192
+#	define	DEFAULT_BREAK_SIZE	8192
 #else
 #	define	DEFAULT_BREAK_SIZE	262144  // was 32600
 #endif

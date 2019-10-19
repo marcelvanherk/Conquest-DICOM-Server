@@ -75,6 +75,7 @@
 20171122	mvh	Added DT_ISTR (case insensitive query string)
 20190321	mvh	Added optional conversion from ISO_IR 100 to UTF8 in MakeSafeString
 20190322	mvh	Fixed that
+20191019        mvh     Removed sorting for CountOnly query (SQL fails on postgres)
 */
 
 #ifndef	WHEDGE
@@ -949,6 +950,7 @@ BOOL	QueryOnPatient (
 
         Sort = Sorting;
         if (PatientQuerySortOrder[0]) Sort = PatientQuerySortOrder;
+	if (CountOnly) Sort = NULL;
 
 	SystemDebug.printf("Sorting (%s) DoSort := %d\n", Sort, DoSort);
 
@@ -1342,6 +1344,7 @@ BOOL	QueryOnStudy (
 
         Sort = Sorting;
         if (StudyQuerySortOrder[0]) Sort = StudyQuerySortOrder;
+	if (CountOnly) Sort = NULL;
 
 	SystemDebug.printf("Sorting (%s) DoSort := %d\n", Sort, DoSort);
 
@@ -1734,6 +1737,7 @@ BOOL	QueryOnSeries (
 	// Issue Query
 
         if (SeriesQuerySortOrder[0]) Sort = SeriesQuerySortOrder;
+	if (CountOnly) Sort = NULL;
 
 	if(strlen(SearchString))
 		{
@@ -2207,6 +2211,7 @@ BOOL	QueryOnImage (
 
 	// Issue Query
         if (ImageQuerySortOrder[0]) Sort = ImageQuerySortOrder;
+	if (CountOnly) Sort = NULL;
 
 	if(strlen(SearchString))
 		{

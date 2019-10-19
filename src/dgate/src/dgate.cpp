@@ -1114,7 +1114,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20191017	mvh     Added attachfile server command and web page
 20191019	mvh     Set ConfigFile and BaseDir in cgi mode, chdir to it, added -hAE
 20191019	mvh     Retired scheduletransfer and some unused web interfaces bacause of compiler limit
-20191019	mvh     Allow numbers inside Dicom names; 1.5.0-alpha-t4
+20191019	mvh     Allow numbers inside Dicom names; fix querycache for linux; 1.5.0-alpha-t4
 
 ENDOFUPDATEHISTORY
 */
@@ -14231,9 +14231,9 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
 	memset(Filename, 0, 1024);
 	GetPhysicalDevice("MAG0", Filename);
 	devlen = strlen(Filename);
-	strcat(Filename, "printer_files\\");
+	strcat(Filename, "printer_files");
 	p = Filename + strlen(Filename);
-	sprintf(p, "querycache\\%4.4s\\%4.4s\\%08x.query.dcm", date, date+4, crc);
+	sprintf(p, "%squerycache%s%4.4s%s%4.4s%s%08x.query.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
 
 	// was the same query stored previously ?
 	hit = FALSE;
@@ -14248,7 +14248,8 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
 
 	// if so, load the result from disk
 	if (hit)
-	{ sprintf(p, "querycache\\%4.4s\\%4.4s\\%08x.result.dcm", date, date+4, crc);
+	{ //sprintf(p, "\\querycache\\%4.4s\\%4.4s\\%08x.result.dcm", date, date+4, crc);
+	  sprintf(p, "%squerycache%s%4.4s%s%4.4s%s%08x.result.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
 	  DICOMDataObject *DO = LoadForGUI(Filename);
 	  if (DO)
 	  { vr1 = DO->GetVR(0x9999, 0x1000);
@@ -14272,7 +14273,8 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
 	{ int N1 = pADDO->GetSize();
 	  VirtualQuery(DDO2, Level, N, pADDO);
 	  int M1 = pADDO->GetSize();
-	  sprintf(p, "querycache\\%4.4s\\%4.4s\\%08x.query.dcm", date, date+4, crc);
+	  //sprintf(p, "\\querycache\\%4.4s\\%4.4s\\%08x.query.dcm", date, date+4, crc);
+	  sprintf(p, "%squerycache%s%4.4s%s%4.4s%s%08x.query.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
 	  for (unsigned int sIndex = devlen; sIndex<=strlen(Filename); sIndex++)
 	    if (Filename[sIndex]==PATHSEPCHAR)
 	    { strcpy(s, Filename);
@@ -14292,7 +14294,7 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
 
 	  DICOMDataObject *D = new DICOMDataObject;
           D->Push(vr1);
-	  sprintf(p, "querycache\\%4.4s\\%4.4s\\%08x.result.dcm", date, date+4, crc);
+	  sprintf(p, "\\querycache\\%4.4s\\%4.4s\\%08x.result.dcm", date, date+4, crc);
 	  SaveDICOMDataObject(Filename, D);
           SystemDebug.printf("VirtualQueryCached: stored %d cache records for %s:%s/%s in %s\n", 
 	    M1-N1, pat, studuid, seruid, Filename);

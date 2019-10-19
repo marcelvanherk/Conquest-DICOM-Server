@@ -33,6 +33,7 @@
 -- 20181229 Fix cornerstone_starter, iframe_starter, added dumpvars; take dwv and papaya out of study viewers
 --          Added WebScriptAddress and WebCodeBase to cgi-bin/dicom.ini (for Weasis)
 -- 20181230 Removed acrnema.map from web install; no longer needed
+-- 20191019 Also copy jpg(s) in htdocs folder for web install
 
 function errorpage(s)
   HTML('Content-type: text/html\n\n');
@@ -248,7 +249,9 @@ function create_newweb_dicomini()
   local list = {'start','listpatients','liststudies','listseries','listimageswiththumbs','listimages','listtrials','listtrialpatients',
                  'wadostudyviewer','wadoseriesviewer','wadoviewerhelp','slice','weasis_starter',
                  'wadoviewer_starter', 'dwvviewer_starter', 'altviewer_starter', 'imagejviewer_starter',
-	         'flexviewer_starter', 'papaya_starter', 'cornerstone_starter', 'iframe_starter', 'dumpvars'}
+	         'flexviewer_starter', 'papaya_starter', 'cornerstone_starter', 'iframe_starter', 'dumpvars', 
+		 'conquest' --jpg
+	       }
   if true then -- not fileexists(cgiweb..'newweb'..sep..'dicom.ini') then
     sendservercommand('mkdir '..cgiweb..'newweb')
 
@@ -256,6 +259,10 @@ function create_newweb_dicomini()
     for k,v in ipairs(list) do
       if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..v..'.lua') then
         copyfile(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..v..'.lua', cgiweb..'newweb'..sep..v..'.lua')
+        s=s..v..','
+      end
+      if fileexists(server..'webserver'..sep..'htdocs'..sep..v..'.jpg') then
+        copyfile(server..'webserver'..sep..'htdocs'..sep..v..'.jpg', cgiweb..'..'..sep..'htdocs'..sep..v..'.jpg')
         s=s..v..','
       end
     end

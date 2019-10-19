@@ -5,6 +5,7 @@
 -- mvh 20180204: Some cleanup, report when ladle is used
 -- mvh 20181111: Added missing Global.WebCodeBase for conquest icon
 -- mvh 20181230: Removed no longer needed acrnema.map test, all access is remote
+-- mvh 20191017: Added submit button to upload file
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -157,4 +158,13 @@ if counttrials()>1 then
 end
 
 HTML("</table>");
+
+HTML("<FORM ACTION=\"dgate%s\" METHOD=POST ENCTYPE=\"multipart/form-data\">", ex);
+HTML("<INPUT NAME=mode    TYPE=HIDDEN VALUE=addlocalfile>");
+HTML("<INPUT NAME=port    TYPE=HIDDEN VALUE=%s>", port);
+HTML("<INPUT NAME=address TYPE=HIDDEN VALUE=%s>", address);
+HTML("Upload file to enter into server (dcm/v2/HL7/zip/7z/gz/tar): <INPUT NAME=filetoupload SIZE=40 TYPE=file VALUE=>");
+HTML("<INPUT TYPE=SUBMIT VALUE=Go>");
+HTML("</FORM>");
+
 HTML("</BODY>")

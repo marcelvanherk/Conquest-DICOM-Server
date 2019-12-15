@@ -1115,11 +1115,14 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20191019	mvh     Set ConfigFile and BaseDir in cgi mode, chdir to it, added -hAE
 20191019	mvh     Retired scheduletransfer and some unused web interfaces bacause of compiler limit
 20191019	mvh     Allow numbers inside Dicom names; fix querycache for linux; 1.5.0-alpha-t4
+20191209        mvh     attachfile will also process zip file; version to 1.5.0-beta
+20191212        mvh     Added lua CGI() call; returns post_buf as is
+20191215        mvh     Fix in above; also read post_buf for other requests (GET, PUT), unlink uploadedfile at end
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-alpha-t4"
+#define DGATE_VERSION "1.5.0-beta"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -3131,9 +3134,10 @@ static BOOL dgate_IsDirectory(char *TempPath)
 
 int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage, char *Script);
 extern "C" void lua_setvar(ExtendedPDU_Service *pdu, char *name, char *value);
+BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Service *PDU);
 
 #ifdef WIN32
-BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int Thread)
+BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int Thread, char *script=NULL)
 	{
 	HANDLE		fdHandle;
 	WIN32_FIND_DATA	FileData;
@@ -3164,7 +3168,7 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 				strcpy(TempPath, dir);
 				strcat(TempPath, FileData.cFileName);
 				strcat(TempPath, "\\");
-				LoadAndDeleteDir(TempPath, NewPatid, PDU, Thread==0?0:Thread+1);
+				LoadAndDeleteDir(TempPath, NewPatid, PDU, Thread==0?0:Thread+1, script);
 				rmdir(TempPath);
 				}
 			}
@@ -3179,7 +3183,12 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 				if (f)
 					{
 					fclose(f);
-					if (!AddImageFile (TempPath, NewPatid, PDU))
+					if (script)
+						{
+						char dum[1024];
+						AttachFile(TempPath, script, dum, PDU);
+						}
+					else if (!AddImageFile (TempPath, NewPatid, PDU))
 						{
 						DICOMDataObject	DDO;
 						lua_setvar(PDU, "Filename", TempPath);
@@ -3761,6 +3770,31 @@ BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Servi
 	DICOMDataObject*	pDDO;
 	Database		DB;
 	int			rc;
+	char			*p;
+
+	// compressed file support using 7za.exe
+	p = strrchr(filename, '.');
+	if (p && strstr(".gz.GZ.zip.ZIP.tar.TAR.7z.7Z", p))
+		{ 
+		char line[1000], dir[512];
+
+		NewTempFile(dir, "");
+		mkdir(dir);
+
+#ifdef WIN32
+		sprintf(line, "-y -o\"%s\" x \"%s\"", dir, filename);
+  		BackgroundExec("7za.exe", line);
+		strcat(dir, "\\");
+#else
+		sprintf(line, "7za -y -o\"%s\" x \"%s\"", dir, filename);
+		system(line);
+		strcat(dir, "/");
+#endif
+		LoadAndDeleteDir(dir, NULL, PDU, 0, script);
+		rmdir(dir);
+
+		return TRUE;
+		}
 
 	if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
 		{
@@ -6388,6 +6422,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     }
     return 0;
   }
+
   static int luadbquery(lua_State *L)
   { unsigned int i, N, flds=1;
     const char *items[4];
@@ -6417,6 +6452,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     }
     return 0;
   }
+
   static int luasql(lua_State *L)
   { const char *sql = lua_tostring(L,1);
     BOOL f=FALSE;
@@ -7533,11 +7569,17 @@ static int CGI(char *out, const char *name, const char *def);
     }
     return 0;
   }
+
+static char *post_buf=NULL;
+static int post_len=0;
+static char uploadedfile[256];
+
   static int luaCGI(lua_State *L)
   { char buf[1000];
     int n=lua_gettop(L);
     switch(n)
-    { case 1: CGI(buf, lua_tostring(L, 1), ""); break;
+    { case 0: lua_pushlstring(L, post_buf, post_len); return 1;
+      case 1: CGI(buf, lua_tostring(L, 1), ""); break;
       case 2: CGI(buf, lua_tostring(L, 1), lua_tostring(L,2)); break;
     }
     lua_pushstring(L, buf);
@@ -24083,15 +24125,12 @@ static void HTML(const char *string, ...)
   write(console, n, 1);
 }
 
-static char *post_buf=NULL;
-static char uploadedfile[256];
-
 static int CGI(char *out, const char *name, const char *def)
 { char *p = getenv( "QUERY_STRING" );
   char *q = getenv( "CONTENT_LENGTH" );
   char *r = getenv( "REQUEST_METHOD" );
   char tmp[512];
-  int  i, j, len=0;
+  int  i, j;
   char *fstart=NULL;
   int flen=0;
 
@@ -24101,19 +24140,19 @@ static int CGI(char *out, const char *name, const char *def)
 
   if (out!=def) *out = 0;
 
-  if (r!=NULL && memcmp(r, "POST", 3)==0)
-  { if (q!=NULL && *q!=0 && post_buf==NULL) 
-    { len = atoi(q);
-      post_buf = (char *)malloc(len+1);
-      post_buf[len]=0;
+  // if (r!=NULL && memcmp(r, "POST", 3)==0)
+  { if (q!=NULL && *q!=0 && atoi(q)!=0 && post_buf==NULL) 
+    { post_len = atoi(q);
+      post_buf = (char *)malloc(post_len+1);
+      post_buf[post_len]=0;
 #ifdef WIN32
       setmode(fileno(stdin), O_BINARY);
 #endif
-      fread(post_buf, len, 1, stdin);
+      fread(post_buf, post_len, 1, stdin);
       p = post_buf;
 
 //FILE *g = fopen("c:\\temp\\postbuf.bin", "wb");
-//fwrite(post_buf, len, 1, g);
+//fwrite(post_buf, post_len, 1, g);
 //fclose(g);
     }
     else
@@ -24121,7 +24160,7 @@ static int CGI(char *out, const char *name, const char *def)
 
     if (p==NULL) return 0;
 
-    if (p[0]=='-')      // multipart data, locate the file (one assumed)
+    if (post_len>0 && p[0]=='-')      // multipart data, locate the file (one assumed)
     { q = strstr(p, "filename=");
             
       if (q)
@@ -24143,7 +24182,7 @@ static int CGI(char *out, const char *name, const char *def)
 	  *q = 0;
 	  fstart = q+1;
 	                      // file ends after two newlines (one at end)
-	  flen = len - (fstart-post_buf);
+	  flen = post_len - (fstart-post_buf);
 	  flen-=4;
 	  while (fstart[flen]!=0x0d && flen>0) flen--;
 
@@ -24170,17 +24209,17 @@ static int CGI(char *out, const char *name, const char *def)
       if (out!=def) strcpy(out, def);
       return 0;
     }
-    else if (*uploadedfile==0 && p[0]=='<')      // xml
+    else if (*uploadedfile==0 && post_len>0 && p[0]=='<')      // xml
     { NewTempFile(uploadedfile, ".xml");
       FILE *g = fopen(uploadedfile, "wb");
-      fwrite(p, len, 1, g);
+      fwrite(p, post_len, 1, g);
       fclose(g);
       p = getenv( "QUERY_STRING" );
     }
-    else if (*uploadedfile==0)      		// any other type
+    else if (*uploadedfile==0 && post_len>0)      		// any other type
     { NewTempFile(uploadedfile, ".dat");
       FILE *g = fopen(uploadedfile, "wb");
-      fwrite(p, len, 1, g);
+      fwrite(p, post_len, 1, g);
       fclose(g);
       p = getenv( "QUERY_STRING" );
     }
@@ -25991,6 +26030,7 @@ windowname = AiViewer V1.00
 
       do_lua(&(globalPDU.L), script, &sd1);
 
+      if (*uploadedfile) unlink(uploadedfile);
       exit(0);
     }
 
@@ -26164,6 +26204,7 @@ windowname = AiViewer V1.00
     };
 
     if (f) fclose(f);
+    if (*uploadedfile) unlink(uploadedfile);
     exit(0);
   };
 

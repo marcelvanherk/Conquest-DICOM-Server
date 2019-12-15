@@ -659,6 +659,8 @@ When            Who     What
 20191011	mvh     Fixed anchor of internal web server button; Added LadlePort config
 			Also nightly zip DicomAnonymized_Log\* files (wip)
 20191019	mvh     Cast for compile issue in xe8, version to 1.5.0alpha-t4
+20191025	mvh     Fix progress bar (ignore empty messages), disable ProgressActive counter; increase size of visual log
+20191215	mvh     Fix ladle port default; version to 1.5.0beta
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -694,8 +696,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0alpha-t4';
-const BUILDDATE = '20191019';
+const VERSION = '1.5.0beta';
+const BUILDDATE = '20191215';
 const testmode = 0;
 
 {************************************************************************}
@@ -1290,7 +1292,7 @@ uses ServerAbout, HeaderLister, AboutNew, SendSelected, EditDatabaseForm, printe
 var DataDir, DataSource, SQLHost, SqlUser, SqlPassWord, MySql, FSqLite, FPostGres,
     FileNameSyntax, MaxFileNameLength, FixPhilips, FixKodak,
     DoubleBackSlashToDB, UseEscapeStringConstants, AllowEmptyPatientID: string;
-var ExternalViewer, DemoViewer, DemoCopy, LadlePort: string;
+var ExternalViewer, DemoViewer, DemoCopy: string;
 var NewInstall, NewInstallDone: boolean;
 var PreRunning: boolean;
 var ThreadedProcess, ActiveProcess: integer;
@@ -1409,6 +1411,7 @@ var IgnoreOutOfMemoryErrors: string = '0';
 var NoDICOMCheck: string = '0';
 var PadAEWithZeros: string = '0';
 var RetryForwardRemoteDICOMError: string = '0';
+var LadlePort: string = '8086';
 
 var CheckDays: array[1..10] of integer;
     CheckTimes: array[1..10] of string;
@@ -3159,8 +3162,9 @@ begin
   i := Pos(key+'=', t);
   if (i<1) then exit;
   j := Pos(',', t, i+1);
+  if j=0 then j:=Pos(#10, t, i+1);
   if j=0 then j:=Length(t)+1;
-  result := copy(t, i+Length(key)+1, j-(i+Length(key)+1));
+  result := trim(copy(t, i+Length(key)+1, j-(i+Length(key)+1)));
 end;
 
 procedure TForm1.RestoreconfigButtonClick(Sender: TObject);
@@ -3328,7 +3332,6 @@ begin
       ExternalViewer := GetData(s);
     end;
 
-    LadlePort := '8086';
     if Copy(s, 0, length('ladleport')) = 'ladleport' then
       LadlePort := GetData(s);
 
@@ -7016,7 +7019,7 @@ begin
   // s := copy(s, 0, length(s)-1);
   for i:=1 to length(s) do if s[i]<' ' then s[i]:=' ';
 
-  WriteMemo(ServerStatusMemo, s, 200, 100, 'serverstatus');
+  WriteMemo(ServerStatusMemo, s, 2000, 1000, 'serverstatus');
 
   // duplicate serious server problems in conquestdicomserver.log
   if Pos('***', s) > 0 then WriteLog(s);
@@ -7261,7 +7264,8 @@ begin
   buffer[0] := #00; // for when recieve fails
   i := ProgressSocket.Receive(@buffer, 80191);
 
-  buffer[i] := #00;
+  buffer[i] := #10;
+  buffer[i+1] := #00;
   s := buffer;
 
   pg := ProgressBar2;
@@ -7317,23 +7321,25 @@ begin
     if t='1' then
     begin
       pg.Visible := true;
-      inc(ProgressActive);
+      ProgressActive:=1;
+      //inc(ProgressActive);
     end
     else if t='0' then
     begin
-      dec(ProgressActive);
+      //dec(ProgressActive);
+      ProgressActive:=0;
       pg.Visible := ProgressActive<>0;
       if PageControl1.ActivePage <> TabSheet7 then RefreshDatabase
       else Memo1.Lines.Add(p + '. Copying done.');
     end;
 
     t := GetKey(s, 'Total');
-    if pg.Visible then
+    if pg.Visible and (t<>'') then
     begin
       pg.Max := StrToIntDef(t, 100)-1;
-      t := GetKey(s, 'Current');
-      if pg.Position < StrToIntDef(t, 100) then
-        pg.Position := StrToIntDef(t, 100);
+      f := GetKey(s, 'Current');
+      if pg.Position < StrToIntDef(f, 100) then
+        pg.Position := StrToIntDef(f, 100);
     end;
     pg.Update;
     s := copy(s, pos(#10, s)+1, 99999);

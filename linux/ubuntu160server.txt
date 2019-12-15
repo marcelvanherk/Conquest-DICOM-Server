@@ -30,9 +30,9 @@ Download and unzip conquest
 
 wget http://ingenium.home.xs4all.nl/dicomserver/dicomserver1419c.zip
 
-unzip dicomserver1419b.zip
+unzip dicomserver1419c.zip
 
-rm dicomserver1419b.zip
+rm dicomserver1419c.zip
 
 Build conquest
 

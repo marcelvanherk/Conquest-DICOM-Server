@@ -20,8 +20,7 @@ mkdir lua
 cp ../lua/anonymize_script.lua lua
 
 chmod 777 $SRC/luasocket/amake.sh;
-pushd;
-cd $SRC/luasocket;
+pushd $SRC/luasocket;
 ./amake.sh;
 popd;
 

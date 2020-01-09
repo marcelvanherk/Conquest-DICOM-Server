@@ -1118,6 +1118,12 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20191209        mvh     attachfile will also process zip file; version to 1.5.0-beta
 20191212        mvh     Added lua CGI() call; returns post_buf as is
 20191215        mvh     Fix in above; also read post_buf for other requests (GET, PUT), unlink uploadedfile at end
+20191219        mvh     Fix zip in attachfile for Linux
+20191221        mvh     Added lua listoldestpatients(max, device, sort)
+20191227        mvh     Fix in reading POST parameters with CGI(); set filename for export: and convert_to_dicom:
+20200107        mvh     attachfile: now reads embedded file if available; added lua dicomecho()
+20200108        mvh     Allow e.g. servercommand('Command["9999,0401"]="val"') as alternative to returnfile
+20200109        mvh     Removed double Content-length in download header; fix %c format in querycache; cast in serialize
 
 ENDOFUPDATEHISTORY
 */
@@ -3211,7 +3217,7 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 	}
 
 #else
-BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int Thread)
+BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int Thread, char *script=NULL)
       {
       DIR             *dird;
       dirent          *diren;
@@ -3259,8 +3265,13 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
                   else
                         {
                         if (strstr (n, ".partial"     ) == NULL)
-                              {
-                              if (!AddImageFile (TempPath, NewPatid, PDU))
+				{
+				if (script)
+					{
+					char dum[1024];
+					AttachFile(TempPath, script, dum, PDU);
+					}
+				else if (!AddImageFile (TempPath, NewPatid, PDU))
                                     { 
 			            BOOL success = FALSE;
                                     for (int i=0; i<30; i++)
@@ -3826,6 +3837,7 @@ BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Servi
 		OperatorConsole.printf("***[AttachFile] Error entering object into server: %s\n", filename);
 		return ( FALSE );
 		}
+	OperatorConsole.printf("Attached image: %s\n", rFilename);
 
 	return ( TRUE );
 	}
@@ -6489,12 +6501,29 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     }
     return 0;
   }
+  
+  //int MakeListOfOldestPatientsOnDevice(char **PatientIDList, int Max, const char *Device, char *Sort);
+  static int lualistoldestpatients(lua_State *L)
+  { int max = lua_tointeger(L, 1);
+    const char *Device = lua_tostring(L,2);
+    char *Sort   = (char *)lua_tostring(L,3);
+    char *PatientIDList;
+    int total = MakeListOfOldestPatientsOnDevice(&PatientIDList, max, Device, Sort);
+    lua_newtable(L);
+    for (int i=0; i<total; i++) 
+    { lua_pushstring(L, PatientIDList+i*256); 
+      lua_rawseti(L, -2, i+1); 
+    }
+    free(PatientIDList);
+    return 1;
+  }
 
   static int luadicomquery(lua_State *L);
   static int luadicomprint(lua_State *L);
   static int luadicomget(lua_State *L);
   static int luadicomstore(lua_State *L);
   static int luatickcount(lua_State *L);
+  static int luadicomecho(lua_State *L);
   
   static int luadicommove(lua_State *L)
   { const char *source = lua_tostring(L,1);
@@ -7197,12 +7226,12 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	  
 	  if (vr->Element!=0 && *s!=0 && c2!=0 && Index<MAXLEN*9/10)
 	  { if (c2=='UL' && vr->Length==4)
-            { Index+=sprintf(result+Index, "%s=%d,", s, ((UINT32 *)(vr->Data))[0]);
+            { Index+=sprintf(result+Index, "%s=%d,", s, (int)((UINT32 *)(vr->Data))[0]);
 	    }
 	    else if (c2=='UL' && vr->Length>4)
             { Index+=sprintf(result+Index, "%s={", s);
               for (i=0; (i<vr->Length/4) && (i<MAXLEN/130); i++)
-                Index+=sprintf(result+Index, "%d,", ((UINT32 *)(vr->Data))[i]);
+                Index+=sprintf(result+Index, "%d,", (int)((UINT32 *)(vr->Data))[i]);
 	      if ((vr->Length/4) >= (MAXLEN/130)) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "},");
 	    }
@@ -7217,12 +7246,12 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      Index+=sprintf(result+Index, "},");
 	    }
 	    else if (c2=='SL' && vr->Length==4)
-            { Index+=sprintf(result+Index, "%s=%d,", s, ((INT32 *)(vr->Data))[0]);
+            { Index+=sprintf(result+Index, "%s=%d,", s, (int)((INT32 *)(vr->Data))[0]);
 	    }
 	    else if (c2=='SL' && vr->Length>4)
             { Index+=sprintf(result+Index, "%s={", s);
               for (i=0; (i<vr->Length/4) && (i<MAXLEN/130); i++)
-                Index+=sprintf(result+Index, "%d,", ((INT32 *)(vr->Data))[i]);
+                Index+=sprintf(result+Index, "%d,", (int)((INT32 *)(vr->Data))[i]);
 	      if ((vr->Length/4) >= (MAXLEN/130)) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "},");
 	    }
@@ -7571,6 +7600,7 @@ static int CGI(char *out, const char *name, const char *def);
   }
 
 static char *post_buf=NULL;
+static char *post_file=NULL;
 static int post_len=0;
 static char uploadedfile[256];
 
@@ -7578,7 +7608,7 @@ static char uploadedfile[256];
   { char buf[1000];
     int n=lua_gettop(L);
     switch(n)
-    { case 0: lua_pushlstring(L, post_buf, post_len); return 1;
+    { case 0: lua_pushlstring(L, post_file, post_len); return 1;
       case 1: CGI(buf, lua_tostring(L, 1), ""); break;
       case 2: CGI(buf, lua_tostring(L, 1), lua_tostring(L,2)); break;
     }
@@ -8277,8 +8307,9 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     lua_register      (*L, "dicomprint",    luadicomprint);
     lua_register      (*L, "dicomget",      luadicomget);
     lua_register      (*L, "dicomstore",    luadicomstore);
+    lua_register      (*L, "dicomecho",     luadicomecho);
     lua_register      (*L, "tickcount",     luatickcount);
-    
+    lua_register      (*L, "listoldestpatients", lualistoldestpatients);
     lua_createtable   (*L, 0, 0); 
     lua_createtable   (*L, 0, 0);
     lua_pushcfunction (*L, luaGlobalIndex);    lua_setfield (*L, -2, "__index");
@@ -14275,7 +14306,7 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
 	devlen = strlen(Filename);
 	strcat(Filename, "printer_files");
 	p = Filename + strlen(Filename);
-	sprintf(p, "%squerycache%s%4.4s%s%4.4s%s%08x.query.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
+	sprintf(p, "%cquerycache%c%4.4s%c%4.4s%c%08x.query.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
 
 	// was the same query stored previously ?
 	hit = FALSE;
@@ -14291,7 +14322,7 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
 	// if so, load the result from disk
 	if (hit)
 	{ //sprintf(p, "\\querycache\\%4.4s\\%4.4s\\%08x.result.dcm", date, date+4, crc);
-	  sprintf(p, "%squerycache%s%4.4s%s%4.4s%s%08x.result.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
+	  sprintf(p, "%cquerycache%c%4.4s%c%4.4s%c%08x.result.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
 	  DICOMDataObject *DO = LoadForGUI(Filename);
 	  if (DO)
 	  { vr1 = DO->GetVR(0x9999, 0x1000);
@@ -14316,7 +14347,7 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
 	  VirtualQuery(DDO2, Level, N, pADDO);
 	  int M1 = pADDO->GetSize();
 	  //sprintf(p, "\\querycache\\%4.4s\\%4.4s\\%08x.query.dcm", date, date+4, crc);
-	  sprintf(p, "%squerycache%s%4.4s%s%4.4s%s%08x.query.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
+	  sprintf(p, "%cquerycache%c%4.4s%c%4.4s%c%08x.query.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
 	  for (unsigned int sIndex = devlen; sIndex<=strlen(Filename); sIndex++)
 	    if (Filename[sIndex]==PATHSEPCHAR)
 	    { strcpy(s, Filename);
@@ -14336,7 +14367,7 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
 
 	  DICOMDataObject *D = new DICOMDataObject;
           D->Push(vr1);
-	  sprintf(p, "\\querycache\\%4.4s\\%4.4s\\%08x.result.dcm", date, date+4, crc);
+	  sprintf(p, "%cquerycache%c%4.4s%c%4.4s%c%08x.result.dcm", PATHSEPCHAR, PATHSEPCHAR, date, PATHSEPCHAR, date+4, PATHSEPCHAR, crc);
 	  SaveDICOMDataObject(Filename, D);
           SystemDebug.printf("VirtualQueryCached: stored %d cache records for %s:%s/%s in %s\n", 
 	    M1-N1, pat, studuid, seruid, Filename);
@@ -22341,7 +22372,22 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		{
 		char rFilename[1024];
 		if (p) *p++=0;
-		if (p) AttachFile(SilentText+11, p, rFilename, &PDU);
+		if ((vr = DCO.GetVR(0x9999,0x0402)))
+			{
+			char *p1 = strrchr(SilentText+13, '.');
+			if (p1) NewTempFile(tempfile, p1);
+			else    NewTempFile(tempfile, "");
+			FILE *f = fopen(tempfile, "wb");
+			fwrite(vr->Data, vr->Length, 1, f);
+			fclose(f);
+			if (p) AttachFile(tempfile, p, rFilename, &PDU);
+			unlink(tempfile);
+			tempfile[0]=0;
+			}
+		else
+			{
+			if (p) AttachFile(SilentText+11, p, rFilename, &PDU);
+			}
 		}
 	else if (memcmp(SilentText, "submit:", 7)==0)
 		{
@@ -22824,7 +22870,9 @@ BOOL StorageApp	::	ServerChild (int theArg )
 			if (SilentText[0])
 				ServerTask(SilentText, PDU, DCO, Response, ConnectedIP, tempfile, ThreadNum);
 			
-			if (tempfile[0])
+  		        VR *vr2 = DCO.GetVR(0x9999, 0x0401);
+
+		        if (tempfile[0])
 				{
 				unsigned int len = DFileSize(tempfile);
 				if (len)
@@ -22838,33 +22886,41 @@ BOOL StorageApp	::	ServerChild (int theArg )
 					}
 
 					if (memcmp(SilentText, "convert_to_dicom:", 17)==0) 
-					  sprintf(txt, "Content-type: application/dicom\nContent-length: %d\nAccess-Control-Allow-Origin: *\n\n", len); 
+					  sprintf(txt, "Content-type: application/dicom\nContent-Disposition: attachment; filename=\"file.dcm\"\nContent-length: %d\nAccess-Control-Allow-Origin: *\n\n", len); 
+
 					if (memcmp(SilentText, "export:", 7)==0)
-					  sprintf(txt, "Content-type: application/zip\nContent-length: %d\nAccess-Control-Allow-Origin: *\n\n", len);
+					  sprintf(txt, "Content-type: application/zip\nContent-Disposition: attachment; filename=\"%s.zip\"\nContent-length: %d\nAccess-Control-Allow-Origin: *\n\n", SilentText+7, len);
 					extra = strlen(txt);
 					if (extra & 1) 
 					{ strcpy(txt+extra-2, " \n\n"); // make extra length even by adding space
 				          extra++;
 					}
-					VR *vr2 = new VR(0x9999, 0x0401, len+extra, TRUE);
+					VR *vr3 = new VR(0x9999, 0x0401, len+extra, TRUE);
 
 					FILE *f;
 					f = fopen(tempfile, "rb");
-					if (extra) memcpy((char *)(vr2->Data), txt, extra); 
-					fread((char*)(vr2->Data)+extra, 1, len, f);
+					if (extra) memcpy((char *)(vr3->Data), txt, extra); 
+					fread((char*)(vr3->Data)+extra, 1, len, f);
                                 	fclose(f); 
-					SOPVerification.WriteResponse(&PDU, &DCO, vr2);
+					SOPVerification.WriteResponse(&PDU, &DCO, vr3);
 					}
 				else
 					SOPVerification.WriteResponse(&PDU, &DCO, NULL);
 				unlink(tempfile);
 				}
-			else if (Response[0])
+			else if (Response[0]!=0 && vr2==NULL)
 				{
-				VR *vr2 = new VR(0x9999, 0x0401, strlen(Response), (void *)Response, FALSE);
-				SOPVerification.WriteResponse(&PDU, &DCO, vr2);
+				VR *vr3 = new VR(0x9999, 0x0401, strlen(Response), (void *)Response, FALSE);
+				SOPVerification.WriteResponse(&PDU, &DCO, vr3);
 				}
-			else
+			else if (vr2)	
+				{
+				void *p=malloc(vr2->Length);
+				memcpy(p, vr2->Data, vr2->Length);
+				VR *vr3 = new VR(vr2->Group, vr2->Element, vr2->Length, p, TRUE);
+				SOPVerification.WriteResponse(&PDU, &DCO, vr3);
+				}
+			else	
 				SOPVerification.WriteResponse(&PDU, &DCO, NULL);
 			continue;
 			}
@@ -24185,6 +24241,9 @@ static int CGI(char *out, const char *name, const char *def)
 	  flen = post_len - (fstart-post_buf);
 	  flen-=4;
 	  while (fstart[flen]!=0x0d && flen>0) flen--;
+	  
+	  post_file = fstart;
+	  post_len = flen;
 
 	  NewTempFile(uploadedfile, ext);
 	  FILE *g = fopen(uploadedfile, "wb");
@@ -24203,6 +24262,7 @@ static int CGI(char *out, const char *name, const char *def)
         q = strchr(p, 0x0d);
         if (q) *q=0;
         strcpy(out, p);
+        if (q) *q=0x0d; // 20191227
         return 0;
       }
 
@@ -24211,6 +24271,7 @@ static int CGI(char *out, const char *name, const char *def)
     }
     else if (*uploadedfile==0 && post_len>0 && p[0]=='<')      // xml
     { NewTempFile(uploadedfile, ".xml");
+      post_file = post_buf;
       FILE *g = fopen(uploadedfile, "wb");
       fwrite(p, post_len, 1, g);
       fclose(g);
@@ -24218,6 +24279,7 @@ static int CGI(char *out, const char *name, const char *def)
     }
     else if (*uploadedfile==0 && post_len>0)      		// any other type
     { NewTempFile(uploadedfile, ".dat");
+      post_file = post_buf;
       FILE *g = fopen(uploadedfile, "wb");
       fwrite(p, post_len, 1, g);
       fclose(g);
@@ -25225,7 +25287,7 @@ static void DgateCgi(char *query_string, char *ext, char *argv0)
     HTML("</BODY>");
     HTML("Uploaded and scripted processed file:");
     HTML(uploadedfile);
-    char com[512], file[512];
+    char com[1512], file[512];
     sprintf(com, "attachfile:%s,%s", uploadedfile, script);
     strcpy(file, uploadedfile);
     SendServerCommand("", com, 0, uploadedfile, FALSE, TRUE);
@@ -27627,6 +27689,75 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
     return 0;
   }
  
+  static int luadicomecho(lua_State *L)
+  { const char *ae  = lua_tostring(L,1);
+    DICOMCommandObject *DCOR = new DICOMCommandObject;
+    DICOMDataObject *O = NULL;
+    if (lua_isuserdata(L, 2)) 
+    { lua_getmetatable(L, 2);
+        lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+    }
+    
+    PDU_Service		PDU;
+    DICOMCommandObject	DCO;
+    // DICOMCommandObject	DCOR;
+    UID			uid;
+    VR			*vr;
+    LE_UINT16		command, datasettype, messageid;//, tuint16;
+    BYTE		SOP[64], host[64], port[64], compr[64];
+    
+    PDU.ClearAbstractSyntaxs();
+    PDU.SetLocalAddress(MYACRNEMA);
+    PDU.SetRemoteAddress((BYTE *)ae);
+    uid.Set("1.2.840.10008.3.1.1.1");	// Dicom APP
+    PDU.SetApplicationContext(uid);
+    uid.Set("1.2.840.10008.1.1");	// Verification
+    PDU.AddAbstractSyntax(uid);
+    
+    if(!GetACRNema((char *)ae, (char *)host, (char *)port, (char *)compr)) 
+    	return FALSE;
+    
+    if(!PDU.Connect(host, port))
+    	return ( FALSE );
+    
+    strcpy((char*) SOP, "1.2.840.10008.1.1"); // Verification
+    vr = new VR (0x0000, 0x0002, strlen((char*)SOP), (void*) SOP, FALSE);
+    DCO.Push(vr);
+    
+    command = 0x0030;
+    vr = new VR (0x0000, 0x0100, 0x0002, &command, FALSE);
+    DCO.Push(vr);
+    
+    datasettype = 0x0101;	
+    vr = new VR (0x0000, 0x0800, 0x0002, &datasettype, FALSE);
+    DCO.Push(vr);
+    
+    messageid = 0x0002;
+    vr = new VR (0x0000, 0x0110, 0x0002, &messageid, FALSE);
+    DCO.Push(vr);
+    
+    if (O) 
+	{	
+        DICOMDataObject *DO = MakeCopy(O);
+	while((vr=DO->Pop()))
+	        {
+		DCO.Push(vr);
+		}
+	delete DO;
+	}
+
+    PDU.Write(&DCO, uid);
+    
+    if(!PDU.Read(DCOR))
+    	return ( 0 );	// associate lost
+    
+    luaCreateObject(L, (DICOMDataObject*)DCOR, NULL, TRUE); 
+    
+    PDU.Close();
+    return ( 1 );
+  }
+
   static int luatickcount(lua_State *L)
   { 
 #ifdef WIN32

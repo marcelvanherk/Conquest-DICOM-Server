@@ -27,6 +27,7 @@
 20160229        mvh     use LIBOPENJPEG2 define; add __iob_func to allow mixed VS2008/2015 compile
 20160306        mvh     Use OPJ_STATIC link all codecs statically
 20181217        mvh     Added printsop.cxx
+20190109        mvh     Make uncompconv unconditional; is used in converter to bitmap image
 */
 
 /* Example to compile with BC55:
@@ -157,8 +158,9 @@
 
 #include "imagedata.cpp"
 #include "jpegconv.cpp"
-#include "uncompconv.cpp"
 #endif
+
+#include "uncompconv.cpp"
 
 #include "regen.cpp"
 #include "dgate.cpp"

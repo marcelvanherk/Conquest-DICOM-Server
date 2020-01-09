@@ -113,6 +113,7 @@ Spectra0018 Thu, 6 Mar 2014 15:43:54 -0300: Fix mismatched new/delete in device.
 20150629	mvh	Use configurable table names for sql queries
 20150730	mvh	Expose KeepFile parameter of ModifyData
 20181115	mvh	Changed default of MAGDeviceThreshHold to 0
+20191221        mvh     Fix MakeListOfOldestPatientsOnDevice for no device passed
 */
 
 #ifndef UNUSED_ARGUMENT
@@ -4179,8 +4180,8 @@ MakeListOfOldestPatientsOnDevice(char **PatientIDList, int Max, const char *Devi
 		{
 		for (i=0; i<Patients && i<abs(Max); i++)
 			{
-			if (Max>0) strcpy(*PatientIDList + 256*Patients, StudyList + 256 * i);
-			else       strcpy(*PatientIDList + 256*Patients, StudyList + 256 * (Patients-1-i));
+			if (Max>0) strcpy(*PatientIDList + 256*i, StudyList + 256 * i);
+			else       strcpy(*PatientIDList + 256*i, StudyList + 256 * (Patients-1-i));
 			Result++;
 			}
 		}

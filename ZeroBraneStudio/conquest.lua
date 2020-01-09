@@ -16,6 +16,7 @@
 -- 20181222: 1.4.19d, Added dicomprint and dicomget
 -- 20190101: 1.5.0-alpha, Added dicomstore
 -- 20190103: Added tickcount
+-- 20200109: 1.5.0-beta, Added dicomecho, listoldestpatients, crc, CGI()
 
 --[[
 -- read/write data, create sequences, and write into sequences (if [] not passed, [0] is assumed)
@@ -543,6 +544,12 @@ return {
   returns = "(DICOM sequence, counting from 0)",
   type = "function"
   },
+  dicomecho = {
+  args = "(AE: string, extra: userdata)",
+  description = "echo DICOM server; return null if failed",
+  returns = "(DICOM object)",
+  type = "function"
+  },
   dicomdelete = {
   args = "(query: userdata)",
   description = "delete data from local DICOM server",
@@ -615,6 +622,12 @@ return {
   returns = "()",
   type = "function"
   },
+  listoldestpatients = {
+  args = "(max: integer, device:string, sort:string)",
+  description = "list ID of N=max patients with oldest parameter 'sort', optionally on device",
+  returns = "(table)",
+  type = "function"
+  },
   ConvertBinaryData = {
   args = "(format: string, data: string or table)",
   description = "convert table to binary string or vice-verse",
@@ -629,7 +642,13 @@ return {
   },
   CGI = {
   args = "(key: string, default: string='')",
-  description = "web server only: read url entry from CGI script",
+  description = "web server only: read url entry from CGI script, CGI() reads posted data",
+  returns = "(string)",
+  type = "function"
+  },
+  crc = {
+  args = "(value: string)",
+  description = "calculate CRC of passed string",
   returns = "(string)",
   type = "function"
   },

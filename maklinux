@@ -7,6 +7,7 @@
 # mvh 20170504 Set rights for web folder; document mariadb lib link (but commented out)
 # mvh 20181117 Added luasocket to compile
 # mvh 20181125 make /usr/local/man.man1, add luasocket to mysql compile
+# mvh 20200109 Fixed to linux line endings
 
 #DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 SRC=./src/dgate;

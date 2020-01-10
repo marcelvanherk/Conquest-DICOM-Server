@@ -34,6 +34,7 @@
 --          Added WebScriptAddress and WebCodeBase to cgi-bin/dicom.ini (for Weasis)
 -- 20181230 Removed acrnema.map from web install; no longer needed
 -- 20191019 Also copy jpg(s) in htdocs folder for web install
+-- 20200110 For 1.5.0beta; add ';basedir/lua/?.lua' to package.path in dicom.ini; db rev 19
 
 function errorpage(s)
   HTML('Content-type: text/html\n\n');
@@ -241,6 +242,10 @@ DebugLevel               = 0
 MAGDeviceFullThreshHold  = 30
 MAGDevices               = 1
 MAGDevice0               = ]]..server..[[data]]..sep..[[
+
+[lua]
+association = package.path=package.path..';'..Global.basedir..'lua/?.lua'
+
 ]])
   end
 end
@@ -344,6 +349,7 @@ function create_server_dicomsql()
 #	Revision 16: Moved Stationname and InstitutionalDepartmentName to series table
 #	Revision 17: EchoNumber, ReqProcDescription to 64 characters; StudyModality, EchoNumber, ImageType to DT_MSTR; use Institution instead of InstitutionalDepartmentName
 #	Revision 18: DT_STR can now be replaced by DT_ISTR to force case insensitive searches
+#	Revision 19: Use QRows and QColumns as field names
 #
 #
 #	5 databases need to be defined:
@@ -432,8 +438,8 @@ function create_server_dicomsql()
 	{ 0x0020, 0x1041, "SliceLocation", 16, SQL_C_CHAR, DT_STR },
 	{ 0x0028, 0x0002, "SamplesPerPixel", 5, SQL_C_CHAR, DT_UINT16 },
 	{ 0x0028, 0x0004, "PhotoMetricInterpretation", 16, SQL_C_CHAR, DT_STR },
-	{ 0x0028, 0x0010, "Rows", 5, SQL_C_CHAR, DT_UINT16 },
-	{ 0x0028, 0x0011, "Colums", 5, SQL_C_CHAR, DT_UINT16 },
+	{ 0x0028, 0x0010, "QRows", 5, SQL_C_CHAR, DT_UINT16 },
+	{ 0x0028, 0x0011, "QColumns", 5, SQL_C_CHAR, DT_UINT16 },
 	{ 0x0028, 0x0101, "BitsStored", 5, SQL_C_CHAR, DT_UINT16 },
 	{ 0x0008, 0x0008, "ImageType", 128, SQL_C_CHAR, DT_MSTR },
 	{ 0x0054, 0x0400, "ImageID", 16, SQL_C_CHAR, DT_STR },

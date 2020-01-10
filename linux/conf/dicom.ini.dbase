@@ -1,7 +1,7 @@
 # This file contains configuration information for the DICOM server
 # Example Linux version using built-in dbaseIII file driver
 # Copy this file to dicom.ini to use it
-# 20160425: Simplified for 1.4.19beta
+# 20190110: For 1.5.0beta
 
 [sscscp]
 MicroPACS                = sscscp
@@ -46,3 +46,6 @@ DebugLevel               = 0
 MAGDeviceFullThreshold   = 30
 MAGDevices               = 1
 MAGDevice0               = ./data/
+
+[lua]
+association = package.path=package.path..';'..Global.basedir..'lua/?.lua'

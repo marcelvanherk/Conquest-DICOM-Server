@@ -661,6 +661,7 @@ When            Who     What
 20191019	mvh     Cast for compile issue in xe8, version to 1.5.0alpha-t4
 20191025	mvh     Fix progress bar (ignore empty messages), disable ProgressActive counter; increase size of visual log
 20191215	mvh     Fix ladle port default; version to 1.5.0beta
+20200110        mvh     Db revision 19; use QRows and QColumns as field names
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -697,7 +698,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0beta';
-const BUILDDATE = '20191215';
+const BUILDDATE = '20200110';
 const testmode = 0;
 
 {************************************************************************}
@@ -1990,6 +1991,7 @@ begin
     writeln(f, '#	Revision 16: Moved Stationname and InstitutionalDepartmentName to series table');
     writeln(f, '#	Revision 17: EchoNumber, ReqProcDescription to 64 characters; StudyModality, EchoNumber, ImageType to DT_MSTR; use Institution instead of InstitutionalDepartmentName');
     writeln(f, '#	Revision 18: DT_STR can now be replaced by DT_ISTR to force case insensitive searches');
+    writeln(f, '#	Revision 19: Use QRows and QColumns as field names');
 
     writeln(f, '#');
     writeln(f, '#');
@@ -2132,8 +2134,8 @@ begin
     writeln(f, '	{ 0x0020, 0x1041, "SliceLocation", 16, SQL_C_CHAR, DT_STR },');
     writeln(f, '	{ 0x0028, 0x0002, "SamplesPerPixel", 5, SQL_C_CHAR, DT_UINT16 },');
     writeln(f, '	{ 0x0028, 0x0004, "PhotoMetricInterpretation", 16, SQL_C_CHAR, DT_STR },');
-    writeln(f, '	{ 0x0028, 0x0010, "Rows", 5, SQL_C_CHAR, DT_UINT16 },');
-    writeln(f, '	{ 0x0028, 0x0011, "Colums", 5, SQL_C_CHAR, DT_UINT16 },');
+    writeln(f, '	{ 0x0028, 0x0010, "QRows", 5, SQL_C_CHAR, DT_UINT16 },');
+    writeln(f, '	{ 0x0028, 0x0011, "QColumns", 5, SQL_C_CHAR, DT_UINT16 },');
     writeln(f, '	{ 0x0028, 0x0101, "BitsStored", 5, SQL_C_CHAR, DT_UINT16 },');
 // end revision 4
 // revision 7, 17

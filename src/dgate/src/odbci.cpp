@@ -176,6 +176,7 @@
 20160317   mvh	  Initialize th->n on dbase_open; rare accesses invalid index if non-init
 20180805   mvh    Added SQLiteStartup parameter; defaults to "PRAGMA synchronous=OFF" as it was
 20181231   mvh    Reset bind type array when binding 1, avoids write into unbound variables
+20200119   mvh    Hardcode MYSQL_PORT to 3306
 */
 
 /*
@@ -3275,7 +3276,7 @@ BOOL	Database :: Open (
 
 #ifdef USEMYSQL
 	if (Mysql)
-	{	int port = MYSQL_PORT;
+	{	int port = 3306; // MYSQL_PORT
 		char host[256], *p;
 
 		strcpy(host, DataHost);	// allows host:port syntax for MySQL

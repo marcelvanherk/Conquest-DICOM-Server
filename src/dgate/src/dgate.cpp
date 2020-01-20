@@ -1124,11 +1124,15 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200107        mvh     attachfile: now reads embedded file if available; added lua dicomecho()
 20200108        mvh     Allow e.g. servercommand('Command["9999,0401"]="val"') as alternative to returnfile
 20200109        mvh     Removed double Content-length in download header; fix %c format in querycache; cast in serialize
+20200118        mvh     Added rudimentary json support call DicomObject:Serialize(true)
+20200119        mvh     Fix escaping in it and fix recursion
+20200120        mvh     1.5.0-beta1: added logging to ForwardAssociationLevel close; Added DelayedForwarderThreads
+			Added experimental 'split ' clause to delayed forward (cannot be used with imagetype clause)
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-beta"
+#define DGATE_VERSION "1.5.0-beta1"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -5233,6 +5237,8 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
         { SetUID ( iUID, vr );
           if (!PDU[part].IsAbstractSyntaxAccepted(iUID) || strcmp(ForwardLastUID+part*66, szTemp)!=0 )
           { //OperatorConsole.printf("!!! ExportConverter%d.%d: attempt to reconnect %s \n", N, part, szTemp);
+	    OperatorConsole.printf("ExportConverter%d.%d: forward association closed by %s\n", 
+	      N, part, strcmp(ForwardLastUID+part*66, szTemp)!=0?Level:"SOPCLASS");
             MyGetPrivateProfileString(szRootSC, "ForwardAssociationRelease", "1", Temp, 64, ConfigFile);
             if (atoi(Temp)) PDU[part].Close();
   	    else            PDU[part].Link.Close();
@@ -5883,6 +5889,10 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
           { imagetype = p+10; 
             p = strchr(p+10, ' '); 
             level = "study";			// causes that no series UID is passed to query
+          }
+          else if (memicmp(p, "split ", 6)==0) 
+          { imagetype = p+6; 
+            p = strchr(p+6, ' '); 
           }
           else if (memicmp(p, "target ", 7)==0) // for DcmSubmit only
           { imagetype = p+7; 
@@ -7192,6 +7202,17 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 
   static int luaserialize(lua_State *L)
   { struct scriptdata *sd = getsd(L);
+    BOOL json=0;
+    if (lua_isboolean(L,2))
+      json = lua_toboolean(L, 2);
+    char eq='=';
+    char br1='{';
+    char br2='}';
+    if (json)
+    { eq=':';
+      br1='[';
+      br2=']';
+    }
 
     if (lua_isuserdata(L,1)) 
     { char *result=(char *)malloc(MAXLEN);
@@ -7207,7 +7228,8 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
         lua_getfield(L, -1, "ADDO");  A = (Array < DICOMDataObject * > *) lua_topointer(L, -1); lua_pop(L, 1);
       lua_pop(L, 1);
 
-      if (A) Index+=sprintf(result+Index, "{");
+      if (A && !json) Index+=sprintf(result+Index, "{");
+      if (A && json)  Index+=sprintf(result+Index, "[");
 
       for (int j=0; j<(A!=NULL?A->GetSize():1); j++) 
       { if (A) O=(DICOMDataObject *)(A->Get(j));
@@ -7217,7 +7239,8 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	VR		*vr;
 	int		i;
 		
-        Index+=sprintf(result+Index, "{");
+	Index+=sprintf(result+Index, "{");
+
 	while((vr=O->Pop()))
 	{ char s[128];
           UINT16 c2 = VRType.RunTimeClass(vr->Group, vr->Element, s);
@@ -7225,82 +7248,97 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	  if (Index>=MAXLEN*9/10) truncated=TRUE;
 	  
 	  if (vr->Element!=0 && *s!=0 && c2!=0 && Index<MAXLEN*9/10)
-	  { if (c2=='UL' && vr->Length==4)
-            { Index+=sprintf(result+Index, "%s=%d,", s, (int)((UINT32 *)(vr->Data))[0]);
+	  { char *name=s;
+            char tmp[128];
+            if (json) 
+	    { sprintf(tmp, "\"%s\"", s);
+              name = tmp;
+	    }
+            if (c2=='UL' && vr->Length==4)
+            { Index+=sprintf(result+Index, "%s%c%d,", name, eq, (int)((UINT32 *)(vr->Data))[0]);
 	    }
 	    else if (c2=='UL' && vr->Length>4)
-            { Index+=sprintf(result+Index, "%s={", s);
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (i<MAXLEN/130); i++)
                 Index+=sprintf(result+Index, "%d,", (int)((UINT32 *)(vr->Data))[i]);
-	      if ((vr->Length/4) >= (MAXLEN/130)) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "},");
+	      Index--;
+	      if ((vr->Length/4) >= (MAXLEN/130) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='US' && vr->Length==2)
-            { Index+=sprintf(result+Index, "%s=%d,", s, ((UINT16 *)(vr->Data))[0]);
+            { Index+=sprintf(result+Index, "%s%c%d,", name, eq, ((UINT16 *)(vr->Data))[0]);
 	    }
 	    else if (c2=='US' && vr->Length>2)
-            { Index+=sprintf(result+Index, "%s={", s);
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/2) && (i<MAXLEN/60); i++)
                 Index+=sprintf(result+Index, "%d,", ((UINT16 *)(vr->Data))[i]);
-	      if ((vr->Length/5) >= (MAXLEN/60)) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "},");
+	      Index--;
+	      if ((vr->Length/5) >= (MAXLEN/60) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='SL' && vr->Length==4)
-            { Index+=sprintf(result+Index, "%s=%d,", s, (int)((INT32 *)(vr->Data))[0]);
+            { Index+=sprintf(result+Index, "%s%c%d,", name, eq, (int)((INT32 *)(vr->Data))[0]);
 	    }
 	    else if (c2=='SL' && vr->Length>4)
-            { Index+=sprintf(result+Index, "%s={", s);
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (i<MAXLEN/130); i++)
                 Index+=sprintf(result+Index, "%d,", (int)((INT32 *)(vr->Data))[i]);
-	      if ((vr->Length/4) >= (MAXLEN/130)) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "},");
+	      Index--;
+	      if ((vr->Length/4) >= (MAXLEN/130) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='SS' && vr->Length==2)
-            { Index+=sprintf(result+Index, "%s=%d,", s, ((INT16 *)(vr->Data))[0]);
+            { Index+=sprintf(result+Index, "%s%c%d,", name, eq, ((INT16 *)(vr->Data))[0]);
 	    }
 	    else if (c2=='SS' && vr->Length>2)
-            { Index+=sprintf(result+Index, "%s={", s);
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/2) && (i<MAXLEN/60); i++)
                 Index+=sprintf(result+Index, "%d,", ((INT16 *)(vr->Data))[i]);
-	      if ((vr->Length/2) >= (MAXLEN/60)) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "},");
+	      Index--;
+	      if ((vr->Length/2) >= (MAXLEN/60) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='FD' && vr->Length==8)
-            { Index+=sprintf(result+Index, "%s=%f,", s, ((double *)(vr->Data))[0]);
+            { Index+=sprintf(result+Index, "%s%c%f,", name, eq, ((double *)(vr->Data))[0]);
 	    }
 	    else if (c2=='FD' && vr->Length>8)
-            { Index+=sprintf(result+Index, "%s={", s);
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/8) && (i<MAXLEN/400); i++)
                 Index+=sprintf(result+Index, "%f,", ((double *)(vr->Data))[i]);
-	      if ((vr->Length/8) >= (MAXLEN/400)) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "},");
+	      Index--;
+	      if ((vr->Length/8) >= (MAXLEN/400) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='FL' && vr->Length==4)
-            { Index+=sprintf(result+Index, "%s=%f,", s, ((float *)(vr->Data))[0]);
+            { Index+=sprintf(result+Index, "%s%c%f,", name, eq, ((float *)(vr->Data))[0]);
 	    }
 	    else if (c2=='FL' && vr->Length>4)
-            { Index+=sprintf(result+Index, "%s={", s);
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (i<MAXLEN/200); i++)
                 Index+=sprintf(result+Index, "%f,", ((float *)(vr->Data))[i]);
-	      if ((vr->Length/4) >= (MAXLEN/200)) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "},");
+	      Index--;
+	      if ((vr->Length/4) >= (MAXLEN/200) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
-  	    else if (c2 == 'OF')
-            { Index+=sprintf(result+Index, "%s=nil --[[OF not serialized]],", s);
+  	    else if (c2 == 'OF' && !json)
+            { Index+=sprintf(result+Index, "%s%cnil --[[OF not serialized]],", name, eq);
 	    }
-  	    else if (c2 == 'OW')
-            { Index+=sprintf(result+Index, "%s=nil --[[OW not serialized]],", s);
+  	    else if (c2 == 'OW' && !json)
+            { Index+=sprintf(result+Index, "%s%cnil --[[OW not serialized]],", name, eq);
 	    }
   	    else if (c2 == 'SQ')
-            { // Index+=sprintf(result+Index, "%s=nil --[[SQ not serialized]],", s);
-              if (vr->SQObjectArray)
+            { if (vr->SQObjectArray)
               { lua_getglobal(L, "serialize");
 	        luaCreateObject(L, NULL, (Array < DICOMDataObject * > *)vr->SQObjectArray, FALSE);
-                lua_call(L, 1, 1);
+		lua_pushboolean(L, json);
+                lua_call(L, 2, 1);
 		if (lua_strlen(L, -1)>=MAXLEN/10)
-                   Index+=sprintf(result+Index, "%s=nil --[[long SQ not serialized]],", s);
+                { Index+=sprintf(result+Index, "%s%cnil", name, eq);
+	          if (!json) Index+=sprintf(result+Index, "--[[long SQ not serialized]]");
+	          Index+=sprintf(result+Index, ",");
+		}
 	        else
-                  Index+=sprintf(result+Index, "%s=%s,", s, lua_tostring(L, -1));
+                  Index+=sprintf(result+Index, "%s%c%s,", name, eq, lua_tostring(L, -1));
 	        lua_pop(L, 1);
 	      }
 	    }
@@ -7326,15 +7364,25 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
               int k=0;
               for (int i=0; i<len; i++)
               { unsigned char c= ((unsigned char *)(vr->Data))[i];
-                if (c=='\'' || c=='\\') 
-		{ t[k++] = c;
+                if (c=='"' || c=='\\' || (c=='/' && json)) 
+		{ t[k++] = '\\';
 	          t[k++] = c;
 		}
 		else if (c<32) // Lua escapes are e.g. \n and \nnn where nnn is Decimal!
-		{ static char escapes[] = "0123456abtnvfr456789012345678901";
-	          if (escapes[c]>='a')
+		{ static char escapes[] = "0123456AbtnVfr456789012345678901";
+	          if (escapes[c]>='a') // Lua and Json
 		  { t[k++]='\\';
 	            t[k++]=escapes[c];
+		  }
+	          else if (escapes[c]>='A') // Lua only
+		  { t[k++]='\\';
+	            t[k++]=escapes[c]-32;
+		  }
+		  else if (json)
+		  { t[k++]='\\';
+	            t[k++]='u';
+		    sprintf(t+k, "%04x", c);
+		    k+=4;
 		  }
 		  else
 		  { t[k++]='\\';
@@ -7347,15 +7395,16 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	          t[k++] = c;
 	      }
 	      t[k++] = 0;
-              Index+=sprintf(result+Index, "%s='%s',", s, t);
+              Index+=sprintf(result+Index, "%s%c\"%s\",", name, eq, t);
 	      free(t);
 	    }
 	    else if (vr->Length==0)
-            { Index+=sprintf(result+Index, "%s='',", s);
+            { Index+=sprintf(result+Index, "%s%c\"\",", name, eq);
 	    }
 	  }
 	  DO2.Push(vr);
 	}
+	Index--;
 	Index+=sprintf(result+Index, "}");
 	O->Reset();
 	while((vr=DO2.Pop()))
@@ -7363,10 +7412,11 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	}
 	if (A) Index+=sprintf(result+Index, ",");
       }
-      if (A) Index+=sprintf(result+Index, "}");
-      if (truncated) 
+      if (A) Index--;
+      if (A) Index+=sprintf(result+Index, "%c", br2);
+      if (truncated && !json) 
 	Index+=sprintf(result+Index, " --[[truncated]] ");
-      if (nUN) 
+      if (nUN && !json) 
 	Index+=sprintf(result+Index, " --[[skipped %d UN elements]] ", nUN);
       lua_pushlstring(L, result, Index);
       free(result);
@@ -9103,6 +9153,8 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       { SetUID ( iUID, vr );
         if (!PDU[channel].IsAbstractSyntaxAccepted(iUID) || strcmp(ForwardLastUID+channel*66, szTemp)!=0 )
         { //if (N >= -1) OperatorConsole.printf("!!! ExportConverter%d.%d: attempt to reconnect %s \n", N, channel, szTemp);
+	  OperatorConsole.printf("%sConverter%d.%d: Forward association closed by %s\n", 
+	    ininame, N, channel, strcmp(ForwardLastUID+channel*66, szTemp)!=0?Level:"SOPCLASS");
           MyGetPrivateProfileString(szRootSC, "ForwardAssociationRelease", "1", Temp, 64, ConfigFile);
           if (atoi(Temp)) PDU[channel].Close();
 	  else            PDU[channel].Link.Close();
@@ -9969,6 +10021,10 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
           p = strchr(p+10, ' '); 
           level = "study";			// causes that no series UID is passed to query
         }
+        else if (memicmp(p, "split ", 6)==0) 
+        { imagetype = p+6; 
+          p = strchr(p+6, ' '); 
+        }
         else if (memicmp(p, "target ", 7)==0) 	// for DcmSubmit only
         { imagetype = p+7; 
           p = strchr(p+7, ' '); 
@@ -10698,12 +10754,20 @@ struct conquest_queue *new_queue(int num, int size, int delay, BOOL (*process)(c
 
   /* Note: since the queue is thread safe it is possible to start more than one thread to service it */
 
+  char Temp[64], szRootSC[64];
+  strcpy(Temp, "1");
+  if (MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile))
+    MyGetPrivateProfileString(szRootSC, "DelayedForwarderThreads", "1", Temp, 64, ConfigFile);
+  OperatorConsole.printf("Starting %s DelayedForwarderThreads\n", Temp);
 #ifdef WIN32
-  result->threadhandle = 
-    CreateThread(NULL, 2097152, (LPTHREAD_START_ROUTINE) processthread, result, 0, &ThreadID);
+  for (int i=0; i<atoi(Temp); i++)
+    result->threadhandle = 
+      CreateThread(NULL, 2097152, (LPTHREAD_START_ROUTINE) processthread, result, 0, &ThreadID);
 #else
-  pthread_create(&result->threadhandle, NULL, (void*(*)(void*))processthread, (void *)result);
-  pthread_detach(result->threadhandle);
+  for (int i=0; i<atoi(Temp); i++) 
+  { pthread_create(&result->threadhandle, NULL, (void*(*)(void*))processthread, (void *)result);
+    pthread_detach(result->threadhandle);
+  }
 #endif
 
   return result;
@@ -11040,7 +11104,8 @@ PrefetchPatientData(char *PatientID, unsigned int MaxRead, int Thread)
 	}
 
 // move data from this to other server: returns TRUE is meaningful to retry
-// returns 0 for success; 1 for error; 2 for retryable error		    
+// returns 0 for success; 1 for error; 2 for retryable error
+// if imagetype contains a / it is considered a split move, e.g. 0/2 and 1/2 send odd and even images
 static int DcmMove(const char *patid, char* pszSourceAE, char* pszDestinationAE, const char *studyuid, const char *seriesuid, const char *compress, const char *modality, const char *date, 
 		    const char *sop, const char *imagetype, const char *seriesdesc, int id, char *script, int Thread)
 {	PDU_Service		PDU;
@@ -11171,8 +11236,16 @@ static int DcmMove(const char *patid, char* pszSourceAE, char* pszDestinationAE,
 		}
 	if (*imagetype)
 		{
-                vr = new VR(0x0008, 0x0008, strlen(imagetype), (void*)imagetype, FALSE );
-		DDO.Push(vr);
+		if (strchr(imagetype, '/'))
+			{
+			vr = new VR(0x9999, 0x0b00, strlen(imagetype), (void*)imagetype, FALSE );
+			DCO.Push(vr);
+			}
+		else
+			{
+			vr = new VR(0x0008, 0x0008, strlen(imagetype), (void*)imagetype, FALSE );
+			DDO.Push(vr);
+			}
 		}
 	if (*seriesdesc)
 		{

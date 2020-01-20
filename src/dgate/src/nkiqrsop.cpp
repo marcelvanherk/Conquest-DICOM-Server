@@ -260,6 +260,7 @@
 20181222	mvh	Added WriteGet for C-GET client; results in image information in ADDO
 20190114	mvh	Set compression to "un" for C-GET (was "" behaved as as-is)
 20190602	mvh	Disable jpeg compression for <8 bits; adapt To8bitMonochromeOrRGB for other than 8 or 16 bits
+20200210	mvh	0x9999,0x0b000 splits move e.g. pass 0/2 to only send even, 1/2 to only send odd
 */
 
 //#define bool BOOL
@@ -461,11 +462,26 @@ BOOL	StandardRetrieveNKI	::	Read (
 	char		*AcceptedCompress, *Compression;
 	char		Called[20], Calling[20];
 	BOOL		StripGroup2, Cancelled;
+	int             splitinto=1, splitselect=0;
 
 	if (DCO)
 		{
 		vr = DCO->GetVR(0x9999, 0x0500);
 		if (vr && vr->Length)iVrSliceLimit = vr->GetUINT();
+
+		// optional split of move (enables downsizing or multithreaded forwarding) 
+		vr = DCO->GetVR(0x9999, 0x0b00);
+		if (vr)
+			{ 
+			char split[64];
+			strncpy(split, (const char*)vr->Data, vr->Length);
+			split[vr->Length] = 0;
+			if (strchr(split, '/')) 
+				splitinto = atoi(strchr(split, '/')+1);
+			splitselect = atoi(split);
+			if (splitselect>=splitinto) 
+				splitselect=0;
+			}
 	  	}
 
 	GetUID(MyUID);
@@ -575,6 +591,19 @@ BOOL	StandardRetrieveNKI	::	Read (
 			ADDO.RemoveAt(ADDO.GetSize()-1);
 		}
 
+	if (splitinto > 1)
+		{
+		int n=ADDO.GetSize()-1;
+		for (int i=n; i>=0; i--)
+			{
+			if ((i%splitinto)!=splitselect)
+				{
+				delete ADDO.Get(i);
+				ADDO.RemoveAt(i);
+				}
+			}
+		}
+			
 	// If the called AE looks like SERVER~j2, then the last 2 characters override the outgoing compression set in ACRNEMA.MAP
 	strcpy(Called, (char *)(((AAssociateAC *)PDU)->CalledApTitle));
 	if (Called[0]>32)

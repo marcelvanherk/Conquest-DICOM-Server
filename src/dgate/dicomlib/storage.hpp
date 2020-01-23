@@ -1,6 +1,7 @@
 // mvh 20030922 Added PDU_Service to CheckObject call
 // mvh 20050108 Fixed for linux compile
 // mvh 20070314	Allow send of 0000,1030 (MoveOriginatorAE) and 0000,1031 (MoveOriginatorMessageID) in StandardStorage : write
+// mvh 20200121	Added DCO to CheckObject
 
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -47,7 +48,7 @@ class	StandardStorage	:
 	public:
 		BOOL	GetUID ( UID &uid) { return (uGetUID(uid)); };
 		virtual	BOOL	uGetUID ( UID &uid ) = 0;
-		virtual	UINT16	CheckObject(DICOMDataObject *, PDU_Service *) { return ( 0 ); };
+		virtual	UINT16	CheckObject(DICOMCommandObject *, DICOMDataObject *, PDU_Service *) { return ( 0 ); };
 		BOOL	Read (	PDU_Service *,
 						DICOMCommandObject *, 
 						DICOMDataObject * );
@@ -60,7 +61,7 @@ class	UnknownStorage	:
 	{
 	public:
 		BOOL	GetUID(UID &);
-		virtual	UINT16	CheckObject(DICOMDataObject *, PDU_Service *) { return ( 0 ); };
+		virtual	UINT16	CheckObject(DICOMCommandObject *, DICOMDataObject *, PDU_Service *) { return ( 0 ); };
 
 		BOOL	Read (	PDU_Service	*,
 					DICOMCommandObject	*,

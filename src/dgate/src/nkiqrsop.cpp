@@ -260,7 +260,9 @@
 20181222	mvh	Added WriteGet for C-GET client; results in image information in ADDO
 20190114	mvh	Set compression to "un" for C-GET (was "" behaved as as-is)
 20190602	mvh	Disable jpeg compression for <8 bits; adapt To8bitMonochromeOrRGB for other than 8 or 16 bits
-20200210	mvh	0x9999,0x0b000 splits move e.g. pass 0/2 to only send even, 1/2 to only send odd
+20201020	mvh	0x9999,0x0b000 splits move e.g. pass 0/2 to only send even, 1/2 to only send odd
+20201021	mvh	Above VR may be in command OR data; added DCO to CheckObject
+20201022	mvh	Added DCO to CallImportConverterN calls; read split and slicelimit below QueryMoveScript
 */
 
 //#define bool BOOL
@@ -432,7 +434,7 @@ BOOL UseBuiltInDecompressor(BOOL *DecompressNon16BitsJpeg = NULL)
 }
 
 /*******************  NKI specific Retrieve Classes *************************/
-int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage, char *Script);
+int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage, char *Script);
 
 StandardRetrieveNKI::StandardRetrieveNKI()
 {
@@ -463,26 +465,6 @@ BOOL	StandardRetrieveNKI	::	Read (
 	char		Called[20], Calling[20];
 	BOOL		StripGroup2, Cancelled;
 	int             splitinto=1, splitselect=0;
-
-	if (DCO)
-		{
-		vr = DCO->GetVR(0x9999, 0x0500);
-		if (vr && vr->Length)iVrSliceLimit = vr->GetUINT();
-
-		// optional split of move (enables downsizing or multithreaded forwarding) 
-		vr = DCO->GetVR(0x9999, 0x0b00);
-		if (vr)
-			{ 
-			char split[64];
-			strncpy(split, (const char*)vr->Data, vr->Length);
-			split[vr->Length] = 0;
-			if (strchr(split, '/')) 
-				splitinto = atoi(strchr(split, '/')+1);
-			splitselect = atoi(split);
-			if (splitselect>=splitinto) 
-				splitselect=0;
-			}
-	  	}
 
 	GetUID(MyUID);
 
@@ -532,6 +514,25 @@ BOOL	StandardRetrieveNKI	::	Read (
 			CGetRSP :: Write (PDU, DCO, 0xc013, 0, 0, 0, 0 );
 		SystemDebug.printf("Retrieve: operation blocked by script\n");
 		return ( TRUE );
+		}
+
+	vr = DCO->GetVR(0x9999, 0x0500);
+	if (vr && vr->Length) iVrSliceLimit = vr->GetUINT();
+
+	// optional split of move (enables downsizing or multithreaded forwarding) 
+	vr = DCO->GetVR(0x9999, 0x0b00);
+	if (!vr) vr = DDO.GetVR(0x9999, 0x0b00);
+	if (vr)
+		{ 
+		char split[64];
+		strncpy(split, (const char*)vr->Data, vr->Length);
+		split[vr->Length] = 0;
+		if (strchr(split, '/')) 
+			splitinto = atoi(strchr(split, '/')+1);
+		splitselect = atoi(split);
+		if (splitselect>=splitinto) 
+			splitselect=0;
+		DDO.DeleteVR(vr);
 		}
 
 	if (!cget)
@@ -754,7 +755,7 @@ BOOL	StandardRetrieveNKI	::	Read (
 
 					recompress(&iDDO, mode, "", StripGroup2, PDU);
 					if (script[0])
-						CallImportConverterN(iDDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, script);
+						CallImportConverterN(DCO, iDDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, script);
 					}
 
 // test code to simulate crash in c-move when canceled 20171009
@@ -826,7 +827,7 @@ class	MyUnknownGet	:	public UnknownStorage
 	{
 	public:
 				// called for each incoming DDO
-		UINT16 CheckObject(DICOMDataObject *DDO, PDU_Service *PDU) 
+		UINT16 CheckObject(DICOMCommandObject *DCO, DICOMDataObject *DDO, PDU_Service *PDU) 
 			{
 			recompress(&DDO, "UN", "", FALSE, (ExtendedPDU_Service *)PDU);
 			return 0;
@@ -2478,7 +2479,7 @@ BOOL ProcessDDO(DICOMDataObject** pDDO, DICOMCommandObject* pDCO, ExtendedPDU_Se
   while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
 //  CallImportConverterN(*pDDO, 1300, NULL, dest, NULL, NULL, "calling", "called", NULL, NULL, VariableVRs);
-  CallImportConverterN(*pDDO, 1300, NULL, dest, NULL, NULL, PDU, NULL, NULL);
+  CallImportConverterN(pDCO, *pDDO, 1300, NULL, dest, NULL, NULL, PDU, NULL, NULL);
   return TRUE;
 }
 
@@ -4857,7 +4858,7 @@ BOOL recompress(DICOMDataObject **pDDO, const char *Compression, const char *Fil
 	else if (memicmp(Compression, "s",  1)==0) 
 		{
 		//CallImportConverterN(*pDDO, 1400 + Compression[1] - '0', NULL, NULL, NULL, NULL, "calling", "called", NULL, NULL, VariableVRs);
-		CallImportConverterN(*pDDO, 1400 + Compression[1] - '0', NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+		CallImportConverterN(NULL, *pDDO, 1400 + Compression[1] - '0', NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 		rc = status = 1;
 		}
 

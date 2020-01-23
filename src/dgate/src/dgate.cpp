@@ -1128,6 +1128,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200119        mvh     Fix escaping in it and fix recursion
 20200120        mvh     1.5.0-beta1: added logging to ForwardAssociationLevel close; Added DelayedForwarderThreads
 			Added experimental 'split ' clause to delayed forward (cannot be used with imagetype clause)
+20200122        mvh     Set Command for many (not all) converters, passing DCO to SaveToDisk, CheckObject and CallImportConverterN
 
 ENDOFUPDATEHISTORY
 */
@@ -2586,7 +2587,7 @@ class	MyBridgeStorage	:	public UnknownStorage
 	{
 	public:
 				// called for each incoming DDO
-		UINT16 CheckObject(DICOMDataObject *DDO, PDU_Service *PDU) 
+		UINT16 CheckObject(DICOMCommandObject *DCO, DICOMDataObject *DDO, PDU_Service *PDU) 
 			{
 			char Filename[1024];
 			char Called[20], Calling[20];
@@ -3117,7 +3118,7 @@ MergeUIDofDDO(DICOMDataObject *pDDO, const char *type, const char *Reason)
 
 // forward references
 int
-SaveToDisk(Database	&DB, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, ExtendedPDU_Service *PDU, int Syntax=0, BOOL nopreget=FALSE);
+SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, ExtendedPDU_Service *PDU, int Syntax=0, BOOL nopreget=FALSE);
 
 void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU);
 void TestForward(char *filename, const char *mode, char *server, ExtendedPDU_Service *PDU);
@@ -3142,7 +3143,7 @@ static BOOL dgate_IsDirectory(char *TempPath)
      return 0;
 }
 
-int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage, char *Script);
+int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage, char *Script);
 extern "C" void lua_setvar(ExtendedPDU_Service *pdu, char *name, char *value);
 BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Service *PDU);
 
@@ -3202,7 +3203,7 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 						{
 						DICOMDataObject	DDO;
 						lua_setvar(PDU, "Filename", TempPath);
-						int rc = CallImportConverterN(&DDO, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+						int rc = CallImportConverterN(NULL, &DDO, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 						}
 					unlink(TempPath);
 					if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, 100, count++);
@@ -3291,7 +3292,7 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
                                           {
                                           DICOMDataObject DDO;
                                           lua_setvar(PDU, "Filename", TempPath);
-                                          int rc = CallImportConverterN(&DDO, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+                                          int rc = CallImportConverterN(NULL, &DDO, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
                                           }
                                     }
                               unlink(TempPath);
@@ -3480,7 +3481,7 @@ AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU)
         rc = TRUE;	// failed compression leaves original object
 
 	// if ((rc == FALSE) || (!SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"dropped", (unsigned char *)"dropped", 0, !atoi(szTemp))))
-	if ((rc == FALSE) || (!SaveToDisk(DB, pDDO, rFilename, TRUE, PDU, 0, !atoi(szTemp))))
+	if ((rc == FALSE) || (!SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, 0, !atoi(szTemp))))
 		{
 		OperatorConsole.printf("***[AddImageFile] Error entering object into server: %s\n", filename);
 //		if (pDDO)
@@ -3602,9 +3603,9 @@ ModifyPATIDofImageFile(char *filename, char *NewPATID, BOOL DelFile, char *scrip
 	if (script)
 		{
 		if (atoi(script)>1000)
-		  rc = CallImportConverterN(pDDO, atoi(script), NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+		  rc = CallImportConverterN(NULL, pDDO, atoi(script), NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 		else
-		  rc = CallImportConverterN(pDDO, -1,           NULL, NULL, NULL, NULL, PDU, NULL, script);
+		  rc = CallImportConverterN(NULL, pDDO, -1,           NULL, NULL, NULL, NULL, PDU, NULL, script);
 		  
 		if(rc==2 || rc==6)
 			{
@@ -3636,7 +3637,7 @@ ModifyPATIDofImageFile(char *filename, char *NewPATID, BOOL DelFile, char *scrip
 
 	// add the image in memory to the server, also makes a copy of the image
 	// if (!SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"modpatid", (unsigned char *)"modpatid", 0, 1))
-	if (!SaveToDisk(DB, pDDO, rFilename, TRUE, PDU, 0, 1))
+	if (!SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, 0, 1))
 		{
 		//delete pDDO;
 		OperatorConsole.printf("***Error entering object into server: %s\n", filename);
@@ -3825,7 +3826,7 @@ BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Servi
 		return ( FALSE );
 		}
 
-	rc = CallImportConverterN(pDDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, script);
+	rc = CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, script);
 
 	if(rc==2 || rc==6)
 		{
@@ -3835,7 +3836,7 @@ BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Servi
 		}
 
 	//if (!SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"AttachFile", (unsigned char *)"AttachFile", 0, 1))
-	if (!SaveToDisk(DB, pDDO, rFilename, TRUE, PDU, 0, 1))
+	if (!SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, 0, 1))
 		{
 		//delete pDDO;
 		OperatorConsole.printf("***[AttachFile] Error entering object into server: %s\n", filename);
@@ -4042,11 +4043,11 @@ MergeUIDofImageFile(char *filename, BOOL DelFile, const char *type, char *script
 		}
 
 	if (strcmp(type, "SeriesUID")==0)
-	  	//rc=CallImportConverterN(pDDO, 1700, NULL, NULL, NULL, NULL, "merging", "merging", NULL, NULL, VariableVRs);
-	  	rc=CallImportConverterN(pDDO, 1700, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+	  	//rc=CallImportConverterN(NULL, pDDO, 1700, NULL, NULL, NULL, NULL, "merging", "merging", NULL, NULL, VariableVRs);
+	  	rc=CallImportConverterN(NULL, pDDO, 1700, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 	else
-  		//rc=CallImportConverterN(pDDO, 1800, NULL, NULL, NULL, NULL, "merging", "merging", NULL, NULL, VariableVRs);
-  		rc=CallImportConverterN(pDDO, 1800, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+  		//rc=CallImportConverterN(NULL, pDDO, 1800, NULL, NULL, NULL, NULL, "merging", "merging", NULL, NULL, VariableVRs);
+  		rc=CallImportConverterN(NULL, pDDO, 1800, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 
 	if (rc==2 || rc==6)
 		{
@@ -4056,8 +4057,8 @@ MergeUIDofImageFile(char *filename, BOOL DelFile, const char *type, char *script
 		}
 
 	if (*script)
-	  	//rc=CallImportConverterN(pDDO, -1, NULL, NULL, NULL, NULL, "merging", "merging", NULL, script, VariableVRs);
-	  	rc=CallImportConverterN(pDDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, script);
+	  	//rc=CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, "merging", "merging", NULL, script, VariableVRs);
+	  	rc=CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, script);
 
 	if (rc==2 || rc==6)
 		{
@@ -4076,7 +4077,7 @@ MergeUIDofImageFile(char *filename, BOOL DelFile, const char *type, char *script
 
 	// add the image in memory to the server, also makes a copy of the image
 	//if (!SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"merging", (unsigned char *)"merging", 0, 1))
-	if (!SaveToDisk(DB, pDDO, rFilename, TRUE, PDU, 0, 1))
+	if (!SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, 0, 1))
 		{
 		//delete pDDO;
 		OperatorConsole.printf("***Error entering object into server: %s\n", filename);
@@ -5286,7 +5287,7 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
   
 	// process data
         if (script)
-          CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, PDU+part, NULL, script);
+          CallImportConverterN(NULL, DDO, -1, NULL, NULL, NULL, NULL, PDU+part, NULL, script);
 
         // recompress data to be forwarded here according to accepted compression mode; strip group 2 unless "as" or "is"
         p = PDU[part].GetAcceptedCompressionType(iUID);
@@ -6064,7 +6065,7 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
         cmd[0]=0;
         MyGetPrivateProfileString ( "scripts", line+5, cmd, cmd, 1024, ConfigFile);
         if (*cmd)
-          ret = CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, cmd);
+          ret = CallImportConverterN(NULL, DDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, cmd);
         else
         { f = fopen(line+5, "rt");
           if (f)
@@ -6072,8 +6073,8 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
             while(fgets(cmd, sizeof(cmd), f) != NULL)
             { if (cmd[strlen(cmd)-1]=='\n') cmd[strlen(cmd)-1]=0;
 	      if (cmd[0]!='#' && cmd[0]!=';')
-	      { // ret = CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, NULL, NULL, Storage, cmd, vars);
-	        ret = CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, cmd);
+	      { // ret = CallImportConverterN(NULL, DDO, -1, NULL, NULL, NULL, NULL, NULL, NULL, Storage, cmd, vars);
+	        ret = CallImportConverterN(NULL, DDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, cmd);
                 if (ret==5 || ret==2 || ret==6) break; // return or destroy or reject
 	      }
             }
@@ -6355,7 +6356,9 @@ int console;
     int n=lua_gettop(L);
     char cmd[2000]="";
     DICOMDataObject *pDDO;
+    DICOMCommandObject *pDCO;
     pDDO = sd->DDO;
+    pDCO = sd->DCO;
     if (n>0)
     { if (lua_isuserdata(L, 1)) 
       { lua_getmetatable(L, 1);
@@ -6367,7 +6370,7 @@ int console;
     }
     if (n>1 && lua_isstring(L,2)) 
       strcpy(cmd, lua_tostring(L,2));
-    sd->rc = CallImportConverterN(pDDO, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
+    sd->rc = CallImportConverterN(pDCO, pDDO, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
     return 0;
   }
   static int luadestroy(lua_State *L)
@@ -7106,7 +7109,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       { DICOMDataObject *pDDO = MakeCopy(O);
         char cmd[512];
 	sprintf(cmd, "compression %s", name);
-        CallImportConverterN(pDDO, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
+        CallImportConverterN(NULL, pDDO, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
 	//BOOL StripGroup2 = memicmp(name, "as", 2)!=0 && memicmp(name, "is", 2)!=0;
 	//recompress(&pDDO, name, "", StripGroup2, sd->PDU);
         luaCreateObject(L, pDDO, NULL, TRUE);
@@ -7598,7 +7601,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
         }
 
         DICOMDataObject *P = MakeCopy(O);
-	int rc = SaveToDisk(DB, P, rFilename, TRUE, &PDU, 0, TRUE);
+	int rc = SaveToDisk(DB, NULL, P, rFilename, TRUE, &PDU, 0, TRUE);
 	if (!rc)
 	{ OperatorConsole.printf("***[lua addimage] Error entering object into server%s\n", DataHost);
 	}
@@ -7805,7 +7808,7 @@ static char uploadedfile[256];
     // write into Data.Storage
     if (O==sd->DDO && strcmp(lua_tostring(L,2), "Storage")==0)
     { sprintf(script, "storage %s", lua_tostring(L,3));
-      CallImportConverterN(O, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, script);
+      CallImportConverterN(NULL, O, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, script);
     }
     // write into Data.Item, Data.Sequence.Item, or Data.Sequence[N].Item
     else if (O) 
@@ -7834,7 +7837,7 @@ static char uploadedfile[256];
 	script[j++] = 0;
       }
 	    
-      CallImportConverterN(O, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, script);
+      CallImportConverterN(NULL, O, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, script);
     }
     return 0;
   }
@@ -8510,7 +8513,7 @@ void Startimport_forward_PDU_close_thread(void)
 // CallImportConverterN (pDDO,                 -1,    NULL,              NULL,                 NULL,         NULL,        NULL,                     NULL,          script);
 // use -2 to suppress status printing, -3 to also suppress error printing
 
-int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage, char *Script)
+int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage, char *Script)
 { char		szRootSC[64];
   char		szEntry[64];
   char		szTemp[66];
@@ -8574,7 +8577,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
 
     MyGetPrivateProfileString("lua", szEntry, "", szExecName, 512, ConfigFile);
     if (szExecName[0])
-    { struct scriptdata sd1 = {PDU, NULL, DDO, N, pszModality, pszStationName, pszSop, patid, Storage, 0, 0};
+    { struct scriptdata sd1 = {PDU, DCO, DDO, N, pszModality, pszStationName, pszSop, patid, Storage, 0, 0};
       sd1.rc = 1;
       do_lua(&(PDU->L), szExecName, &sd1);
       //if (!MyGetPrivateProfileString(szRootSC, szEntry, "", szExecName, 512, ConfigFile)) 
@@ -9200,7 +9203,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       if (PDU[channel].Link.Connected)
       { // process data
         if (script[0])
-          CallImportConverterN(pDDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, script);
+          CallImportConverterN(DCO, pDDO, -1, NULL, NULL, NULL, NULL, PDU, NULL, script);
         import_forward_PDU_time[N][channel] = time(NULL);
   
         // recompress data to be forwarded here according to accepted compression mode; strip group 2 unless "as" or "is"
@@ -10142,7 +10145,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       cmd[0]=0;
       MyGetPrivateProfileString ( "scripts", line+5, cmd, cmd, 1024, ConfigFile);
       if (*cmd)
-        ret = CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
+        ret = CallImportConverterN(DCO, DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
       else
       { f = fopen(line+5, "rt");
         if (f)
@@ -10151,7 +10154,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
           { if (cmd[strlen(cmd)-1]=='\n') cmd[strlen(cmd)-1]=0;
 	    if (cmd[0]!='#' && cmd[0]!=';')
 	    { // ret = CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, NULL, NULL, Storage, cmd, vars);
-	      ret = CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
+	      ret = CallImportConverterN(DCO, DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
               if (ret==5 || ret==2 || ret==6) break; // return or destroy or reject
 	    }
           }
@@ -10169,7 +10172,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     { char cmd[1024];
       strcpy(cmd, line+8);
       cmd[strlen(cmd)-1]=0;
-      rc = CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
+      rc = CallImportConverterN(DCO, DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
     }
 
     /* converter: lua, evaluate string as lua program */
@@ -10177,7 +10180,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
     else if (memicmp(line, "lua \"", 5)==0)
     { char cmd[1024];
       // note; threadnum and dco not implemented
-      struct scriptdata sd = {PDU, NULL, DDO, N, pszModality, pszStationName, pszSop, patid, Storage, 0, 0};
+      struct scriptdata sd = {PDU, DCO, DDO, N, pszModality, pszStationName, pszSop, patid, Storage, 0, 0};
       strcpy(cmd, line+5);
       cmd[strlen(cmd)-1]=0;
       do_lua(&(PDU->L), cmd, &sd);
@@ -10445,7 +10448,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
       cmd[0]=0;
       MyGetPrivateProfileString ( "scripts", line, cmd, cmd, 1024, ConfigFile);
       if (*cmd)
-        ret = CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
+        ret = CallImportConverterN(DCO, DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
       else
       { char *b = strchr(line,'(');
         if (b) *b=0;
@@ -10485,8 +10488,8 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
               lua_setvar(PDU, "version",         DGATE_VERSION);
 	    }
             
-	    // note; threadnum and dco not implemented
-            struct scriptdata sd = {PDU, NULL, DDO, N, pszModality, pszStationName, pszSop, patid, Storage, 0, 0};
+	    // note: threadnum not implemented
+            struct scriptdata sd = {PDU, DCO, DDO, N, pszModality, pszStationName, pszSop, patid, Storage, 0, 0};
     	    if (N >= -1) SystemDebug.printf("Importconverter%d.%d: %s\n", N, part, script);
     	    sd.rc = 1;
             do_lua(&(PDU->L), script, &sd);
@@ -10497,7 +10500,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
             while(fgets(cmd, sizeof(cmd), f) != NULL)
             { if (cmd[strlen(cmd)-1]=='\n') cmd[strlen(cmd)-1]=0;
 	      if (cmd[0]!='#' && cmd[0]!=';' && cmd[0]!=0)
-	      { ret = CallImportConverterN(DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
+	      { ret = CallImportConverterN(DCO, DDO, -1, NULL, NULL, NULL, NULL, PDU, Storage, cmd);
                 if (ret==5 || ret==2 || ret==6) break; // return or destroy or reject
 	      }
             }
@@ -10522,7 +10525,7 @@ int CallImportConverterN(DICOMDataObject *DDO, int N, char *pszModality, char *p
   return rc;
 }
 
-int CallImportConverters(DICOMDataObject *DDO, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage)
+int CallImportConverters(DICOMCommandObject *DCO, DICOMDataObject *DDO, char *pszModality, char *pszStationName, char *pszSop, char *patid, ExtendedPDU_Service *PDU, char *Storage)
 { char		szRootSC[64];
 //  char		szEntry[32];
   char		szTemp[32];
@@ -10538,7 +10541,7 @@ int CallImportConverters(DICOMDataObject *DDO, char *pszModality, char *pszStati
   /* Loop over all converters */
   rc = 0;
   for(i=0; i<iNbConverters; i++)
-  { rc = CallImportConverterN(DDO, i, pszModality, pszStationName, pszSop, patid, PDU, Storage, NULL);
+  { rc = CallImportConverterN(DCO, DDO, i, pszModality, pszStationName, pszSop, patid, PDU, Storage, NULL);
 
     if (rc==2) break;
     //  destroy
@@ -12004,7 +12007,7 @@ BOOL ApplyWorklist(DICOMDataObject *DDOPtr, Database *DB)
 BOOL    NewDeleteSopFromDB(char *pat, char *study, char *series, char *sop, Database &aDB);
 
 int
-SaveToDisk(Database	&DB, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, ExtendedPDU_Service *PDU, int Syntax, BOOL nopreget)
+SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, ExtendedPDU_Service *PDU, int Syntax, BOOL nopreget)
 	{
 //	FILE		*fp;
 	DICOMDataObject	DDO;
@@ -12050,7 +12053,7 @@ SaveToDisk(Database	&DB, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, 
 			OperatorConsole.printf("***[WorkListMode 2] Worklist entry (AccessionNumber) not found; object not saved\n");
 			//return FALSE;
 
-			int rc = CallImportConverterN(DDOPtr, 2200, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+			int rc = CallImportConverterN(DCO, DDOPtr, 2200, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 			if (rc==7)	// retry command
 				{
 				if (!ApplyWorklist(DDOPtr, &DB)) 
@@ -12084,7 +12087,7 @@ SaveToDisk(Database	&DB, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, 
 	Storage[0]=0;
 	if (!nopreget)
 		{ 
-		int rc = CallImportConverters(DDOPtr, szModality, szStationName, szSop, patid, PDU, Storage);
+		int rc = CallImportConverters(DCO, DDOPtr, szModality, szStationName, szSop, patid, PDU, Storage);
 		if (rc==2)
 			{
 			// the import converter destroyed the image: silently cancel store
@@ -12164,7 +12167,7 @@ SaveToDisk(Database	&DB, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, 
 		{
 		OperatorConsole.printf("***Error saving to SQL: %s\n", rFilename);
 #ifndef FAILSAFE_STORAGE
-		int rc = CallImportConverterN(DDOPtr, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+		int rc = CallImportConverterN(DCO, DDOPtr, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 		if (rc==7)	// retry command
 			{
 			if(!SaveToDataBase(DB, DDOPtr, rFilename, Device2, *rRoot))
@@ -14031,7 +14034,7 @@ class	MyUnknownStorage	:	public UnknownStorage
 		BOOL	 nopreget;	// must be set by caller (derived from messageid)
 
 				// called for each incoming DDO
-		UINT16 CheckObject(DICOMDataObject *DDO, PDU_Service *PDU) 
+		UINT16 CheckObject(DICOMCommandObject *DCO, DICOMDataObject *DDO, PDU_Service *PDU) 
 			{
 			char Filename[1024];
 			char Called[20], Calling[20];
@@ -14090,7 +14093,7 @@ class	MyUnknownStorage	:	public UnknownStorage
 
 			// NOTE: NOT THREAD SAFE - IF ONE THREAD HANDLES READS AND WRITES THIS OPERATION CAN FAIL DUE TO DB SHARING:
 
-			rc = SaveToDisk(*DB, DDO, Filename, FALSE, (ExtendedPDU_Service *)PDU, 0, nopreget);
+			rc = SaveToDisk(*DB, DCO, DDO, Filename, FALSE, (ExtendedPDU_Service *)PDU, 0, nopreget);
 			//delete DDO;
 			//rc = TRUE;
 			//strcpy(Filename, "");
@@ -14580,7 +14583,7 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 	if (param)
 		if (strstr(param, "FIXKODAK") || strstr(param, "fixkodak"))
 			KodakFixer(DDOPtr, TRUE);
-	CallImportConverterN(DDOPtr, 2300, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
+	CallImportConverterN(NULL, DDOPtr, 2300, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
 
 	MyPatientRootQuery mq;
 	MyStudyRootQuery sq;
@@ -14776,7 +14779,7 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 				for (i=s; i<pADDO->GetSize(); i++)
 					KodakFixer(pADDO->Get(i), FALSE);
 		for (i=s; i<pADDO->GetSize(); i++)
-			CallImportConverterN(pADDO->Get(i), 2400, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
+			CallImportConverterN(NULL, pADDO->Get(i), 2400, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
 
 		// Here IMAGETYPEFIX filters results that do not match the queried ImageType
 		if (ImageType[0] && param && strstr(param, "IMAGETYPEFIX"))
@@ -14903,7 +14906,7 @@ int VirtualQueryToDB(DICOMDataObject *DDO, int N, char *ae=NULL)
 	if (param)
 		if (strstr(param, "FIXKODAK") || strstr(param, "fixkodak"))
 			KodakFixer(DDOPtr, TRUE);
-	CallImportConverterN(DDOPtr, 2300, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
+	CallImportConverterN(NULL, DDOPtr, 2300, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
 
 	Index = 0; DBE = StudyDB;
 	while ( TRUE )	// study, series and image query
@@ -14978,7 +14981,7 @@ int VirtualQueryToDB(DICOMDataObject *DDO, int N, char *ae=NULL)
 	if (param)
 		if (strstr(param, "FIXKODAK") || strstr(param, "fixkodak"))
 			KodakFixer(DDOPtr, TRUE);
-	CallImportConverterN(DDOPtr, 2300, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
+	CallImportConverterN(NULL, DDOPtr, 2300, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
 	
 	// Do the Query
 	
@@ -15840,7 +15843,7 @@ int	DcmSubmitData(char *pat, char *study, char *series, char *sop, char *script,
 	    DICOMDataObject *pDDO;
             pDDO = LoadForGUI(temp);
 	    if (pDDO)
-	    { rc = CallImportConverterN(pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, script);
+	    { rc = CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, script);
 	      if (rc!=2 && rc!=6)
 	      { // NewTempFile(temp, ".dcm");
 		SearchDICOMObject(pDDO, "0008,0018", temp);
@@ -15938,7 +15941,7 @@ int	DcmSubmitData(char *pat, char *study, char *series, char *sop, char *script,
 BOOL	MyPatientRootQuery	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
 	{
 	UNUSED_ARGUMENT(DCO);
-	return CallImportConverterN(DDO, 1000, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1000, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 // this callback is called very often, therefore save much time by this:
@@ -15950,7 +15953,7 @@ BOOL	MyPatientRootQuery	::	QueryResultScript (PDU_Service *PDU, DICOMCommandObje
 	UNUSED_ARGUMENT(DCO);
 	if (!t_1500)
 		{
-		rc = CallImportConverterN(DDO, 1500, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL);
+		rc = CallImportConverterN(DCO, DDO, 1500, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL);
 		if (rc==0) t_1500 = time(NULL);
 		}
 	else
@@ -16010,7 +16013,7 @@ BOOL	MyPatientRootQuery	::	SearchOn (
 BOOL	MyStudyRootQuery	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
 	{
 	UNUSED_ARGUMENT(DCO);
-	return CallImportConverterN(DDO, 1000, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1000, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyStudyRootQuery	::	QueryResultScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
@@ -16019,7 +16022,7 @@ BOOL	MyStudyRootQuery	::	QueryResultScript (PDU_Service *PDU, DICOMCommandObject
 	UNUSED_ARGUMENT(DCO);
 	if (!t_1500)
 		{
-		rc = CallImportConverterN(DDO, 1500, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL);
+		rc = CallImportConverterN(DCO, DDO, 1500, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL);
 		if (rc==0) t_1500 = time(NULL);
 		}
 	else
@@ -16080,7 +16083,7 @@ BOOL	MyStudyRootQuery	::	SearchOn (
 BOOL	MyPatientStudyOnlyQuery	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
 	{
 	UNUSED_ARGUMENT(DCO);
-	return CallImportConverterN(DDO, 1000, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1000, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyPatientStudyOnlyQuery	::	QueryResultScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
@@ -16089,7 +16092,7 @@ BOOL	MyPatientStudyOnlyQuery	::	QueryResultScript (PDU_Service *PDU, DICOMComman
 	UNUSED_ARGUMENT(DCO);
 	if (!t_1500)
 		{
-		rc = CallImportConverterN(DDO, 1500, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL);
+		rc = CallImportConverterN(DCO, DDO, 1500, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL);
 		if (rc==0) t_1500 = time(NULL);
 		}
 	else
@@ -16148,13 +16151,13 @@ BOOL	MyPatientStudyOnlyQuery	::	SearchOn (
 BOOL	MyModalityWorkListQuery	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
 	{
 	UNUSED_ARGUMENT(DCO);
-	return CallImportConverterN(DDO, 1100, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1100, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyModalityWorkListQuery	::	QueryResultScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
 	{
 	UNUSED_ARGUMENT(DCO);
-	return CallImportConverterN(DDO, 1600, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1600, NULL, NULL, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyModalityWorkListQuery	::	SearchOn (
@@ -16245,7 +16248,7 @@ BOOL	MyPatientRootRetrieve	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObj
         if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyPatientRootRetrieve	::	SearchOn (
@@ -16318,7 +16321,7 @@ BOOL	MyPatientRootRetrieveNKI	::	QueryMoveScript (PDU_Service *PDU, DICOMCommand
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyPatientRootRetrieveNKI	::	SearchOn (
@@ -16391,7 +16394,7 @@ BOOL	MyPatientRootRetrieveGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCom
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyPatientRootGetGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
@@ -16403,7 +16406,7 @@ BOOL	MyPatientRootGetGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandO
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 	
 BOOL	MyPatientRootRetrieveGeneric	::	SearchOn (
@@ -16537,7 +16540,7 @@ BOOL	MyStudyRootRetrieve	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObjec
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyStudyRootRetrieve	::	SearchOn (
@@ -16610,7 +16613,7 @@ BOOL	MyStudyRootRetrieveNKI	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandOb
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyStudyRootRetrieveNKI	::	SearchOn (
@@ -16683,7 +16686,7 @@ BOOL	MyStudyRootRetrieveGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMComma
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyStudyRootGetGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
@@ -16695,7 +16698,7 @@ BOOL	MyStudyRootGetGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObj
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyStudyRootRetrieveGeneric	::	SearchOn (
@@ -16829,7 +16832,7 @@ BOOL	MyPatientStudyOnlyRetrieve	::	QueryMoveScript (PDU_Service *PDU, DICOMComma
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyPatientStudyOnlyRetrieve	::	SearchOn (
@@ -16902,7 +16905,7 @@ BOOL	MyPatientStudyOnlyRetrieveNKI	::	QueryMoveScript (PDU_Service *PDU, DICOMCo
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyPatientStudyOnlyRetrieveNKI	::	SearchOn (
@@ -16975,7 +16978,7 @@ BOOL	MyPatientStudyOnlyRetrieveGeneric	::	QueryMoveScript (PDU_Service *PDU, DIC
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyPatientStudyOnlyGetGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *DDO)
@@ -16987,7 +16990,7 @@ BOOL	MyPatientStudyOnlyGetGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCom
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
-	return CallImportConverterN(DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
+	return CallImportConverterN(DCO, DDO, 1200, NULL, dest, NULL, NULL, (ExtendedPDU_Service *)PDU, NULL, NULL)!=2;
 	}
 
 BOOL	MyPatientStudyOnlyRetrieveGeneric	::	SearchOn (
@@ -17561,7 +17564,7 @@ BOOL VirtualServer2(struct ReadAheadThreadData *ratd, int N)
 			if (param)
 				if (strstr(param, "FIXKODAK") || strstr(param, "fixkodak"))
 					KodakFixer(&DDO, TRUE);
-			CallImportConverterN(&DDO, 2300, NULL, NULL, NULL, NULL, &PDU2, NULL, NULL);
+			CallImportConverterN(NULL, &DDO, 2300, NULL, NULL, NULL, NULL, &PDU2, NULL, NULL);
 
 			// Write command object and data object
 			PDU2.Write(&DCO, uid);
@@ -18820,7 +18823,7 @@ void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU)
     vr = new VR(0x0020, 0x0013, strlen(rFilename), (void*)rFilename, (BOOL) FALSE );
     pDDO->ReplaceVR(vr); delete vr;
     //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testcompress", (unsigned char *)"testcompress", syntax);
-    SaveToDisk(DB, pDDO, rFilename, TRUE, PDU, syntax);
+    SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
     pDDO = PDU->LoadDICOMDataObject(rFilename);
     OperatorConsole.printf("Added file: %s (filename syntax %d)\n", rFilename, syntax);
 
@@ -18831,7 +18834,7 @@ void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU)
     vr = new VR(0x0020, 0x0013, strlen(rFilename), (void*)rFilename, (BOOL) FALSE );
     pDDO->ReplaceVR(vr); delete vr;
     //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testcompress", (unsigned char *)"testcompress", syntax);
-    SaveToDisk(DB, pDDO, rFilename, TRUE, PDU, syntax);
+    SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
     pDDO = PDU->LoadDICOMDataObject(rFilename);
     OperatorConsole.printf("Added file: %s (compression %s, syntax %d)\n", rFilename, mode, syntax);
 
@@ -18842,7 +18845,7 @@ void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU)
     vr = new VR(0x0020, 0x0013, strlen(rFilename), (void*)rFilename, (BOOL) FALSE );
     pDDO->ReplaceVR(vr);  delete vr;
     //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testcompress", (unsigned char *)"testcompress", syntax);
-    SaveToDisk(DB, pDDO, rFilename, TRUE, PDU, syntax);
+    SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
     pDDO = PDU->LoadDICOMDataObject(rFilename);
     OperatorConsole.printf("Added file: %s (compression %s_un, syntax %d)\n", rFilename, mode, syntax);
 
@@ -18853,7 +18856,7 @@ void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU)
     vr = new VR(0x0020, 0x0013, strlen(rFilename), (void*)rFilename, (BOOL) FALSE );
     pDDO->ReplaceVR(vr); delete vr;
     //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testcompress", (unsigned char *)"testcompress", syntax);
-    SaveToDisk(DB, pDDO, rFilename, TRUE, PDU, syntax);
+    SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
     pDDO = PDU->LoadDICOMDataObject(rFilename);
     OperatorConsole.printf("Added file: %s (compression %s_un_%s, syntax %d)\n", rFilename, mode, mode, syntax);
   }
@@ -18980,7 +18983,7 @@ void TestSyntax(char *filename, int syntax, ExtendedPDU_Service *PDU)
   pDDO->ReplaceVR(vr);  delete vr;
 
   //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testsyntax", (unsigned char *)"testsyntax", syntax);
-  SaveToDisk(DB, pDDO, rFilename, TRUE, PDU, syntax);
+  SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
 }
 
 static BOOL WINAPI testsavethread(char *filename)
@@ -22177,12 +22180,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				DcmConvertPixelData(pDDO, FALSE, TRUE, startx, endx, starty, endy, 0.0, 0.0, 0.0);
 				}
 			if (strcmp(r4, "yes")==0)
-				CallImportConverterN(pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, "call anonymize_script.cq");
+				CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, "call anonymize_script.cq");
 			else if (strlen(r4)>0)
 				{ 
 				char comm[512];
 				sprintf(comm, "lua/anonymize_script.lua(%s)", r4);
-				CallImportConverterN(pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, comm);
+				CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, comm);
 				}
 			// AnnotateDICOMObject(pDDO, r5);
 			if (r2 && strcmp(r2, "image/gif")==0 && nf<2)
@@ -23265,7 +23268,7 @@ BOOL StorageApp	::	ServerChild (int theArg )
 			OperatorConsole.printf("UPACS THREAD %d: ENDED AT: %s\n", ThreadNum, TimeString);
 			OperatorConsole.printf("UPACS THREAD %d: TOTAL RUNNING TIME: %d SECONDS\n", ThreadNum, TimeOfDay2 - TimeOfDay);
 			// this call to provide timely close given ForwardAssociationLevel for ImportConverters
-			if (OpenThreadCount==0) CallImportConverters(NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+			if (OpenThreadCount==0) CallImportConverters(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 			}
 #ifdef __BORLANDC__
 			{ 

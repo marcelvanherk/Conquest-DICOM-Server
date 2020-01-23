@@ -7,6 +7,7 @@
 // bcb 20100619 Added #ifndefs (gcc4.0 Warnings) and UNUSED_ARGUMENT
 // mvh 20100717 Merged
 // 20140607     mvh	Make sure CStoreRSP::Write uses same Presentation context as CStoreRQ
+// mvh 20200121	Added DCO to CheckObject
 
 
 /****************************************************************************
@@ -78,7 +79,7 @@ BOOL	StandardStorage :: Read (
 
 	if ( CStoreRQ :: Read ( DCO, PDU, DDO ) )
 		{
-		return ( CStoreRSP :: Write ( PDU, DCO, CheckObject( DDO, PDU ), cid ) );
+		return ( CStoreRSP :: Write ( PDU, DCO, CheckObject( DCO, DDO, PDU ), cid ) );
 		}
 	if ( CStoreRSP :: Read ( DCO ) )
 		{
@@ -156,7 +157,7 @@ BOOL	UnknownStorage :: Read (
 
 	if ( CStoreRQ :: Read ( DCO, PDU, DDO ) )
 		{
-		return ( CStoreRSP :: Write ( PDU, DCO, CheckObject ( DDO, PDU ), cid ) );
+		return ( CStoreRSP :: Write ( PDU, DCO, CheckObject ( DCO, DDO, PDU ), cid ) );
 		}
 	if ( CStoreRSP :: Read ( DCO ) )
 		{

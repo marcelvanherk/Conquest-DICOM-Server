@@ -23,6 +23,7 @@
 # 20120628	ljz	Adjusted to dicom 2011 (VERS="4")
 # 20121016	mvh	Added conquest private commands
 # 20160425	mvh	Fix PixelPaddingValue
+# 20200125      mvh     Added ConquestSplit, ConquestImageQueryOrder, ConquestMoveOriginator
 
 (0000,0000) VERS="3"	VR="UL"   VM="1"	Keyword="GroupLength"				Name="Group Length"
 (0000,0001) VERS="2"	VR="UL"   VM="1"	Keyword="CommandLengthToEnd"			Name="Command Length to End"
@@ -4019,6 +4020,9 @@
 (9999,0700) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestReCompression"			Name="Conquest ReCompression"
 (9999,0802) VERS="CQ"	VR="US"   VM="1"	Keyword="ConquestVirtualServerMask"		Name="Conquest Virtual Server Mask"
 (9999,0900) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestScript"			Name="Conquest Script"
+(9999,0A00) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestMoveOriginator"		Name="Conquest Move Originator"
+(9999,0B00) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestSplit"				Name="Conquest Split"
+(9999,0C00) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestImageQueryOrder"		Name="Conquest Image Query Sort Order"
 (FFFA,FFFA) VERS="4"	VR="SQ"   VM="1"	Keyword="DigitalSignaturesSequence"			Name="Digital Signatures Sequence"
 (FFFC,FFFC) VERS="4"	VR="OB"   VM="1"	Keyword="DataSetTrailingPadding"			Name="Data Set Trailing Padding"
 (FFFE,E000) VERS="4"	VR="NONE" VM="1"	Keyword="Item"					Name="Item"                      

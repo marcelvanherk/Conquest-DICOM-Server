@@ -263,6 +263,7 @@
 20201020	mvh	0x9999,0x0b000 splits move e.g. pass 0/2 to only send even, 1/2 to only send odd
 20201021	mvh	Above VR may be in command OR data; added DCO to CheckObject
 20201022	mvh	Added DCO to CallImportConverterN calls; read split and slicelimit below QueryMoveScript
+20201025	mvh	Print reduced number of images actually sent
 */
 
 //#define bool BOOL
@@ -604,6 +605,9 @@ BOOL	StandardRetrieveNKI	::	Read (
 				}
 			}
 		}
+		
+	if (iVrSliceLimit < 0xffffffff || splitinto > 1)
+	  OperatorConsole.printf("Reduced to: %d\n", ADDO.GetSize());
 			
 	// If the called AE looks like SERVER~j2, then the last 2 characters override the outgoing compression set in ACRNEMA.MAP
 	strcpy(Called, (char *)(((AAssociateAC *)PDU)->CalledApTitle));

@@ -1129,6 +1129,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200120        mvh     1.5.0-beta1: added logging to ForwardAssociationLevel close; Added DelayedForwarderThreads
 			Added experimental 'split ' clause to delayed forward (cannot be used with imagetype clause)
 20200122        mvh     Set Command for many (not all) converters, passing DCO to SaveToDisk, CheckObject and CallImportConverterN
+20200124        mvh     Added lua: Im/ExportConverter; must be last in line as it may contain ;  " { or }; Note e.g. 
+			%f is still substituted, beware of using % in lua code, escape to %%; added %g generate uid
+20200125        mvh     Added DCOextra to lua dicommove and DcmMove2, will be added to DCO to control move 
 
 ENDOFUPDATEHISTORY
 */
@@ -4910,6 +4913,8 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
         strcpy(szNext, szExecName+k+1);		// remaining for next
         break;
       }
+      if (memicmp(szExecName+k, "lua:", 4)==0 && instring==0)
+	break;
     }
   
     if (skipping)	// {} block being skipped
@@ -5071,6 +5076,12 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
 			i += SearchDICOMObject(DDO, szExecName+i+2, result2);
 			ChangeUIDBack(result2, result3, NULL, NULL);
                         strcat(line, result3);
+                        break;
+			}
+	      case 'g': {				// %g generate UID
+		        char result2[256];
+			GenUID(result2);
+                        strcat(line, result2);
                         break;
 			}
 
@@ -5479,15 +5490,20 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
       }
 
       // lua "" export converter: has all ImportConverter functionality + script("defer")
+      // also allow lua: -- must be last
 
-      else if (memicmp(line, "lua \"", 5)==0)
+      else if (memicmp(line, "lua \"", 5)==0 || memicmp(line, "lua:", 4)==0)
       { char cmd[1024];
         if (!DDO) DDO = PDU2.LoadDICOMDataObject(pszFileName);
 
         // note; threadnum and dco not implemented
         struct scriptdata sd = {PDU, NULL, DDO, N, pszModality, pszStationName, pszSop, patid, NULL, 0, 0};
-        strcpy(cmd, line+5);
-        cmd[strlen(cmd)-1]=0;
+        if (memicmp(line, "lua:", 4)==0) 
+	  strcpy(cmd, line+4);
+	else                             
+	{ strcpy(cmd, line+5);
+          cmd[strlen(cmd)-1]=0;
+	}
         do_lua(&(PDU->L), cmd, &sd);
         rc = sd.rc;
 	if (rc==8)
@@ -6182,7 +6198,7 @@ void CallExportConverters(char *pszFileName, char *pszModality, char *pszStation
 #include "lua.hpp"
 
 char *heapinfo( void );
-char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, int id, DICOMDataObject *DDO, lua_State *L=NULL);
+char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, int id, DICOMDataObject *DDO, DICOMDataObject * DCOextra, lua_State *L=NULL);
 DICOMDataObject *dummyddo;
 
 static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, int con, char *buf=NULL, BOOL html=TRUE, BOOL upload=FALSE, lua_State *L=NULL);
@@ -6541,15 +6557,24 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
   static int luadicommove(lua_State *L)
   { const char *source = lua_tostring(L,1);
     const char *dest   = lua_tostring(L,2);
+    DICOMDataObject *DCOextra = NULL;
+    DICOMDataObject *O = NULL;
+      
+    if (lua_isuserdata(L, 5)) 
+    { lua_getmetatable(L, 5);
+        lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+      DCOextra = MakeCopy(O);
+    }
     if (lua_isuserdata(L, 3)) 
-    { DICOMDataObject *O = NULL;
-      lua_getmetatable(L, 3);
+    { lua_getmetatable(L, 3);
         lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
       lua_pop(L, 1);
       if (O)
       { DICOMDataObject *P = MakeCopy(O);
-        char *r = DcmMove2((char *)source, dest, lua_tointeger(L,4), 0x555, P, L);
+        char *r = DcmMove2((char *)source, dest, lua_tointeger(L,4), 0x555, P, DCOextra, L);
         delete P;
+	if (DCOextra) delete DCOextra;
 	if (r[0])
 	{ lua_pushstring(L, r);
 	  return 1;
@@ -6559,6 +6584,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     }
     return 0;
   }
+  
   static int luadicomdelete(lua_State *L)
   { if (lua_isuserdata(L, 1)) 
     { DICOMDataObject *O = NULL;
@@ -8658,6 +8684,10 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
         strcpy(szNext, szExecName+k+1);		// remaining for next
         break;
       }
+      if (memicmp(szExecName+k, "lua:", 4)==0 && instring==0)
+      { strcpy(szNext, "");		// remaining for next
+	break;
+      }
     }
 
     /* substitute %x variables and remove possible { and } at begin of statement */
@@ -8838,6 +8868,13 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
 		    i += SearchDICOMObject(DDO, szExecName+i+2, result2);
 		    ChangeUIDBack(result2, result3, NULL, NULL);
                     strcat(line, result3);
+                    break;
+		    }
+
+	  case 'g': {				// %g generate UID
+		    char result2[256];
+		    GenUID(result2);
+                    strcat(line, result2);
                     break;
 		    }
 
@@ -10177,12 +10214,16 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
 
     /* converter: lua, evaluate string as lua program */
 
-    else if (memicmp(line, "lua \"", 5)==0)
+    else if (memicmp(line, "lua \"", 5)==0 || memicmp(line, "lua:", 4)==0)
     { char cmd[1024];
       // note; threadnum and dco not implemented
       struct scriptdata sd = {PDU, DCO, DDO, N, pszModality, pszStationName, pszSop, patid, Storage, 0, 0};
-      strcpy(cmd, line+5);
-      cmd[strlen(cmd)-1]=0;
+      if (memicmp(line, "lua:", 4)==0) 
+	strcpy(cmd, line+4);
+      else                             
+      { strcpy(cmd, line+5);
+        cmd[strlen(cmd)-1]=0;
+      }
       do_lua(&(PDU->L), cmd, &sd);
       rc = sd.rc;
     }
@@ -11326,7 +11367,7 @@ EXIT:
 
 // move data from this to other server controlled by DICOMDataObject, returns error string
 
-char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, int id, DICOMDataObject *DDO, lua_State *L)
+char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, int id, DICOMDataObject *DDO, DICOMDataObject *DCOextra, lua_State *L)
 {	ExtendedPDU_Service	PDU;
 	DICOMCommandObject	DCO;
 	DICOMCommandObject	DCOR;
@@ -11417,6 +11458,14 @@ char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, in
 	memcpy((void*)AppTitle, pszDestinationAE, strlen(pszDestinationAE));
 	vr = new VR(0x0000, 0x0600, 16, (void*)&AppTitle[0], FALSE);
 	DCO.Push(vr);
+	
+	if (DCOextra)
+	{ while((vr=DCOextra->Pop()))
+	  { DCO.DeleteVR(vr);
+	    DCO.Push(vr);
+            //delete vr;
+	  }
+	}
 
 	uid.Set(SOP);
 	PDU.Write(&DCO, uid);
@@ -12616,6 +12665,7 @@ PrintOptions ()
 	fprintf(stderr, "Communication options:\n");
 	fprintf(stderr, "    --addimagefile:file,patid      Copy file into server, optionally new patid\n" );
 	fprintf(stderr, "    --addlocalfile:file,patid      Copy local file into server, opt. new patid\n" );
+	fprintf(stderr, "    --attachfile:file,script       Copy local file into server, process with script\n" );
 	fprintf(stderr, "    --loadanddeletedir:dir,patid   Load folder and delete its contents\n" );
 	fprintf(stderr, "    --loadhl7:file                 Load HL7 data into worklist\n" );
 	fprintf(stderr, "    --dump_header:filein,fileout   Create header dump of file\n" );

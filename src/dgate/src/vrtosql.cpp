@@ -76,6 +76,7 @@
 20190321	mvh	Added optional conversion from ISO_IR 100 to UTF8 in MakeSafeString
 20190322	mvh	Fixed that
 20191019        mvh     Removed sorting for CountOnly query (SQL fails on postgres)
+20200125	mvh	Accept 9999,0c000 ConquestImageQueryOrder (use field name, is truncated to 10)
 */
 
 #ifndef	WHEDGE
@@ -1893,6 +1894,7 @@ BOOL	QueryOnImage (
         char				*Sort=NULL;
 	UINT16				mask = 0xffff;
 	BOOL				CountOnly = FALSE;
+	char				Order [ 256 ];
 
 // Analysis of length of strings:
 //
@@ -1931,6 +1933,7 @@ BOOL	QueryOnImage (
         	}
 
 	SystemDebug.printf("Query On Image\n");
+	Order[0]=0;
 
 	while ((vr = DDO->Pop()))
 		{
@@ -1983,6 +1986,15 @@ BOOL	QueryOnImage (
 			if(vr->Element == 0x0900)
 				{
 				mask = vr->GetUINT16();
+				delete vr;
+				continue;	// discard it
+				}
+		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c00)
+				{
+				memcpy(Order, vr->Data, vr->Length);
+				Order[vr->Length]=0;
+				if (vr->Length>10) Order[10]=0;
 				delete vr;
 				continue;	// discard it
 				}
@@ -2161,7 +2173,13 @@ BOOL	QueryOnImage (
 		strcat(ColumnString, ".DeviceName");
 		}
 
-	if (ImageQuerySortOrder[0]) 
+	if (Order[0])
+		{
+		if(CCIndex)
+			strcat(ColumnString, ", ");
+		strcat(ColumnString, Order);
+		}
+	else if (ImageQuerySortOrder[0]) 
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
@@ -2210,7 +2228,8 @@ BOOL	QueryOnImage (
 		}
 
 	// Issue Query
-        if (ImageQuerySortOrder[0]) Sort = ImageQuerySortOrder;
+        if (Order[0]) Sort = Order;
+        else if (ImageQuerySortOrder[0]) Sort = ImageQuerySortOrder;
 	if (CountOnly) Sort = NULL;
 
 	if(strlen(SearchString))

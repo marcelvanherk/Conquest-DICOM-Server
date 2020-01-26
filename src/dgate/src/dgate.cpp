@@ -1132,6 +1132,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200124        mvh     Added lua: Im/ExportConverter; must be last in line as it may contain ;  " { or }; Note e.g. 
 			%f is still substituted, beware of using % in lua code, escape to %%; added %g generate uid
 20200125        mvh     Added DCOextra to lua dicommove and DcmMove2, will be added to DCO to control move 
+20200126        mvh     Added --mk_binary_dic: command; Simplified servercommand convert_to_xxx
 
 ENDOFUPDATEHISTORY
 */
@@ -12660,6 +12661,7 @@ PrintOptions ()
 	fprintf(stderr, "    --put_remoteae:in,AE,name Write/add accepted remote AE title\n" );
 	fprintf(stderr, "    --delete_remoteae:index   Delete accepted remote AE title\n" );
 	fprintf(stderr, "    --get_dic:index,fmt       List any dicom dictionary item\n" );
+	fprintf(stderr, "    --mk_binary_dic:filename  Save dictionary in binary form\n" );
 	fprintf(stderr, "    --get_sqldef:level,in,fmt List any database field definition\n" );
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Communication options:\n");
@@ -21726,6 +21728,8 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			}
 		}
 
+	else if (memcmp(SilentText, "mk_binary_dic:", 14)==0)
+		MkBinaryRtc(DicomDict, SilentText+14, TRUE);
 
 	else if (memcmp(SilentText, "dump_header:", 12)==0)
 		{ 
@@ -21859,7 +21863,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		}
 		}
 
-	else if (memcmp(SilentText, "convert_to_gif:", 15)==0)
+	else if (memcmp(SilentText, "convert_to_gif:", 15)==0 || memcmp(SilentText, "convert_to_bmp:", 15)==0 || memcmp(SilentText, "convert_to_jpg:", 15)==0)
 		{
 		int level, window;
 		unsigned int frame;
@@ -21892,128 +21896,63 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			if (r1==NULL)    r1 = p0; else r1++;
 			frame = (unsigned int)atoi(r1);
 
-			if (q==NULL || *q==0)
+			if (memcmp(SilentText, "convert_to_gif:", 15)==0)
 				{
-				NewTempFile(tempfile, ".gif");
-				ToGif(pDDO, tempfile, atoi(p), 0, level, window, frame, 1);
+				if (q==NULL || *q==0)
+					{
+					NewTempFile(tempfile, ".gif");
+					ToGif(pDDO, tempfile, atoi(p), 0, level, window, frame, 1);
+					}
+				else if (strcmp(q, "cgi")==0)
+					{
+					NewTempFile(tempfile, ".gif");
+					FILE *f = fopen(tempfile, "wb");
+					fprintf(f, "Content-type: image/gif\n\n");
+					fclose(f);
+					ToGif(pDDO, tempfile, atoi(p), 1, level, window, frame, 1);
+					}
+				else
+					ToGif(pDDO, q, atoi(p), 0, level, window, frame, 1);
+				ImagesToGifFromGui++;
 				}
-			else if (strcmp(q, "cgi")==0)
+			if (memcmp(SilentText, "convert_to_bmp:", 15)==0)
 				{
-				NewTempFile(tempfile, ".gif");
-				FILE *f = fopen(tempfile, "wb");
-				fprintf(f, "Content-type: image/gif\n\n");
-				fclose(f);
-				ToGif(pDDO, tempfile, atoi(p), 1, level, window, frame, 1);
+				if (q==NULL || *q==0)
+					{
+					NewTempFile(tempfile, ".bmp");
+					ToBMP(pDDO, tempfile, atoi(p), 0, level, window, frame, 1);
+					}
+				else if (strcmp(q, "cgi")==0)
+					{
+					NewTempFile(tempfile, ".bmp");
+					FILE *f = fopen(tempfile, "wb");
+					fprintf(f, "Content-type: image/bmp\n\n");
+					fclose(f);
+					ToBMP(pDDO, tempfile, atoi(p), 1, level, window, frame, 1);
+					}
+				else
+					ToBMP(pDDO, q, atoi(p), 0, level, window, frame, 1);
+				ImagesToBmpFromGui++;
 				}
-			else
-				ToGif(pDDO, q, atoi(p), 0, level, window, frame, 1);
-			ImagesToGifFromGui++;
-			delete pDDO;
-			}
-		}
-
-	else if (memcmp(SilentText, "convert_to_bmp:", 15)==0)
-		{
-		int level, window;
-		unsigned int frame;
-		DICOMDataObject *pDDO;
-		if (p) 
-		{ *p++=0;				// points after 1st comma
-		  q = strchr(p, ',');
-		  if (q) 
-		  { *q++=0;				// points after 2nd comma
-		    r1 = strchr(q, ',');
-		    if (r1) *r1++=0;			// points after 3rd comma
-		  }
-		}
-
-		pDDO = LoadForGUI(SilentText+15);
-		if (pDDO) 
-			{
-			char p256[]="256";
-			//char p32[]="32";
-			char r00[]="0/0";
-			char r0[]="0";
-			if (p==NULL)    p = p256;
-			//if (atoi(p)==0) p = p32;
-			if (r1==NULL)    r1 = r00;
-			level  = atoi(r1);
-			r1 = strchr(r1, '/');
-			if (r1==NULL)    r1 = r0; else r1++;
-			window = atoi(r1);
-			r1 = strchr(r1, '/');
-			if (r1==NULL)    r1 = r0; else r1++;
-			frame = (unsigned int)atoi(r1);
-
-			if (q==NULL || *q==0)
+			if (memcmp(SilentText, "convert_to_jpg:", 15)==0)
 				{
-				NewTempFile(tempfile, ".bmp");
-				ToBMP(pDDO, tempfile, atoi(p), 0, level, window, frame, 1);
+				if (q==NULL || *q==0)
+					{
+					NewTempFile(tempfile, ".jpg");
+					ToJPG(pDDO, tempfile, atoi(p), 0, level, window, frame, 95, 1);
+					}
+				else if (strcmp(q, "cgi")==0)
+					{
+					NewTempFile(tempfile, ".jpg");
+					FILE *f = fopen(tempfile, "wb");
+					fprintf(f, "Content-type: image/jpeg\n\n");
+					fclose(f);
+					ToJPG(pDDO, tempfile, atoi(p), 1, level, window, frame, 95, 1);
+					}
+				else
+					ToJPG(pDDO, q, atoi(p), 0, level, window, frame, 95, 1);
+				ImagesToJpgFromGui++;
 				}
-			else if (strcmp(q, "cgi")==0)
-				{
-				NewTempFile(tempfile, ".bmp");
-				FILE *f = fopen(tempfile, "wb");
-				fprintf(f, "Content-type: image/bmp\n\n");
-				fclose(f);
-				ToBMP(pDDO, tempfile, atoi(p), 1, level, window, frame, 1);
-				}
-			else
-				ToBMP(pDDO, q, atoi(p), 0, level, window, frame, 1);
-			ImagesToBmpFromGui++;
-			delete pDDO;
-			}
-		}
-
-	else if (memcmp(SilentText, "convert_to_jpg:", 15)==0)
-		{
-		int level, window;
-		unsigned int frame;
-		DICOMDataObject *pDDO;
-		if (p) 
-		{ *p++=0;				// points after 1st comma
-		  q = strchr(p, ',');
-		  if (q) 
-		  { *q++=0;				// points after 2nd comma
-		    r1 = strchr(q, ',');
-		    if (r1) *r1++=0;			// points after 3rd comma
-		  }
-		}
-
-		pDDO = LoadForGUI(SilentText+15);
-		if (pDDO) 
-			{
-			char p256[]="256";
-			//char p32[]="32";
-			char p00[]="0/0";
-			char p0[]="0";
-			if (p==NULL)    p = p256;
-			//if (atoi(p)==0) p = p32;
-			if (r1==NULL)    r1 = p00;
-			level  = atoi(r1);
-			r1 = strchr(r1, '/');
-			if (r1==NULL)    r1 = p0; else r1++;
-			window = atoi(r1);
-			r1 = strchr(r1, '/');
-			if (r1==NULL)    r1 = p0; else r1++;
-			frame = (unsigned  int)atoi(r1);
-
-			if (q==NULL || *q==0)
-				{
-				NewTempFile(tempfile, ".jpg");
-				ToJPG(pDDO, tempfile, atoi(p), 0, level, window, frame, 95, 1);
-				}
-			else if (strcmp(q, "cgi")==0)
-				{
-				NewTempFile(tempfile, ".jpg");
-				FILE *f = fopen(tempfile, "wb");
-				fprintf(f, "Content-type: image/jpeg\n\n");
-				fclose(f);
-				ToJPG(pDDO, tempfile, atoi(p), 1, level, window, frame, 95, 1);
-				}
-			else
-				ToJPG(pDDO, q, atoi(p), 0, level, window, frame, 95, 1);
-			ImagesToJpgFromGui++;
 			delete pDDO;
 			}
 		}

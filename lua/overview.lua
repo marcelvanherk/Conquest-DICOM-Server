@@ -239,7 +239,7 @@ print(genuid())
 
 -- query the local database (also possible from CGI interface, if the database is setup in the CGI dicom.ini)
 print('------ test quering a database --------')
-print(dbquery('DICOMPatients', 'PatientNam', 'PatientID LIKE \'2%\'')[1][1])
+print((dbquery('DICOMPatients', 'PatientNam', 'PatientID LIKE \'2%\'')[1] or {})[1])
 
 -- set and get pixels in the current image or any loaded image (MUST BE UNCOMPRESSED!)
 print('------ test reading and writing pixels --------')
@@ -346,6 +346,14 @@ AE = 'CONQUESTSRV1';
 b=newdicomobject(); b.PatientName = 'HEAD EXP2'; b.QueryRetrieveLevel = 'STUDY'; dicommove('CONQUESTSRV1', AE, b);
 b=newdicomobject(); b.PatientName = 'HEAD EXP2'; b.QueryRetrieveLevel = 'STUDY'; dicommove('CONQUESTSRV1', AE, b, 0, 'print(Global.StatusString)');
 b=newdicomobject(); b.PatientName = 'HEAD EXP2'; b.QueryRetrieveLevel = 'PATIENT'; dicommove('CONQUESTSRV1', AE, b, 1);
+
+-- advanced move; 1.5.0 up
+print('------ testing advanced C-MOVE; example setting max sent slices --------')
+b=newdicomobject();
+c=newdicomobject(); c.ConquestMaxSlices=1
+print(c:Serialize())
+print(c:Serialize(true))
+b.PatientName = 'HEAD EXP2'; b.QueryRetrieveLevel = 'PATIENT'; dicommove('CONQUESTSRV1', AE, b, 1, c);
 
 -- sql
 print('------ testing an SQL statement --------')

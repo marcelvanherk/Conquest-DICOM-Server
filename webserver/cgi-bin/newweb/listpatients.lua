@@ -10,6 +10,8 @@
 -- 20181215   mvh   Added remotequery and remote get_amap to depend less on web cgi functionality
 -- 20181230   mvh   Removed dicomquery, only kept remotequery
 -- 20190112   mvh   Use | to separate items to help with special characters in patientID
+-- 20200112   mvh   Added optional stage to zipanonymized
+-- 20200113   mvh   Small fix in that
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 version = version  or ''
@@ -227,9 +229,11 @@ if CGI('parameter', '')=='zipperanonymized' then
 end  
 if CGI('parameter', '')=='zipanonymized' then
   local items= split(CGI('item'), '|')
+  local stage=''
+  if CGI('stage')~='' then stage = '|' .. CGI('stage') end
   if write then
     local tempname = 'z.zip'
-    local script=string.format('%s,%s,%s,%s,%s,lua/anonymize_script.lua(%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', tempname, CGI('newid'))
+    local script=string.format('%s,%s,%s,%s,%s,lua/anonymize_script.lua(%s%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', tempname, CGI('newid'), stage)
     newdicomobject():Script('rm '..tempname)
     servercommand([[export:]]..script)
     write('HTTP/1.1 200/OK\r\nServer: Ladle\r\nContent-type: application/zip\r\nContent-Disposition: attachment; filename="'..CGI('newid')..'.zip"\r\n\r\n')
@@ -239,7 +243,7 @@ if CGI('parameter', '')=='zipanonymized' then
       f:close()
     end
   else
-    local script=string.format('%s,%s,%s,%s,cgi,lua/anonymize_script.lua(%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', CGI('newid'))
+    local script=string.format('%s,%s,%s,%s,cgi,lua/anonymize_script.lua(%s%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', CGI('newid'), stage)
     servercommand([[export:]]..script, 'cgibinary')
   end
   return

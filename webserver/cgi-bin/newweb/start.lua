@@ -6,9 +6,36 @@
 -- mvh 20181111: Added missing Global.WebCodeBase for conquest icon
 -- mvh 20181230: Removed no longer needed acrnema.map test, all access is remote
 -- mvh 20191017: Added submit button to upload file
+-- mvh 20200113: Skip '(empty)' and '' as trial name count all others in counttrials
+-- mvh 20200115: Added dbquery 
+-- mvh 20200117: Added dbqueryluaformat, dicomquery, dicomqueryluaformat
+-- mvh 20200119: dicomquery returns json if dgate supports Serialize(true)
+-- mvh 20200125: Added dicommove
+-- mvh 20200126: Added sql and servercommand; but disable when readOnly set
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
+local readOnly = gpps('webdefaults', 'readOnly', '0')~='0'
+
+-- split string into pieces, return as table
+function split(str, pat)
+   local t = {} 
+   local fpat = "(.-)" .. pat
+   local last_end = 1
+   local s, e, cap = str:find(fpat, 1)
+   while s do
+      if s ~= 1 or cap ~= "" then
+	      table.insert(t,cap)
+      end
+      last_end = e+1
+      s, e, cap = str:find(fpat, last_end)
+   end
+   if last_end <= #str then
+      cap = str:sub(last_end)
+      table.insert(t, cap)
+   end
+   return t
+end
 
 -- report error string on a otherwise empty reddish page
 function errorpage(s)
@@ -33,41 +60,166 @@ function counttrials()
   local count = 
       servercommand('lua:'..
 	  [[
-	  local a=dbquery('UIDMods', 'DISTINCT Stage');
-	  return #(a or {})
+	  local a=dbquery('UIDMods', 'DISTINCT Stage') or {}
+	  local count=0
+	  for i=1, #a do
+            if a[i][1]~='' and a[i][1]~='(empty)' then count=count+1 end
+	  end
+	  return count
 	  ]]
                    ) or 0
   return tonumber(count)
 end;
 
+function remotedbquery(tab, fields, q, inluaformat)
+  local remotecode =
+[[
+  local tab="]]..tab..[[";
+  local fields="]]..fields..[[";
+  local q="]]..q..[[";
+  local r = dbquery(tab, fields, q)
+  if r[1]==null then return "{}" end
+  for i=1,#r do 
+    r[i] = '{"'..table.concat(r[i], '", "')..'"}'
+  end
+  r='{'..table.concat(r, ',')..'}'
+  local s=tempfile('.txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  if inluaformat==nil then
+    local f = loadstring('return '..servercommand('lua:'..remotecode));
+    if f then return f() end
+  else
+    return servercommand('lua:'..remotecode)
+  end
+end
+
+function table_print (tt)
+  if type(tt) == "table" then
+    local sb = {'{'}
+    for key, value in pairs (tt) do
+      if type (value) == "table" then
+        table.insert(sb, key .. "={");
+        table.insert(sb, table_print (value))
+        table.insert(sb, "}");
+      elseif "number" == type(key) then
+        table.insert(sb, string.format("\"%s\"", tostring(value)))
+      elseif "number" == type(value) then
+        table.insert(sb, string.format(
+            "%s = %s", tostring (key), tostring(value)))
+      else
+        table.insert(sb, string.format(
+            "%s=\"%s\"", tostring (key), tostring(value)))
+      end
+      table.insert(sb, ",");
+    end
+    table.insert(sb, "}");
+    return table.concat(sb)
+  else
+    return tt
+  end
+end
+
+function remotequery(ae, level, q, jsn)
+  local remotecode =
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local q=]]..table_print(q)..[[;
+  local jsn=]]..tostring(jsn or false)..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local r = dicomquery(ae, level, q2):Serialize(jsn);
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close();
+]]
+  return servercommand('lua:'..remotecode)
+end
+
+function remotemove(from, to, q, xtra)
+  if extra=='' then extra='{}' end
+  local remotecode =
+[[
+  local from=']]..from..[[';
+  local to=']]..to..[[';
+  local q=]]..table_print(q)..[[;
+  local extra=]]..table_print(xtra)..[[;
+  local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
+  local extra2=DicomObject:new(); for k,v in pairs(extra) do extra2[k]=v end;
+  return dicommove(from, to, q2, 0, extra2);
+]]
+  return servercommand('lua:'..remotecode)
+end
+
+function remotesql(q)
+  return servercommand('lua:sql([['..q..']])')
+end
+
+if CGI('parameter')=='test' then
+  HTML('Content-type: application/json\n\n');
+  print(servercommand('get_param:MyACRNema'))
+  return
+end
+if CGI('parameter')=='countcases' then
+  HTML('Content-type: application/json\n\n');
+  print(#remotedbquery("DICOMPatients","PatientID","PatientID like '".. CGI('study').."%'"))
+  return
+end
+if CGI('parameter')=='dbquery' then
+  HTML('Content-type: application/json\n\n')
+  local maxresult=tonumber(CGI('maxresults', '9999999'))
+  local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
+  io.write('[')
+  for k, v in ipairs(r) do 
+    if k>maxresult then break end
+    r[k] = '["'..table.concat(v, '","')..'"]'
+  end
+  io.write(table.concat(r, ','))
+  io.write(']')
+  return
+end
+if CGI('parameter')=='dbqueryluaformat' then
+  HTML('Content-type: application/text\n\n')
+  local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
+  io.write(r)
+  return
+end
+if CGI('parameter')=='dicomquery' then
+  HTML('Content-type: application/json\n\n')
+  local r=remotequery(CGI('AE'),CGI('level'),CGI('query'),true)
+  io.write(r)
+  return
+end
+if CGI('parameter')=='dicomqueryluaformat' then
+  HTML('Content-type: application/text\n\n')
+  local r=remotequery(CGI('AE'),CGI('level'),CGI('query'))
+  io.write(r)
+  return
+end
+if CGI('parameter')=='dicomquery' then
+  HTML('Content-type: application/json\n\n')
+  local r=remotequery(CGI('AE'),CGI('level'),CGI('query'),true)
+  io.write(r)
+  return
+end
+if CGI('parameter')=='dicommove' then
+  HTML('Content-type: application/json\n\n')
+  local r=remotemove(CGI('from'),CGI('to'),CGI('query'),CGI('xtra'))
+  io.write('"'..(r or '')..'"')
+  return
+end
+if CGI('parameter')=='sql' then
+  HTML('Content-type: application/json\n\n')
+  io.write(remotesql(CGI('query')))
+  return
+end
+if CGI('parameter')=='servercommand' then
+  HTML('Content-type: application/json\n\n')
+  if not readOnly then io.write(servercommand(CGI('command'))) end
+  return
+end
+
 if s==nil then
   errorpage('server not running')
   return
 end
-
---[[
-for i=0,100 do
-  local AE,IP,P,C = get_amap(i)
-  if AE==nil then break end
-  if s==AE then
-    servercommand('put_amap:'..i..','..AE..','..ip..','..port..','..C)
-    if ip~=IP then
-      errorpage('IP address of DICOM server '..AE..' is misconfigured; in cgi-bin/dicom.ini: '..ip..'; in acrnema.map: '..IP)
-      return;
-    end
-    if port~=P then
-      errorpage('IP port of DICOM server '..AE..' is misconfigured; in cgi-bin/dicom.ini: '..port..'; in acrnema.map: '..P)
-      return;
-    end
-    found = true;
-  end
-end
-
-if found==false then
-  errorpage('AE port of DICOM server '..(s)..' is misconfigured; in cgi-bin/dicom.ini: '..s..'; while this AE is not defined in acrnema.map')
-  return;
-end
-]]
 
 local a = newdicomobject()
 a.InstanceNumber = 'test'
@@ -102,9 +254,35 @@ end
 HTML("<IMG SRC='%sconquest.jpg' ALT='Written by Conquest Project'>", Global.WebCodeBase)
 HTML("<HR>")
 
-HTML("<PRE>")
-HTML(servercommand('display_status:'))
-HTML("</PRE>")
+if os.getenv('REQUEST_METHOD')=='GET' then 
+  HTML("<PRE>")
+  HTML(servercommand('display_status:'))
+  HTML("</PRE>")
+end
+
+--HTML(os.getenv('REQUEST_METHOD'))
+--HTML(os.getenv('CONTENT_LENGTH') or 0)
+--HTML(os.getenv('REQUEST_URI'))
+--HTML(os.getenv('PATH_INFO') or 'no path')
+--if false and uploadedfile~='' then
+--  local h=io.open(uploadedfile, [[rb]])
+--  local s=h:read([[*a]])
+--  HTML(s)
+--  h:close()
+--end
+--print(#CGI())
+--x=DicomObject:new()
+--x:SetVR(0x9999,0x300,[[test]])
+--x:SetVR(0x9999,0x400,[[attachfile:test,newuids stage ih_test;set PatientID to "ih_test_1"]])
+--x:SetVR(0x9999,0x401,"")
+--print(dicomecho('CONQUESTSRV1'), x) -- requires acrnema.map
+--uri = split(os.getenv('REQUEST_URI'), '/')
+--local tabl = uri[4] or ''
+--local key = uri[5] or ''
+--local sql = 'select * from '..tabl..' where patientid='..key
+--HTML(uploadedfile)
+--if os.getenv('REQUEST_METHOD')~='GET' then return end
+
 HTML("<HR>");
 
 HTML("<table>");
@@ -141,7 +319,7 @@ HTML([[<INPUT TYPE=BUTTON VALUE='Last 7 days' onClick="var d=new Date(); var d1=
 HTML("</FORM>");
 HTML("</tr>");	
 
-if counttrials()>1 then
+if counttrials()>0 then
   HTML("<tr>");
   HTML("<FORM ACTION=\"dgate%s\">", ex);
   HTML("<INPUT NAME=mode    TYPE=HIDDEN VALUE=listtrials>");

@@ -1,4 +1,5 @@
 -- mvh 20160124: created
+-- mvh 20200112: Skip (empty) as possible trial name, count all others
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
 local query_pid = '';
@@ -16,7 +17,7 @@ function querytrials()
 	  if a[ ]]..i..[[ ] then return a[ ]]..i..[[ ][1] else return '' end
 	  ]]
                    ) or ''
-    if name~='' then
+    if name~='' and name~='(empty)' then
       list[i] = name
     else
       break
@@ -26,7 +27,6 @@ function querytrials()
 end;
 
 function counttrialpatients(stage)
-  local list = {}
   local count = 
       servercommand('lua:'..
 	  [[
@@ -128,7 +128,7 @@ local trials=querytrials()
 
 print("<table class='altrowstable' id='alternatecolor' rules=all border=1>");
 
-HTML("<caption>list of all trials (%s) on anonymization system</caption>", #trials-1)
+HTML("<caption>list of all trials (%s) on anonymization system</caption>", #trials)
 
 print("<tr><td>trials id<td>patients</tr>"); 
 

@@ -17,6 +17,7 @@
 -- 20190101: 1.5.0-alpha, Added dicomstore
 -- 20190103: Added tickcount
 -- 20200109: 1.5.0-beta, Added dicomecho, listoldestpatients, crc, CGI()
+-- 20200125: Added new parameters to Serialize and dicommove, updated text a bit
 
 --[[
 -- read/write data, create sequences, and write into sequences (if [] not passed, [0] is assumed)
@@ -242,7 +243,7 @@ return {
 	Compress = { args = "(string)", description = "returns compressed copy of dicom object",  returns = "(DicomObject)",  type = "method", },
 	DeleteFromSequence = { args = "(name: string, n: integer (starts at 0))", description = "delete item from named sequence",  returns = "()",  type = "method", },
 	ListItems = { args = "()", description = "List all VRs in dicom object",  returns = "(names, types, groups, elements: string(| separated) )",  type = "method", },
-	Serialize = { args = "()", description = "return object in lua syntax, e.g. loadstring('return '..a:Serialize()) converts object to table",  returns = "(code: string)",  type = "method", },
+	Serialize = { args = "(json: boolean)", description = "return object in lua syntax, e.g. loadstring('return '..a:Serialize()) converts object to table; or in json format of argument true (default false)",  returns = "(code: string)",  type = "method", },
 
         -- mini DICOM dictionary
 	QueryRetrieveLevel = { type ='value', description = "string", valuetype = nil, },
@@ -298,24 +299,24 @@ return {
   },
   DicomArray = {
     type = "class",
-    description = "Dicom sequence = array of DICOM objects",
+    description = "Returns DICOM sequence = array of DICOM objects, indexed from 0",
     childs = {
 	free      = { type = 'method', description = "destructor", args = "()", returns = "()", valuetype = nil,},
 	Delete    = { type = 'method', description = "delete sequence item", args = "(n: integer (starts at 0))", returns = "()", valuetype = nil,},
-	Serialize = { args = "()", description = "return array in lua syntax, e.g. loadstring('return '..a:Serialize()) converts array to table",  returns = "(code: string)",  type = "method", },
+	Serialize = { args = "()", description = "return array in lua syntax, e.g. loadstring('return '..a:Serialize()) converts array to table",  returns = "DicomArray",  type = "method", },
 	[0]       = { description = "element", valuetype = "DicomObject",},
     }
   },
   newdicomobject = {
     type = "function",
-    description = "Return an empty DICOM object",
+    description = "Returns an empty DICOM object",
     args = "()",
     returns = "DicomObject",
     valuetype = "DicomObject",
   },
   deletedicomobject = {
     type = "function",
-    description = "forces manual freeing of dicom object (optional)",
+    description = "Forces manual freeing of DICOM object (optional)",
     args = "(DicomObject)",
     returns = "()",
   },
@@ -523,65 +524,68 @@ return {
   dicomquery = {
   args = "(AE: string, level: string, query: userdata)",
   description = "query DICOM server",
-  returns = "(DICOM sequence, counting from 0)",
+  returns = "(DicomArray, counting from 0)",
+  valuetype = "DicomArray",
   type = "function"
   },
   dicomquery2 = {
   args = "(AE: string, level: string, query: userdata)",
   description = "query DICOM server old",
-  returns = "(DICOM sequence, counting from 0)",
+  returns = "(DicomArray, counting from 0)",
+  valuetype = "DicomArray",
   type = "function"
   },
   dicommove = {
-  args = "(AE: string, dest:string, query: userdata, patientroot: number(1=yes), callback: string)",
-  description = "move data from DICOM server to DICOM server",
+  args = "(AE: string, dest:string, query: DicomObject, patientroot: number(1=yes), callback: string, extraparameters: DicomObject)",
+  description = "move data from DICOM server to DICOM server, extraparameters can replace or add any command tags",
   returns = "error string or nil",
   type = "function"
   },
   dicomget = {
-  args = "(AE: string, level: string, query: userdata)",
+  args = "(AE: string, level: string, query: DicomObject)",
   description = "get objects from DICOM server",
-  returns = "(DICOM sequence, counting from 0)",
+  returns = "(DicomArray, counting from 0)",
+  valuetype = "DicomArray",
   type = "function"
   },
   dicomecho = {
-  args = "(AE: string, extra: userdata)",
+  args = "(AE: string, extra: DicomObject)",
   description = "echo DICOM server; return null if failed",
-  returns = "(DICOM object)",
+  returns = "(DicomObject, raw response from echo)",
   type = "function"
   },
   dicomdelete = {
-  args = "(query: userdata)",
+  args = "(query: DicomObject)",
   description = "delete data from local DICOM server",
   returns = "()",
   type = "function"
   },
   dicomprint = {
-  args = "(image(s): userdata, AE: string, annotation_format: string, callback)",
+  args = "(image(s): DicomObject/DicomArray, AE: string, annotation_format: string, callback)",
   description = "print object(s) on DICOM printer",
   returns = "error string",
   type = "function"
   },
   dicomstore = {
-  args = "(image(s): userdata, AE: string)",
+  args = "(image(s): DicomObject/DicomArray, AE: string)",
   description = "store object(s) on DICOM archive",
   returns = "error string",
   type = "function"
   },
   newdicomdelete = {
-  args = "(query: userdata, threadnum: integer)",
+  args = "(query: DicomObject, threadnum: integer)",
   description = "delete data from local DICOM server, threadnum only used for progress information",
   returns = "()",
   type = "function"
   },
   newdicommodify = {
-  args = "(query: userdata, script:string; threadnum: integer)",
+  args = "(query: DicomObject, script:string; threadnum: integer)",
   description = "modify data in local DICOM server, script e.g. lua:Data.PatientID='aap', threadnum only used for progress information",
   returns = "()",
   type = "function"
   },
   newdicomcopy = {
-  args = "(query: userdata, script:string; threadnum: integer)",
+  args = "(query: DicomObject, script:string; threadnum: integer)",
   description = "copies data in local DICOM server, script e.g. newuids;lua:Data.PatientID='aap', threadnum only used for progress information",
   returns = "()",
   type = "function"
@@ -617,7 +621,7 @@ return {
   type = "function"
   },
   addimage = {
-  args = "(image: userdata)",
+  args = "(image: DicomObject)",
   description = "add image to local DICOM server",
   returns = "()",
   type = "function"
@@ -653,13 +657,13 @@ return {
   type = "function"
   },
   serialize = { 
-  args = "(object: userdata (DicomObject or DicomArray)", 
-  description = "return object in lua syntax, e.g. loadstring('return '..serialize(a)) converts object to table",
+  args = "(object: DicomObject or DicomArray, json: boolean=false", 
+  description = "return object in lua or json syntax, e.g. loadstring('return '..serialize(a)) converts object to table",
   returns = "(code: string)",  
   type = "method", 
   },
   listitems = { 
-  args = "(object: userdata (DicomObject)", 
+  args = "(object: DicomObject)", 
   description = "List all VRs in dicom object",  
   returns = "(names, types, groups, elements: string(| separated) )",  
   type = "method", 

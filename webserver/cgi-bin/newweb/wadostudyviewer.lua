@@ -9,6 +9,7 @@
 -- 20180204   mvh   Removed 'getting image' print
 -- 20181223   mvh   Use remotequery (1.4.19d)
 -- 20180112   mvh   Fix to allow : in patientID
+-- 20200113   mvh   Allow 0 records
 
 -- defaults to allow debugging in zbs
 study2 = study2 or 'EG2005:'
@@ -604,7 +605,7 @@ end
 
 print("<div style='position: absolute; left: 10px; width: 550px'>")
 print("<table class='altrowstable' id='alternatecolor' RULES=ALL BORDER=1>");
-print(string.format("<Caption>List of series on local server for ID=%s, name=%s</caption>", pats[1].PatientID, pats[1].PatientName));
+print(string.format("<Caption>List of series on local server for ID=%s, name=%s</caption>", (pats[1] or {PatientID=''}).PatientID, (pats[1] or {PatientName=''}).PatientName));
 print("<TR><TD>Date<TD>Time<TD>Description<TD>Modality</TR>");
 	
 for i=1,#pats do
@@ -706,7 +707,9 @@ end
 
 -- info to autoload first series for display
 local info = string.format("seriesuid='%s';studyuid='%s';modality='%s';nseries=%d;",
-  pats[1].SeriesInstanceUID, pats[1].StudyInstanceUID, pats[1].Modality, #pats)
+  (pats[1] or {SeriesInstanceUID=''}).SeriesInstanceUID, 
+  (pats[1] or {StudyInstanceUID=''}).StudyInstanceUID, 
+  (pats[1] or {Modality=''}).Modality, #pats)
 
 print([[
 <i id=hint></i>

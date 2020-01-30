@@ -8,6 +8,7 @@
 -- 20130802	mvh	Detect if patientID cannot be deanonymized
 -- 20140309	mvh	Protect against any missing data
 -- 20160113	mvh	Added staged operation using "stage" command_line
+-- 20200127	mvh	Allow stage *: pick stage based on actual patientID; reject on error
 -- =============================================================================
 
 --[[ To test; r-click evaluate in console after project-run:
@@ -19,14 +20,29 @@ dofile('lua/deanonymize_script.lua')
 Data.Dump('c:\\data\\image_restored.txt')
 ]]
 
-local scriptversion = "1.2; date 20160113"
+local scriptversion = "1.3; date 20200127"
 
 local pre, pid = Data.PatientID
 
 if Data.PatientID~='' then
+  if command_line=='*' then
+    local r=dbquery('UIDMods','distinct stage','newUID="'..Data.PatientID..'"')
+    if r==nil then 
+      print('** sql error **')
+      reject()
+      return
+    end
+    if r[1]==null then 
+      print('** patient '..pre..' was not anonymized on this system stage(*) **')
+      reject()
+      return
+    end
+    command_line=r[1][1]
+  end
   pid = changeuidback(pre, command_line)
   if pid==nil then
-    print('** patient '..pre..' was not anonymized on this system **')
+    print('** patient '..pre..' was not anonymized on this system stage('..command_line..') **')
+    reject()
     return
   end
 end

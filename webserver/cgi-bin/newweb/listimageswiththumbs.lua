@@ -3,6 +3,7 @@
 -- 20160723   mvh   changed incorrect dum heading for image url
 -- 20181215   mvh   Added remotequery to limit dependency on cgi functionality
 -- 20181230   mvh   Removed dicomquery, only kept remotequery
+-- 20200127   mvh   List ImageID instead of PatientName; fix sort if no InstanceNumber
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -101,10 +102,11 @@ function queryimagem_remote()
   b.InstanceNumber = '';
   b.SliceLocation = '';
   b.PatientName=''
+  b.ImageID=''
   b.ImageDate=''
   b.StudyInstanceUID=''
   local imaget=remotequery(s, 'IMAGE', b);
-  table.sort(imaget, function(a,b) return 0+a.InstanceNumber<0+b.InstanceNumber end)
+  table.sort(imaget, function(a,b) return (tonumber(a.InstanceNumber) or 0)<(tonumber(b.InstanceNumber) or 0) end)
   return imaget
 end
 
@@ -267,7 +269,7 @@ local b = #pats
 
 HTML("<table  class='altrowstable' id='alternatecolor'  RULES=ALL BORDER=1>");
 HTML("<Caption>List of images with thumbnails on local server (%s out of %s)</caption>", b, a);
-HTML("<TR><TD>Patient ID<TD>Name<TD>Date<TD>Image number<TD>Slice location<TD>Icon</TR>");
+HTML("<TR><TD>Patient ID<TD>Image ID<TD>Date<TD>Image number<TD>Slice location<TD>Icon</TR>");
 	
 for i=1,#pats do
   studyuid=pats[i].StudyInstanceUID;
@@ -308,7 +310,7 @@ for i=1,#pats do
   v = string.format("<IMG SRC=dgate%s?%s&mode=slice&slice=%s:%s&size=%s&graphic=%s width='100%%' height='%s' alt='' title='Click to see header'></A>", ex, extra,string.gsub(pats[i].PatientID, ' ', '+'),  mcoalesce(pats[i].SOPInstanceUID),iconsize, graphic, iconsize);
   v = url_header..v
  
-  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s</TR>",t,mcoalesce(pats[i].PatientName), mcoalesce(pats[i].ImageDate),mcoalesce(pats[i].InstanceNumber), mcoalesce(pats[i].SliceLocation),v);
+  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s</TR>",t,mcoalesce(pats[i].ImageID), mcoalesce(pats[i].ImageDate),mcoalesce(pats[i].InstanceNumber), mcoalesce(pats[i].SliceLocation),v);
   sl2=sl
   print(s)
 end 

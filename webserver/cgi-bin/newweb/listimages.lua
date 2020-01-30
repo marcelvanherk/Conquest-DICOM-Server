@@ -4,6 +4,7 @@
 -- 20181215   mvh   Added remotequery to limit dependency on cgi functionality
 -- 20181230   mvh   Removed dicomquery, only kept remotequery
 -- 20190112   mvh   Use | to separate items to help with special characters in patientID
+-- 20200127   mvh   List ImageID instead of PatientName; fix sort if no InstanceNumber
 
 local query_pid = '';
 local query_pna = '';
@@ -94,9 +95,10 @@ function queryimagem_remote()
   b.SliceLocation = '';
   b.PatientName=''
   b.ImageDate=''
+  b.ImageID=''
   b.StudyInstanceUID ='' 
   local imaget=remotequery(s, 'IMAGE', b);
-  table.sort(imaget, function(a,b) return 0+a.InstanceNumber<0+b.InstanceNumber end)
+  table.sort(imaget, function(a,b) return (tonumber(a.InstanceNumber) or 0)<(tonumber(b.InstanceNumber) or 0) end)
   return imaget
 end
 
@@ -280,7 +282,7 @@ local pats=queryimagem_remote()
 
 print("<table class='altrowstable' id='alternatecolor' RULES=ALL BORDER=1>");
 HTML("<Caption>List of images on local server (%s)</caption>", #pats);
-HTML("<TR><TD>Patient ID<TD>Name<TD>Date<TD>Image number<TD>Slice location<TD>Header<TD>Menu</TR>");
+HTML("<TR><TD>Patient ID<TD>Image ID<TD>Date<TD>Image number<TD>Slice location<TD>Header<TD>Menu</TR>");
 	
 local studyviewer=gpps('webdefaults', 'studyviewer', '');
 
@@ -313,7 +315,7 @@ for i=1,#pats do
   t = url_img..string.format("%s</A>",mc(pats[i].PatientID));
  
   v = url_header.."Header</A>";
-  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,mc(pats[i].PatientName), 
+  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,mc(pats[i].ImageID), 
             mc(pats[i].ImageDate), mc(pats[i].InstanceNumber), mc(pats[i].SliceLocation), v,
 	    dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'|||'..pats[i].SOPInstanceUID));
   print(s)

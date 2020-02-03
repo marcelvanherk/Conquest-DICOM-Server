@@ -1,5 +1,6 @@
-Place lua external libraries here such as CD and IUP for use within the DICOM server.
-To work also place a lua 5.1.4 dll here.
+Place lua external libraries here such as IUP and CD for use within the DICOM server.
+Only work correctly with a dgate.exe that uses an external lua5.1.dll
+iuplua51.dll and iup.dll are required to run console.wlua and notepad.wlua
 
 For 64 bits windows use:
 

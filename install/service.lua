@@ -35,6 +35,7 @@
 -- 20181230 Removed acrnema.map from web install; no longer needed
 -- 20191019 Also copy jpg(s) in htdocs folder for web install
 -- 20200110 For 1.5.0beta; add ';basedir/lua/?.lua' to package.path in dicom.ini; db rev 19
+-- 20200203 Added lua5.1.dll to web install; copy database drivers when installing on windows
 
 function errorpage(s)
   HTML('Content-type: text/html\n\n');
@@ -314,6 +315,7 @@ source = start.lua
     --copyfile(server..sep..'acrnema.map', cgiweb..'newweb'..sep..'acrnema.map')
     if cgiclient=='dgate.exe' then
       copyfile(server..'install32'..sep..cgiclient, cgiweb..'newweb'..sep..cgiclient)
+      copyfile(server..'install32'..sep..'lua5.1.dll', cgiweb..'newweb'..sep..'lua5.1.dll')
     else
       sendservercommand('cp '..server..cgiclient..' '..cgiweb..'newweb'..sep..cgiclient)
       sendservercommand('chmod 777 '..cgiweb..'newweb'..sep..cgiclient)
@@ -1319,8 +1321,18 @@ end
 if param=='config' then
   if dgate=='dgate64.exe' then
     copyfile(server..'install64\\dgate64.exe', server..'dgate64.exe')
+    copyfile(server..'install64\\lua5.1.dll', server..'lua5.1.dll')
+    copyfile(server..'install64\\libmysql64.dll', server..'libmysql64.dll')
+    copyfile(server..'install64\\libpq64.dll', server..'libpq64.dll')
   elseif dgate=='dgate.exe' then
     copyfile(server..'install32\\dgate.exe', server..'dgate.exe')
+    copyfile(server..'install32\\lua5.1.dll', server..'lua5.1.dll')
+    copyfile(server..'install64\\libmysql.dll', server..'libmysql.dll')
+    copyfile(server..'install64\\libeay32.dll', server..'libeay32.dll')
+    copyfile(server..'install64\\libiconv-2.dll', server..'libiconv-2.dll')
+    copyfile(server..'install64\\libintl-8.dll', server..'libintl-8.dll')
+    copyfile(server..'install64\\libssh2.dll', server..'libssh2.dll')
+    -- note 32 bits postgres DLLs not provided
   end
 
   if not fileexists(server..'dicom.sql') then

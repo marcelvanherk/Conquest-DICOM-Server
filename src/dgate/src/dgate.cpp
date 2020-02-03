@@ -1133,13 +1133,13 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			%f is still substituted, beware of using % in lua code, escape to %%; added %g generate uid
 20200125        mvh     Added DCOextra to lua dicommove and DcmMove2, will be added to DCO to control move 
 20200126        mvh     Added --mk_binary_dic: command; Simplified servercommand convert_to_xxx
-20200203	mvh	lsp removed DataPointer stuff to support lsp array change
+20200203	mvh	1.5.0-beta2: lsp removed DataPointer stuff to support lsp array change
 			Added LUA51EXTERN option for dynamic loading of lua5.1.dll
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-beta1"
+#define DGATE_VERSION "1.5.0-beta2"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1

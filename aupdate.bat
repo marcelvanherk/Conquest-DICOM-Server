@@ -8,8 +8,8 @@ copy ..\doc\DicomConformance_FilesLST_Changes.pdf .
 copy ..\doc\linuxmanual.pdf .
 
 copy dgate.dic .\linux
-copy dgate.dic .\webserver\cgi-bin
-copy dgate.dic .\webserver\cgi-bin\newweb
+REM copy dgate.dic .\webserver\cgi-bin
+REM copy dgate.dic .\webserver\cgi-bin\newweb
 
 del .\webserver\cgi-bin\dgate.exe
 del .\webserver\cgi-bin\newweb\dgate.exe

@@ -662,6 +662,7 @@ When            Who     What
 20191025	mvh     Fix progress bar (ignore empty messages), disable ProgressActive counter; increase size of visual log
 20191215	mvh     Fix ladle port default; version to 1.5.0beta
 20200110        mvh     Db revision 19; use QRows and QColumns as field names
+20200203        mvh     Copy lua5.1.dll to web server; list time of lua5.1.dll in bugreport; version 1.5.beta2
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -697,8 +698,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0beta';
-const BUILDDATE = '20200110';
+const VERSION = '1.5.0beta2';
+const BUILDDATE = '20200203';
 const testmode = 0;
 
 {************************************************************************}
@@ -4650,6 +4651,8 @@ begin
   begin
     if not FileExists(curdir + '\webserver\cgi-bin\dgate.exe') then
       CopyFile(PChar(curdir + '\install32\dgate.exe'), PChar(curdir + '\webserver\cgi-bin\dgate.exe'), false);
+    if not FileExists(curdir + '\webserver\cgi-bin\lua5.1.dll') then
+      CopyFile(PChar(curdir + '\install32\lua5.1.dll'), PChar(curdir + '\webserver\cgi-bin\lua5.1.dll'), false);
     i_f := TIniFile.Create(curdir + '\webserver\cgi-bin\dicom.ini');
     i_f.WriteString('sscscp', 'ACRNemaMap', ' acrnema.map');
     i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
@@ -4663,6 +4666,8 @@ begin
   begin
     if not FileExists(curdir + '\webserver\cgi-bin\newweb\dgate.exe') then
       CopyFile(PChar(curdir + '\install32\dgate.exe'), PChar(curdir + '\webserver\cgi-bin\newweb\dgate.exe'), false);
+    if not FileExists(curdir + '\webserver\cgi-bin\newweb\dgate.exe') then
+      CopyFile(PChar(curdir + '\install32\lua5.1.dll'), PChar(curdir + '\webserver\cgi-bin\newweb\lua5.1.dll'), false);
     i_f := TIniFile.Create(curdir + '\webserver\cgi-bin\newweb\dicom.ini');
 //    i_f.WriteString('sscscp', 'ACRNemaMap', ' acrnema.map');
     i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
@@ -7839,7 +7844,10 @@ begin
   if FileExists(curdir + '\' + dgateExe) then
     WriteMemo(ServerStatusMemo, 'File date for dgate.exe:               '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\' + dgateExe))), 200, 100, 'serverstatus');
 
-  if FileExists(curdir + '\dgateserv.exe') then
+  if FileExists(curdir + '\lua5.1.dll') then
+    WriteMemo(ServerStatusMemo, 'File date for lua5.1.dll:              '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\lua5.1.dll'))), 200, 100, 'serverstatus');
+
+    if FileExists(curdir + '\dgateserv.exe') then
     WriteMemo(ServerStatusMemo, 'File date for dgateserv.exe:           '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\dgateserv.exe'))), 200, 100, 'serverstatus');
 
   if FileExists(curdir + '\dgate.dic') then

@@ -4666,7 +4666,7 @@ begin
   begin
     if not FileExists(curdir + '\webserver\cgi-bin\newweb\dgate.exe') then
       CopyFile(PChar(curdir + '\install32\dgate.exe'), PChar(curdir + '\webserver\cgi-bin\newweb\dgate.exe'), false);
-    if not FileExists(curdir + '\webserver\cgi-bin\newweb\dgate.exe') then
+    if not FileExists(curdir + '\webserver\cgi-bin\newweb\lua5.1.dll') then
       CopyFile(PChar(curdir + '\install32\lua5.1.dll'), PChar(curdir + '\webserver\cgi-bin\newweb\lua5.1.dll'), false);
     i_f := TIniFile.Create(curdir + '\webserver\cgi-bin\newweb\dicom.ini');
 //    i_f.WriteString('sscscp', 'ACRNemaMap', ' acrnema.map');

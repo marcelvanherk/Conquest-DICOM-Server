@@ -19,10 +19,11 @@
 --			Pass key names to changeuid
 -- 20180917  mvh+aba+gp Take 0x9999,0x1234 as anomymized ID
 -- 20181110     mvh     Change directory separator for Linux to /, apply BaseDir and assert(open)
+-- 20200202     mvh     Allow . in stage
 
 -- =============================================================================
 
-local scriptversion = "1.10; date 20181110"
+local scriptversion = "1.11; date 20200202"
 
 ---------------------------------- configuration -----------------------------
 -- entries that show up in log but are NOT modified (except implicitly the UIDs)
@@ -73,7 +74,7 @@ local pid = string.gsub(Data.PatientID or 'unknown', '[\\/:*?"<>|]', '_')
 local stage = ''
 if string.find(command_line or '', "([%w_]+)|([%w_]+)") then
   local dum
-  dum, dum, command_line, stage = string.find(command_line, "([%w_]+)|([%w_]+)")
+  dum, dum, command_line, stage = string.find(command_line, "([%w_%.]+)|([%w_%.]+)")
 end
 
 -- Log file handling (trailing directory separator required for mkdir)

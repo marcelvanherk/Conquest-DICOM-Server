@@ -9,6 +9,7 @@
 -- 20140309	mvh	Protect against any missing data
 -- 20160113	mvh	Added staged operation using "stage" command_line
 -- 20200127	mvh	Allow stage *: pick stage based on actual patientID; reject on error
+-- 20200202     mvh     * in command line sets 9999,9000 with orginal patient ID
 -- =============================================================================
 
 --[[ To test; r-click evaluate in console after project-run:
@@ -38,6 +39,7 @@ if Data.PatientID~='' then
       return
     end
     command_line=r[1][1]
+    Data["9999,9000"]=Data.PatientID
   end
   pid = changeuidback(pre, command_line)
   if pid==nil then

@@ -264,6 +264,7 @@
 20201021	mvh	Above VR may be in command OR data; added DCO to CheckObject
 20201022	mvh	Added DCO to CallImportConverterN calls; read split and slicelimit below QueryMoveScript
 20201025	mvh	Print reduced number of images actually sent
+20200202	mvh	Fix intermittent failure of atof(pVR->Data) when Data is e.g. " 1", it reads beyond the array
 */
 
 //#define bool BOOL
@@ -4355,7 +4356,7 @@ CompressJPEGImage(DICOMDataObject **pDDO, int lFileCompressMode, int *ActualMode
 	pVR = (*pDDO)->GetVR(0x0028, 0x0100);
 	if (pVR) 
 		{
-			if (pVR->Length>=2 && atoi((char *)pVR->Data) < 8)
+			if (pVR->Length>=2 && pVR->Getatoi() < 8)
 			{
 			SystemDebug.printf("[CompressJPEGImage]: JPEG compression skipped for <8 bits data\n");
 	        	return FALSE;
@@ -5137,8 +5138,12 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
   { int intercept = pVR->Getatoi();
     float slope = 1;
     pVR = pDDO->GetVR(0x0028, 0x1053);	/* RescaleSlope */
-    if ( pVR)
-      slope = atof((const char *)pVR->Data);
+    if (pVR)
+    { char s[64];
+      memcpy(s, pVR->Data, pVR->Length);
+      s[pVR->Length]=0;
+      slope = atof(s);
+    }
     if (window==0 && slope>0.999 && slope<1.001)
     { pVR = pDDO->GetVR(0x0008, 0x0060);	/* Modality */
       if (pVR && pVR->Length==2 && memcmp(pVR->Data, "CT", 2)==0)

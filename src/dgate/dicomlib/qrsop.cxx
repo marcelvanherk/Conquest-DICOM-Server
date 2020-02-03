@@ -19,6 +19,7 @@
 20160830	mvh	fixed that, reversed the test
 20170904        mvh     Limit reported image count to 65535 in move response
 20171018        mvh     Fix linux compile, can't use min()
+20200203	mvh	lsp removed DataPointer stuff to support lsp array change
 */
 
 /****************************************************************************
@@ -98,11 +99,11 @@ BOOL	StandardQuery	::	Read (
 	DICOMDataObject **LocalDDOArray = (DICOMDataObject**) malloc(ADDO.GetSize()*sizeof(DICOMDataObject**));
         // std::vector<DICOMDataObject *> LocalDDOArray(ADDO.GetSize());
 
-        DataLink<DICOMDataObject *> *DataPointer = ADDO.first;
+        //DataLink<DICOMDataObject *> *DataPointer = ADDO.first;
         
         while( Index < ADDO.GetSize())
-        { LocalDDOArray[Index] = DataPointer->Data;
-          DataPointer = DataPointer->next;
+        { LocalDDOArray[Index] = ADDO.Get(Index); //DataPointer->Data;
+          //DataPointer = DataPointer->next;
           ++Index;
         }
 

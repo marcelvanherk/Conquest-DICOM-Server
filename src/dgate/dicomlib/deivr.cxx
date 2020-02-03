@@ -35,6 +35,7 @@
 20110231    mvh    DicomError returns FALSE when handler not installed - to allow some errors to pass
 20140512    ea     Updated the implementation of VR* DICOMObject::GetVR()
 20140528    lsp    Kept member initialization only in constructors: not GNUC specific
+20200203    mvh	   lsp removed DataPointer stuff to support lsp array change
 */
 
 
@@ -471,41 +472,48 @@ VR	*	DICOMObject	::	Pop()
 
 // this needs to be replaced with a more efficient algorithm in the
 // future, but it will do for now.
-VR		*DICOMObject	::	GetVR(UINT16	g, UINT16	e)
+VR *DICOMObject ::GetVR(UINT16 g, UINT16 e)
 {
-  VRGroupPQueue	 *VRGroupPQueuePtr;
-  DataLink <VRGroupPQueue	*> *VRGroupPQueueDataLink;
+  VRGroupPQueue *            VRGroupPQueuePtr;
+  //DataLink<VRGroupPQueue *> *VRGroupPQueueDataLink;
 
-  if (VRGroupPQueues.first)
-    VRGroupPQueueDataLink = VRGroupPQueues.first;
-  else 
-    return 0;
+  if (!VRGroupPQueues.GetSize())
+    return (NULL);
+  //if (VRGroupPQueues.first)
+  //  VRGroupPQueueDataLink = VRGroupPQueues.first;
+  //else
+  //  return (NULL);
 
-  while ( VRGroupPQueueDataLink)
-  { VRGroupPQueuePtr = VRGroupPQueueDataLink->Data;
-    if(!VRGroupPQueuePtr)
-      return ( FALSE );
-    if(VRGroupPQueuePtr->Group == g)
-    { DataLink<VR*> *VRLink;
-      if(VRGroupPQueuePtr->first)
-        VRLink = VRGroupPQueuePtr->first;
-      else
-        return (0);
+  // while (VRGroupPQueueDataLink)
+  for (int i=0; i<VRGroupPQueues.GetSize(); i++)
+  { VRGroupPQueuePtr = VRGroupPQueues.Get(i); // VRGroupPQueueDataLink->Data;
+    if (!VRGroupPQueuePtr)
+      return (NULL);
+    if (VRGroupPQueuePtr->Group == g)
+    { //DataLink<VR *> *VRLink;
+      if (VRGroupPQueuePtr->GetSize()<=0)
+        return (NULL);
+      //if (VRGroupPQueuePtr->first)
+      //  VRLink = VRGroupPQueuePtr->first;
+      //else
+      //  return (NULL);
 
-      while ( VRLink )
-      { VR *vr = VRLink->Data;
-        if(!vr)
-          return ( 0 );
-        if(vr->Element == e)
-          return ( vr );
+      //while (VRLink)
+      for (int l=0; l<VRGroupPQueuePtr->GetSize(); l++)
+      { //VR *vr = VRLink->Data;
+        VR *vr = VRGroupPQueuePtr->Get(l);
+        if (!vr)
+          return (NULL);
+        if (vr->Element == e)
+          return (vr);
 
-        VRLink = VRLink->next;
+        //VRLink = VRLink->next;
       }
-      return ( NULL );
+      return (NULL);
     }
-    VRGroupPQueueDataLink = VRGroupPQueueDataLink->next;
+    //VRGroupPQueueDataLink = VRGroupPQueueDataLink->next;
   }
-  return ( NULL );
+  return (NULL);
 }
 
 /* bcb replaced by byte order independent versions

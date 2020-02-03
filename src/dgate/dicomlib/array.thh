@@ -5,6 +5,7 @@
 20100816	mvh	Meged bcb cleanup
 20130812        mvh     Removed non-thread safe caching of last value
 20140310     lsp+ea+mvh Initialize "last" member in copy constructor to avoid access violation
+20190919        lsp     Replaced linked list by plain array for performance reasons
 */
 
 /****************************************************************************
@@ -53,49 +54,30 @@
  * 
  *********************************************************************/
 
-
-template	<class	DATATYPE>
-class	DataLink
-	{
-	public:
-		DATATYPE			Data;
-		DataLink<DATATYPE>	*prev, *next;
-					DataLink(DataLink<DATATYPE> *p, DataLink<DATATYPE> *n)
-						{ prev = p; next = n; };
-#ifdef __GNUC__
-					DataLink():Data(), prev(NULL), next(NULL) {};
-#else
-					DataLink()
-						{ prev = NULL; next = NULL; };
-#endif
-#ifdef __GNUC__
-	private:// This will prevent it from being copied (it has pointers)
-		DataLink(const DataLink&);
-		const	DataLink<DATATYPE> & operator = (const DataLink<DATATYPE>&);
-#endif
-	};
-
 template	<class	DATATYPE>
 class	Array
 	{
 	public:
 
-	DataLink<DATATYPE>	*first;	
-	DataLink<DATATYPE>	*last;	
-	//DataLink<DATATYPE>	*LastAccess;
-	//unsigned	int		LastAccessNumber;
+        DATATYPE **first;
+        DATATYPE **first_dyn;
+
 	unsigned	int		ArraySize;
+        unsigned        int             ArraySizeAllocated;        
 	public:
 		UINT			ClearType;
 		DATATYPE	&	Add(DATATYPE	&);
 		DATATYPE	&	Get(unsigned int);
+#if 0
 		DATATYPE	&	ReplaceAt(DATATYPE	&, unsigned int);
+#endif
 		BOOL			RemoveAt(unsigned int);
 		BOOL			Clear ()
 			{
-			first = last = /*LastAccess =*/ NULL;
-			//LastAccessNumber = 0;
+                        first = NULL;
+                        first_dyn = NULL;
 			ArraySize = 0;
+                        ArraySizeAllocated = 0;                        
 			return ( TRUE );
 			}
 #ifdef	MAC
@@ -110,11 +92,13 @@ class	Array
 			{ return(ArraySize); };
 #endif
 #ifdef __GNUC__
-		Array()
-		:first(NULL), last(NULL), /*LastAccess(NULL), LastAccessNumber(0),*/ ArraySize(0), ClearType(1) {};
+                Array()
+                :
+                  first(NULL), first_dyn(NULL),
+                  ArraySize(0), ArraySizeAllocated(0), ClearType(1) {};                
 #else
 		Array()
-		{ first = NULL; last = NULL; /*LastAccess = NULL; LastAccessNumber = 0;*/ ArraySize = 0; ClearType = 1; };
+		{ first = NULL; first_dyn = NULL; ArraySize = 0; ArraySizeAllocated = 0; ClearType = 1; };
 #endif
 		Array(UINT);
 #ifdef	MAC
@@ -123,12 +107,14 @@ class	Array
 		virtual		~Array();
 #endif
 		const	Array<DATATYPE>	&	operator	=	(Array<DATATYPE> &array)
-			{ first = array.first; last = array.last; ArraySize = array.ArraySize; ClearType = FALSE; return *this; };
-
+                        { first = array.first; 
+                          first_dyn = array.first_dyn; 
+                          ArraySize = array.ArraySize; ArraySizeAllocated = array.ArraySizeAllocated; ClearType = FALSE; return *this; };
+                        
 // Used in PDU_Service::AddAbstractSyntaxAlias (UID &UIDSource, UID &UIDAlias)
 // in the line PresentationContext	vPresContext = PresContext;  Commented out
 // Now using the line Array<TransferSyntax>  vTrnSyntax = PresContext.TrnSyntax;
 		Array(const Array & array)
-			:first(array.first), last(array.last), /*LastAccess(array.LastAccess),*/
-			/*LastAccessNumber(array.LastAccessNumber),*/ ArraySize(array.ArraySize), ClearType(FALSE) {};
+                        :first(array.first), first_dyn(array.first_dyn),
+                         ArraySize(array.ArraySize), ArraySizeAllocated(array.ArraySizeAllocated), ClearType(FALSE) {};
 	};

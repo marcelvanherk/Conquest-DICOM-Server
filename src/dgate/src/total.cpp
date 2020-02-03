@@ -28,6 +28,7 @@
 20160306        mvh     Use OPJ_STATIC link all codecs statically
 20181217        mvh     Added printsop.cxx
 20190109        mvh     Make uncompconv unconditional; is used in converter to bitmap image
+20200203	mvh	Added LUA51EXTERN option for dynamic loading of lua5.1.dll
 */
 
 /* Example to compile with BC55:
@@ -128,6 +129,9 @@
 #include "dbsql.cpp"
 #include "rtc.cxx"
 #include "flpdu.cxx"
+#ifdef LUA51EXTERN
+#include "lua_dyn.c"
+#endif
 
 #include "storage.cxx"
 #include "verify.cxx"

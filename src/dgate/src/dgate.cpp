@@ -1133,6 +1133,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			%f is still substituted, beware of using % in lua code, escape to %%; added %g generate uid
 20200125        mvh     Added DCOextra to lua dicommove and DcmMove2, will be added to DCO to control move 
 20200126        mvh     Added --mk_binary_dic: command; Simplified servercommand convert_to_xxx
+20200203	mvh	lsp removed DataPointer stuff to support lsp array change
+			Added LUA51EXTERN option for dynamic loading of lua5.1.dll
 
 ENDOFUPDATEHISTORY
 */
@@ -6196,7 +6198,9 @@ void CallExportConverters(char *pszFileName, char *pszModality, char *pszStation
 // lua integration
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifndef LUA51EXTERN
 #include "lua.hpp"
+#endif
 
 char *heapinfo( void );
 char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, int id, DICOMDataObject *DDO, DICOMDataObject * DCOextra, lua_State *L=NULL);
@@ -6206,6 +6210,27 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 
 #ifndef VirtualQuery
 int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDataObject  *> *pADDO, char *ae=NULL);
+#endif
+
+#ifdef LUA51EXTERN
+#include "lua_dyn.h"
+lua_All_functions LuaFunctions;
+
+int loadLua()
+{
+	/* Load lua.dll dynamically */
+#ifdef WIN32
+	HMODULE module = LoadLibrary("lua5.1.dll");
+#else
+	void* module = dlopen("liblua-5.1.so", RTLD_LAZY);
+#endif
+	if(!luaL_loadfunctions(module, &LuaFunctions, sizeof(LuaFunctions)))
+	{
+		printf("Error loading Lua DLL!\n");
+		return (1);
+	}
+	return 0;
+}
 #endif
 
 extern "C"
@@ -7228,7 +7253,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
   }
 
   // serialize dicom object; does not do pixel data, truncates large elements
-  #define MAXLEN 1000000 // total length, one element is max 1/10 of that
+  #define MAXLEN 5000000 // total length, one element is max 1/10 of that
 
   static int luaserialize(lua_State *L)
   { struct scriptdata *sd = getsd(L);
@@ -8053,9 +8078,11 @@ ExtendedPDU_Service globalPDU; // for global script context
 
 #include <string.h>
 
+#ifndef LUA51EXTERN
 #include "lua.h"
 #include "lualib.h"
 #include "lauxlib.h"
+#endif
 
 static void badcode(lua_State *L, int c)
 {
@@ -15211,10 +15238,10 @@ void RemoveQueryDuplicates(const char *Level, Array < DICOMDataObject * > *ADDO)
 	VR *vr1, *vr2;
 
         int Index=0;
-        DataLink<DICOMDataObject *> *DataPointer = ADDO->first;
+        //DataLink<DICOMDataObject *> *DataPointer = ADDO->first;
         while( Index < ADDO->GetSize())
-        { addo[Index] = DataPointer->Data;
-          DataPointer = DataPointer->next;
+        { addo[Index] = ADDO->Get(Index);
+          //DataPointer = DataPointer->next;
           ++Index;
         }
 
@@ -23378,6 +23405,10 @@ main ( int	argc, char	*argv[] )
 	char	tempStr[1024];
 	int	valid_argc, slen;
 	struct	stat st;
+	
+#ifdef LUA51EXTERN
+	loadLua();
+#endif
 
 	for (i=0; i<MAXExportConverters; i++)
  	  for (j=0; j<MAXExportConverters; j++)

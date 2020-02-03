@@ -31,9 +31,18 @@
 20160219	mvh	Removed jasper and openjpeg stuff here
 20180315	mvh	Started on C-GET
 20181222	mvh	Added WriteGet for C-GET client; results in image information in ADDO
+20200203	mvh	Added LUA51EXTERN option for dynamic loading of lua5.1.dll
 */
 
+#ifdef LUA51EXTERN
+extern "C" {
+#include "lua_dyn.h"
+extern lua_All_functions LuaFunctions;
+}
+#else
 #include "lua.hpp"
+#endif
+	
 
 class	ExtendedPDU_Service	:
 	public		CheckedPDU_Service

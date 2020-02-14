@@ -12,6 +12,7 @@
 -- mvh 20200119: dicomquery returns json if dgate supports Serialize(true)
 -- mvh 20200125: Added dicommove
 -- mvh 20200126: Added sql and servercommand; but disable when readOnly set
+-- mvh 20200214: Removes os. call for ladle
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -254,11 +255,11 @@ end
 HTML("<IMG SRC='%sconquest.jpg' ALT='Written by Conquest Project'>", Global.WebCodeBase)
 HTML("<HR>")
 
-if os.getenv('REQUEST_METHOD')=='GET' then 
+--if (os==nil) or (os.getenv('REQUEST_METHOD')=='GET') then 
   HTML("<PRE>")
   HTML(servercommand('display_status:'))
   HTML("</PRE>")
-end
+--end
 
 --HTML(os.getenv('REQUEST_METHOD'))
 --HTML(os.getenv('CONTENT_LENGTH') or 0)

@@ -1,3 +1,5 @@
+// 20200212: fix cast for windows/linux 
+
 #include "lua_dyn.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -139,7 +141,11 @@ int luaL_loadfunctions(void* hModule, struct lua_All_functions* functions, size_
 		return 0;
 	for(i=0;i<sizeof(FunctionNames) / sizeof(FunctionNames[0]);i++)
 	{
+#ifdef WIN32
 		pfunctions[i] = GetProcAddress((HMODULE)hModule, FunctionNames[i]);
+#else
+		pfunctions[i] = GetProcAddress(hModule, FunctionNames[i]);
+#endif
 		if(pfunctions[i] == NULL)
 			return 0;
 	}

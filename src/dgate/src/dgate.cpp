@@ -1135,6 +1135,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200126        mvh     Added --mk_binary_dic: command; Simplified servercommand convert_to_xxx
 20200203	mvh	1.5.0-beta2: lsp removed DataPointer stuff to support lsp array change
 			Added LUA51EXTERN option for dynamic loading of lua5.1.dll
+20200211	mvh	Take luasocket out when LUA51EXTERN defined
 
 ENDOFUPDATEHISTORY
 */
@@ -6222,7 +6223,7 @@ int loadLua()
 #ifdef WIN32
 	HMODULE module = LoadLibrary("lua5.1.dll");
 #else
-	void* module = dlopen("liblua-5.1.so", RTLD_LAZY);
+	void* module = dlopen("liblua5.1.so", RTLD_LAZY);
 #endif
 	if(!luaL_loadfunctions(module, &LuaFunctions, sizeof(LuaFunctions)))
 	{
@@ -8346,7 +8347,9 @@ int luaopen_pack(lua_State *L)
 
 // endof pack library
 
+#ifndef LUA51EXTERN
 extern "C" int luaopen_socket_core(lua_State *L);
+#endif
 
 const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
 { if (!*L) 
@@ -8432,8 +8435,10 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     
     lua_getfield(*L, LUA_GLOBALSINDEX, "package");
     lua_getfield(*L, -1, "preload");
+#ifndef LUA51EXTERN
     lua_pushcfunction(*L, luaopen_socket_core);
     lua_setfield(*L, -2, "socket.core");
+#endif
     lua_pushcfunction(*L, luaopen_pack);
     lua_setfield(*L, -2, "pack");
   }

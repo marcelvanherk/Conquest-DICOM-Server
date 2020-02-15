@@ -663,6 +663,7 @@ When            Who     What
 20191215	mvh     Fix ladle port default; version to 1.5.0beta
 20200110        mvh     Db revision 19; use QRows and QColumns as field names
 20200203        mvh     Copy lua5.1.dll to web server; list time of lua5.1.dll in bugreport; version 1.5.beta2
+20200204        mvh     Small fix in that for newweb
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -699,7 +700,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0beta2';
-const BUILDDATE = '20200203';
+const BUILDDATE = '20200204';
 const testmode = 0;
 
 {************************************************************************}

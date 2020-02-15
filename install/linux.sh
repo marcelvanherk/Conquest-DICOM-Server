@@ -8,6 +8,7 @@
 # mvh 20181223 For 1.4.19d; Added luasocket; use sensible-browser
 # mvh 20181230 For 1.4.19d; Added setenforce line for Fedora
 # mvh 20200110 For 1.5.0beta; Fix pushd use
+# mvh 20200215 For 1.5.0beta2; Added Wno-format-overflow
 
 SRC=../src/dgate;
 CGI=/usr/lib/cgi-bin; # /var/www/cgi-bin for Fedora
@@ -26,7 +27,7 @@ pushd $SRC/luasocket;
 popd;
 
 gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
-g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DNOINTJPEG -Wno-write-strings $SRC/lua.o $SRC/luasocket/luasocket.a -o dgatesmall -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -I$SRC/lua_5.1.5 -Wno-multichar;
+g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DNOINTJPEG -Wno-write-strings $SRC/lua.o $SRC/luasocket/luasocket.a -o dgatesmall -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -I$SRC/lua_5.1.5 -Wno-multichar -Wno-format-overflow;
 
 chmod 777 $SRC/jpeg-6c/configure;
 chmod 777 dgatesmall;

@@ -8,18 +8,26 @@
 # mvh 20181117 Added luasocket to compile
 # mvh 20181125 make /usr/local/man.man1, add luasocket to mysql compile
 # mvh 20200109 Fixed to linux line endings
+# mvh 20200215 Config for external lua5.1 library (see LUA=)
 
 #DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 SRC=./src/dgate;
 CONF=./linux/conf;
 LINUX=./linux;
+#LUA="$SRC/lua.o $SRC/luasocket/luasocket.a";
+#LUA=-llua5.1;
+LUA="-llua5.1 $SRC/luasocket/luasocket.a";
+FLAGS="-std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings -Wno-multichar -Wno-format-overflow -Wno-deprecated-declarations";
+INCS="-I$SRC/dicomlib -ljpeg -lpthread -ldl -I$SRC/src -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls";
+OBS="$SRC/charls.o $SRC/openjpeg.o";
 
-sudo mkdir /usr/local/man.man1
+#sudo mkdir /usr/local/man.man1
 chmod 777 src/dgate/jpeg-6c/configure
 cd src/dgate/jpeg-6c
 ./configure
 make
 sudo make install
+echo Please ignore the error above
 cd ../../..
 
 chmod 777 src/dgate/luasocket/amake.sh;
@@ -37,33 +45,33 @@ do
 #			cd /usr/lib
 #			ln -s /usr/lib64/mysql .
 			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
-			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
-			g++ -std=c++11 -I/usr/local/mysql/include -I/usr/include/mysql -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DUSEMYSQL -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/lua.o $SRC/luasocket/luasocket.a $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -L/usr/local/mysql/lib -L/usr/lib/mysql -lmysqlclient -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
+			g++ $FLAGS -DUSEMYSQL $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I/usr/local/mysql/include -I/usr/include/mysql -L/usr/local/mysql/lib -L/usr/lib/mysql -lmysqlclient;
 			break;
 			;;
         "postgres")
 			export LD_LIBRARY_PATH="/usr/include/postgresql/";
 			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
-			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
-			g++ -std=c++11 -I/usr/include/postgresql/ -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DPOSTGRES -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/lua.o $SRC/luasocket/luasocket.a $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -L/usr/local/pgsql/lib -lpq  -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
+			g++ $FLAGS -DPOSTGRES $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I/usr/include/postgresql/ -L/usr/local/pgsql/lib -lpq;
 			break;
 			;;
         "sqlite")
 			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 			gcc -c -DTHREADSAFE=1 -DHAVE_USLEEP $SRC/sqlite3/sqlite3.c -I$SRC/sqlite3 -o $SRC/sqlite3.o;
-			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
-			g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DUSESQLITE -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/sqlite3.o $SRC/lua.o $SRC/luasocket/luasocket.a $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -I$SRC/sqlite3 -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
+			g++ $FLAGS -DUSESQLITE $SRC/sqlite3.o $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I$SRC/sqlite3;
 			rm $SRC/sqlite3.o;
 			break;
 			;;
 	"dbase")
 			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
-			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
-			g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings $SRC/lua.o $SRC/luasocket/luasocket.a $SRC/charls.o $SRC/openjpeg.o -o dgate -lpthread -ldl -I$SRC/src $SRC/src/total.cpp -I$SRC/dicomlib -ljpeg -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls -Wno-multichar;
+			g++ $FLAGS $OBS -o dgate $SRC/src/total.cpp $LUA $INCS;
 			break;	
 			;;
         "Quit")

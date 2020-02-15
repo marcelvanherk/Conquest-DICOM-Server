@@ -162,7 +162,7 @@ if notepad==nil then
 	end
 
 	function notepad.dlgMain:close_cb()
-	  iup.ExitLoop()  -- should be removed if used inside a bigger application
+	  --iup.ExitLoop()  -- should be removed if used inside a bigger application
 	  notepad.dlgMain:destroy()
 	  notepad=nil;
 	  return iup.IGNORE

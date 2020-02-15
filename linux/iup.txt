@@ -1,0 +1,40 @@
+-- install conquest on ubuntu19 server with access to web interface and iup GUI
+
+sudo apt install make
+sudo apt install xterm
+sudo apt install g++
+sudo apt install apache2
+sudo apt install p7zip-full
+sudo apt install unzip
+sudo a2enmod cgi
+systemctl restart apache2
+sudo apt install openssh-server
+sudo apt install firefox
+
+export DISPLAY=192.168.1.67:0
+xterm -display 192.168.1.67:0
+
+wget http://ingenium.home.xs4all.nl/dicomserver/dicomserver150beta2.zip
+mkdir conquest
+cd conquest
+unzip ../dicomserver150beta2.zip
+chmod 777 maklinux
+./maklinux
+./dgate -v -r
+
+sudo apt install lua5.1
+sudo apt install lua5.1-dev
+
+sudo apt install libgtk2.0-dev
+
+mkdir iup
+wget -O iuplibs.tar.gz http://sourceforge.net/projects/iup/files/3.19.1/Linux%20Libraries/iup3.19.1_Linux32_64_lib.tar.gz
+wget -O iuplualibs.tar.gz http://sourceforge.net/projects/iup/files/3.19.1/Linux%20Libraries/Lua51/iup-3.19.1Lua51_Linux32_64_lib.tar.gz
+
+cd iup
+tar xvf ../iuplibs.tar.gz
+tar xvf ../iuplualibs.tar.gz
+sudo cp lib*.so /usr/lib
+
+cd ../conquest/
+./dgate "--lua:package.cpath=package.cpath..';/usr/lib/lib?51.so';dofile('lua/console.wlua')"

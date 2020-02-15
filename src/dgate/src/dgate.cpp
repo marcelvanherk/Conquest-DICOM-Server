@@ -1136,6 +1136,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200203	mvh	1.5.0-beta2: lsp removed DataPointer stuff to support lsp array change
 			Added LUA51EXTERN option for dynamic loading of lua5.1.dll
 20200211	mvh	Take luasocket out when LUA51EXTERN defined
+20200215	mvh	Make sure globalPDU.L is created in dolua:
 
 ENDOFUPDATEHISTORY
 */
@@ -13613,11 +13614,12 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 						//SystemDebug.On();
 						LoadKFactorFile((char*)KFACTORFILE);
 					  	InitACRNemaAddressArray();
+						
 						struct scriptdata sd = {&globalPDU, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
 						globalPDU.SetLocalAddress ( (BYTE *)"global" );
 						globalPDU.SetRemoteAddress ( (BYTE *)"dolua" );
-						globalPDU.ThreadNum = 0;
-						lua_createtable   (globalPDU.L, 0, 0);
+						lua_setvar(&globalPDU, "version", DGATE_VERSION); // creates globalPDU.L if needed
+	  					lua_createtable   (globalPDU.L, 0, 0);
 						for (int i=0; i<argc; i++)
 							{
 							lua_pushinteger(globalPDU.L, i+1);
@@ -13625,6 +13627,7 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 							lua_settable (globalPDU.L, -3);
 							}
 				                lua_setglobal (globalPDU.L, "arg");
+
 						char file[1024], cmd[1024]; 
 						strcpy(file, argv[valid_argc]+8);
 						if(stat(file, &st) != 0)
@@ -13637,6 +13640,7 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 							sprintf(cmd, "dofile([[%s]])", file);
 						else
 							strcpy(cmd, argv[valid_argc]+8);
+
 						do_lua(&(globalPDU.L), cmd, &sd);
 						if (sd.DDO) delete sd.DDO;
 						exit(0);
@@ -23414,7 +23418,7 @@ main ( int	argc, char	*argv[] )
 #ifdef LUA51EXTERN
 	loadLua();
 #endif
-
+						
 	for (i=0; i<MAXExportConverters; i++)
  	  for (j=0; j<MAXExportConverters; j++)
   	    import_c_init[i][j]=FALSE;
@@ -23591,7 +23595,7 @@ main ( int	argc, char	*argv[] )
   	        globalPDU.SetLocalAddress ( (BYTE *)"standalone" );
   	        globalPDU.SetRemoteAddress ( (BYTE *)"standalone" );
   		globalPDU.ThreadNum = 0;
-  	        struct scriptdata sd = {&globalPDU, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, 0, 0};
+  	        struct scriptdata sd = {&globalPDU, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, 0, 0};		
 		lua_setvar(&globalPDU, "version", DGATE_VERSION);
 		lua_createtable   (globalPDU.L, 0, 0);
 		for (int i=0; i<argc; i++)
@@ -23612,7 +23616,7 @@ main ( int	argc, char	*argv[] )
         globalPDU.SetRemoteAddress ( (BYTE *)"global" );
 	globalPDU.ThreadNum = 0;
         struct scriptdata sd = {&globalPDU, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, 0, 0};
-	do_lua(&(globalPDU.L), cmd, &sd);
+	if (cmd[0]) do_lua(&(globalPDU.L), cmd, &sd);
 	if (sd.DDO) delete sd.DDO;
 	if (sd.rc==2 || sd.rc==6) exit(1); // reject on startup
 

@@ -36,6 +36,8 @@
 -- 20191019 Also copy jpg(s) in htdocs folder for web install
 -- 20200110 For 1.5.0beta; add ';basedir/lua/?.lua' to package.path in dicom.ini; db rev 19
 -- 20200203 Added lua5.1.dll to web install; copy database drivers when installing on windows
+-- 20200215 Link against installed lua5.1 library in linux
+-- NOTE: must replace relative path in dicom.ini with absolute path
 
 function errorpage(s)
   HTML('Content-type: text/html\n\n');
@@ -1044,7 +1046,7 @@ if param=='compiledgate' then
     dbo..
     dbi..
     dbl..
-    server..'src/dgate/build/lua.o '..
+    --server..'src/dgate/build/lua.o '..
     server..'src/dgate/build/luasocket.a '..
 
     server..'src/dgate/build/charls.o '..
@@ -1054,6 +1056,7 @@ if param=='compiledgate' then
     '-lpthread -ldl '..
     '-I'..server..'src/dgate/src '..
     server..'src/dgate/src/total.cpp '..
+    '-llua5.1 '..
     '-I'..server..'src/dgate/lua_5.1.5 '..
     '-I'..server..'src/dgate/dicomlib '..
 

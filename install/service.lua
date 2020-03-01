@@ -45,6 +45,7 @@
 -- 20200226 Configuration parameters to top of file to support moved install functions
 -- 20200226 Added htmlweb variable to fix that in linux htdocs is not filled
 --          Added and tested subfunction e.g. ./dgatesmall -w. --dolua:service.lua subfunction compiledgates
+-- 20200228 Prefer /var/www/html/ for htmlweb if found
 -- NOTE: must replace relative path in dicom.ini with absolute path
 
 local server = 'unknown'
@@ -1413,6 +1414,16 @@ if CGI('xxx', 'xxx')~='xxx' then
     print('[OK] Webserver in c:\\xampp\\apache\\')
     cgiweb = 'c:\\xampp\\cgi-bin\\'
     htmlweb  = 'c:\\xampp\\htdocs\\'
+  elseif os.rename('/var/www/html/', '/var/www/html/')==true then
+    print('[OK] Webserver in /var/www/html/')
+    htmlweb  = '/var/www/html/'
+    if os.rename('/var/www/cgi-bin/', '/var/www/cgi-bin/')==true then
+      print('[OK] Webserver cgi-bin in /var/www/cgi-bin/')
+      cgiweb  = '/var/www/cgi-bin/'
+    elseif os.rename('/usr/lib/cgi-bin/', '/usr/lib/cgi-bin/')==true then
+      print('[OK] Webserver cgi-bin in /usr/lib/cgi-bin/')
+      cgiweb  = '/usr/lib/cgi-bin/'
+    end
   elseif os.rename('/var/www/', '/var/www/')==true then
     print('[OK] Webserver in /var/www/')
     htmlweb  = '/var/www/'
@@ -1638,7 +1649,7 @@ end
 
 -- get configuration (cached)
 
-if not fileexists(server..'config.ini') then
+if true or not fileexists(server..'config.ini') then
   create_server_file(server..'config.ini', [[
 dgate = dgate
 cgiclient = dgate
@@ -1802,6 +1813,7 @@ HTML('<b>Configuration information:</b><br>')
 HTML('<br>dgate executable = '..dgate)
 HTML('<br>server folder = '..server)
 HTML('<br>web interface = '..cgiweb..'newweb'..sep..cgiclient)
+HTML('<br>web root = '..htmlweb)
 HTML('<br>script_name = '..script_name)
 HTML('<br>')
 

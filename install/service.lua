@@ -37,7 +37,22 @@
 -- 20200110 For 1.5.0beta; add ';basedir/lua/?.lua' to package.path in dicom.ini; db rev 19
 -- 20200203 Added lua5.1.dll to web install; copy database drivers when installing on windows
 -- 20200215 Link against installed lua5.1 library in linux
+-- 20200216 Remove luasocket, lua from compile linked externally
+-- 20200216 Added -Wno-format-overflow
+-- 20200218 Allow to run direcly from dgate as command line utility
+-- 20200219 Reordered function to allow install from command line
+-- 20200220 Report compiler and nmake versions
+-- 20200226 Configuration parameters to top of file to support moved install functions
+-- 20200226 Added htmlweb variable to fix that in linux htdocs is not filled
+--          Added and tested subfunction e.g. ./dgatesmall -w. --dolua:service.lua subfunction compiledgates
 -- NOTE: must replace relative path in dicom.ini with absolute path
+
+local server = 'unknown'
+local sep, dsep = '\\', '\\\\'
+local dgate  = 'dgate'
+local cgiclient  = 'dgate'
+local cgiweb = 'unknown'
+local htmlweb = 'unknown'
 
 function errorpage(s)
   HTML('Content-type: text/html\n\n');
@@ -71,11 +86,16 @@ function split(str, pat)
    return t
 end
 
-local s = servercommand("lua:return 'service control software is running'")
-if s~='service control software is running' then
-  errorpage('service control software is NOT running, check windows.bat or linux.sh')
-  return
+function runquiet(s)
+  local f=io.popen(s); 
+  if f then 
+    return f:read('*all')
+  else 
+    return ''
+  end
 end
+
+local runLocal=false
 
 function statuspage(s)
   print([[<H3>]].. s .. [[</H3>]])
@@ -83,88 +103,123 @@ end
 
 -- write file in context of the service control server (with more rights)
 function create_server_file(f, s)
-  servercommand('lua:local s=[['..s..']]; f = io.open([['..f..']], [[wt]]); f:write(s); f:close()')
+  if runLocal then
+    f = io.open(f, [[wt]]); 
+    f:write(s); 
+    f:close()  
+  else
+    servercommand('lua:local s=[['..s..']]; f = io.open([['..f..']], [[wt]]); f:write(s); f:close()')
+  end
 end
 
 -- edit file in context of the service control server (with more rights)
 function editfile(f, mask, value)
-  servercommand('lua:local mask=[['..mask..']]; local value=[['..value..']]; local s=[[]]; '..
-  'for x in io.lines([['..f..']]) '.. 
-  'do x = string.gsub(x, mask, value); s = s..x.."\\n" end; '..
-  'local h=io.open([['..f..']], [[wt]]);'..
-  'if h then h:write(s) h:close() end')
+  if runLocal then
+    local s=''
+    for x in io.lines(f) do 
+      x = string.gsub(x, mask, value)
+      s = s..x.."\\n" 
+    end
+    local h=io.open(f, [[wt]])
+    if h then h:write(s) h:close() end
+  else
+    servercommand('lua:local mask=[['..mask..']]; local value=[['..value..']]; local s=[[]]; '..
+    'for x in io.lines([['..f..']]) '.. 
+    'do x = string.gsub(x, mask, value); s = s..x.."\\n" end; '..
+    'local h=io.open([['..f..']], [[wt]]);'..
+    'if h then h:write(s) h:close() end')
+  end
 end
 
 -- test file exists in context of the service control server (with more rights)
 function fileexists(f)
-  return servercommand('lua:local h=io.open([['..f..']]);'..
-  'if h then h:close() return 1 else return 0 end')=="1"
+  if runLocal then
+    local h=io.open(f)
+    if h then 
+      h:close() 
+      return 1 
+    end
+  else
+    return servercommand('lua:local h=io.open([['..f..']]);'..
+    'if h then h:close() return 1 else return 0 end')=="1"
+  end
 end
 
 -- copy file in context of the service control server (with more rights)
 function copyfile(f, g)
-  servercommand('lua:'..
-  'local h=io.open([['..f..']], [[rb]]) '..
-  'local s=h:read([[*a]]) '..
-  'h:close() '..
---  'h=io.open([['..g..']]) '..
---  'if h==nil then '..
-  '  local h=io.open([['..g..']], [[wb]]) '..
-  '  h:write(s) '..
-  '  h:close() '..
---  'else '..
---  'h:close() '..
---  'end'
-  '')
+  if runLocal then
+    local h=io.open(f, [[rb]])
+    local s=h:read([[*a]])
+    h:close()
+    local h=io.open(g, [[wb]])
+    h:write(s)
+    h:close()
+  else
+    servercommand('lua:'..
+    'local h=io.open([['..f..']], [[rb]]) '..
+    'local s=h:read([[*a]]) '..
+    'h:close() '..
+  --  'h=io.open([['..g..']]) '..
+  --  'if h==nil then '..
+    '  local h=io.open([['..g..']], [[wb]]) '..
+    '  h:write(s) '..
+    '  h:close() '..
+  --  'else '..
+  --  'h:close() '..
+  --  'end'
+    '')
+  end
 end
 
 -- read file item in context of the service control server (with more rights)
 function getfile(f, mask)
-  return servercommand('lua:'..
-  'local y;'..
-  'h = io.open([['..f..']], [[rt]]) '..
-  'if h then '..
-  '  h:close() '..
-  '  for x in io.lines([['..f..']]) do'..
-  '    x = string.match(x, [['..mask..']])'..
-  '    y = y or x'..
-  '  end '..
-  'end '..
-  'return y')
+  if runLocal then
+    local y
+    h = io.open([['..f..']], [[rt]])
+    if h then
+      h:close()
+      for x in io.lines([['..f..']]) do
+        x = string.match(x, [['..mask..']])
+        y = y or x
+      end
+    end
+    return y
+  else
+    return servercommand('lua:'..
+    'local y;'..
+    'h = io.open([['..f..']], [[rt]]) '..
+    'if h then '..
+    '  h:close() '..
+    '  for x in io.lines([['..f..']]) do'..
+    '    x = string.match(x, [['..mask..']])'..
+    '    y = y or x'..
+    '  end '..
+    'end '..
+    'return y')
+  end
 end
 
--- locate server (assumes web interface on same machine)
-local server = 'unknown'
-if string.find(script_name, '%.exe') then
-  server = servercommand([[lua:f=io.popen('cd'); return f:read('*all')]])
-else
-  server = servercommand([[lua:f=io.popen('pwd'); return f:read('*all')]])
-end
-server = string.gsub(server, '\\[^\\]-$', '\\')
-server = string.gsub(server, '/[^/]-$', '/')
-
--- get separator character
-local sep, dsep = '\\', '\\\\'
-if string.find(server, '/') then
-  sep = '/'
-  dsep = '/'
-end
-
--- read file item in context of the service control server (with more rights)
+-- read entire file in context of the service control server (with more rights)
 function getfilecontents(f)
-  return servercommand('lua:'..
-  'local r;'..
-  'local h = io.open([['..f..']]) '..
-  'if h then '..
-  '  r = h:read("*all") '..
-  '  h:close() '..
-  ' s=("'..server..'x.txt") f=io.open(s, "wb") f:write(r) returnfile=s f:close() ' ..
-  'end ')
+  if runLocal then
+    local r
+    local h = io.open(f)
+    if h then
+      r = h:read("*all")
+      h:close()
+      return r
+    end
+  else
+    return servercommand('lua:'..
+    'local r;'..
+    'local h = io.open([['..f..']]) '..
+    'if h then '..
+    '  r = h:read("*all") '..
+    '  h:close() '..
+    ' s=("'..server..'x.txt") f=io.open(s, "wb") f:write(r) returnfile=s f:close() ' ..
+    'end ')
+  end
 end
-
-local dgate  = 'dgate'
-local cgiclient  = 'dgate'
-local cgiweb = 'unknown'
 
 -- execute statement in context of the service control server (with more rights)
 function sendservercommand(f)
@@ -270,7 +325,7 @@ function create_newweb_dicomini()
         s=s..v..','
       end
       if fileexists(server..'webserver'..sep..'htdocs'..sep..v..'.jpg') then
-        copyfile(server..'webserver'..sep..'htdocs'..sep..v..'.jpg', cgiweb..'..'..sep..'htdocs'..sep..v..'.jpg')
+        copyfile(server..'webserver'..sep..'htdocs'..sep..v..'.jpg', htmlweb..v..'.jpg')
         s=s..v..','
       end
     end
@@ -729,6 +784,858 @@ LittleEndianImplicit                                 1.2.840.10008.1.2	transfer
   end
 end
 
+-- (normally) web controlled functions
+function subfunctions(param)
+  if param=='start' then
+    if string.find(sendservercommand(server..dgate.." -w"..server.." "..[[--echo:]]..getfile(server..'dicom.ini', 'MyACRNema *= (.*)') or 'CONQUESTSRV1') or '', 'UP')==nil then
+      HTML('Server is starting ...')
+      if dgate=='dgate' then
+        servercommand("luastart:os.execute([["..server..dgate.." -w"..server.." -v]]); return false")
+  	else
+        servercommand("luastart:os.execute([[start /D "..server.." conquestdicomserver.exe".."]]); return false")
+  	end
+    else
+      HTML('Server was already running')
+    end
+    return param, true
+  end
+  -----------------------------------------
+  if param=='stop' then
+    if dgate=='dgate' then
+      servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --quit:]]); return false")
+    else
+      servercommand("lua:os.execute([["..server..dgate.." \"--lua:print('$ QUITGUI $')\"]]); return false")
+    end
+    statuspage('Server stopped')
+    return param, true
+  end
+  -----------------------------------------
+  if param=='regen' then
+    local pats=tonumber(sendservercommand(server..dgate.." -w"..server.." "..[["--lua:a=dbquery('DICOMPatients', '*');return #(a or {})"]]))
+    if pats==0 then
+      servercommand("lua:os.execute([["..server..dgate.." -w"..server.." -v -r]]); return false")
+      statuspage([[Database regen completed - click <a href=# onclick="javascript:servicecommand('welcome')">here</a> to refresh]])
+    else
+      statuspage([[*** Database contains ]]..pats..[[ patient(s) ***; click <a href=# onclick="javascript:servicecommand('regen!')">here</a> to confirm]])
+    end
+    return param, true
+  end
+  -----------------------------------------
+  if param=='regen!' then
+    servercommand("lua:os.execute([["..server..dgate.." -w"..server.." -v -r]]); return false")
+    statuspage([[Database regen completed - click <a href=# onclick="javascript:servicecommand('welcome')">here</a> to refresh]])
+    return param, true
+  end
+  -----------------------------------------
+  if param=='dbtest' then
+    HTML(sendservercommand(server..dgate.." -w"..server.." -v -o"))
+    return param, true
+  end
+  
+  -----------------------------------------
+  -----------------------------------------
+  if param=='compilejpeg6c' then
+    if dgate=='dgate' then
+      sendservercommand('mkdir '..server..'src/dgate/build')
+      sendservercommand('rm '..server..'src/dgate/build/libjpeg.a')
+      sendservercommand('cd '..server..'src/dgate/jpeg-6c ; ./configure; make; cp libjpeg.a '..server..'src/dgate/build')
+    else
+      sendservercommand('mkdir '..server..'src\\dgate\\build32')
+      sendservercommand('mkdir '..server..'src\\dgate\\build64')
+      sendservercommand('del '..server..'src\\dgate\\build64\\libjpeg.lib')
+      sendservercommand('del '..server..'src\\dgate\\build32\\libjpeg.lib')
+      HTML(sendservercommand('cd '..server..'src\\dgate\\jpeg-6c & call amake.bat'))
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  if param=='compilecharls' then
+    if dgate=='dgate' then
+      sendservercommand('mkdir '..server..'src/dgate/build')
+      sendservercommand('rm '..server..'src/dgate/build/charls.o')
+      HTML(sendservercommand('g++ -o '..server..'src/dgate/build/charls.o -c '..server..'src/dgate/charls/all.cpp -I'..server..'src/dgate/charls'))
+    else
+      sendservercommand('mkdir '..server..'src\\dgate\\build32')
+      sendservercommand('mkdir '..server..'src\\dgate\\build64')
+      sendservercommand('del '..server..'src\\dgate\\build64\\charls.obj')
+      sendservercommand('del '..server..'src\\dgate\\build32\\charls.obj')
+      HTML(sendservercommand('cd '..server..'src\\dgate\\charls & call amake.bat'))
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  if param=='compileopenjpeg' then
+    if dgate=='dgate' then
+      sendservercommand('mkdir '..server..'src/dgate/build')
+      sendservercommand('rm '..server..'src/dgate/build/openjpeg.o')
+      HTML(sendservercommand('gcc -o '..server..'src/dgate/build/openjpeg.o -c '..server..'src/dgate/openjpeg/all.c -I'..server..'src/dgate/openjpeg'))
+    else
+      sendservercommand('mkdir '..server..'src\\dgate\\build32')
+      sendservercommand('mkdir '..server..'src\\dgate\\build64')
+      sendservercommand('del '..server..'src\\dgate\\build64\\openjp2.obj')
+      sendservercommand('del '..server..'src\\dgate\\build32\\openjp2.obj')
+      HTML(sendservercommand('cd '..server..'src\\dgate\\openjpeg & call amake.bat'))
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  if param=='compiledicomlib' then
+    if dgate=='dgate' then
+      HTML("*** error: no separate compile needed")
+    else
+      sendservercommand('mkdir '..server..'src\\dgate\\build32')
+      sendservercommand('mkdir '..server..'src\\dgate\\build64')
+      sendservercommand('del '..server..'src\\dgate\\build64\\dicom.lib')
+      sendservercommand('del '..server..'src\\dgate\\build32\\dicom.lib')
+      sendservercommand('cd '..server..'src\\dgate\\dicomlib & call amake.bat')
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  if param=='compilelua' then
+    if dgate=='dgate' then
+      sendservercommand('mkdir '..server..'src/dgate/build')
+      sendservercommand('rm '..server..'src/dgate/build/lua.o')
+      HTML(sendservercommand('gcc -o '..server..'src/dgate/build/lua.o -c '..server..'src/dgate/lua_5.1.5/all.c -I'..server..'src/dgate/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX'))
+    else
+      sendservercommand('mkdir '..server..'src\\dgate\\build32')
+      sendservercommand('mkdir '..server..'src\\dgate\\build64')
+      sendservercommand('del '..server..'src\\dgate\\build64\\lua.obj')
+      sendservercommand('del '..server..'src\\dgate\\build32\\lua.obj')
+      HTML(sendservercommand('cd '..server..'src\\dgate\\lua_5.1.5 & call amake.bat'))
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  if param=='compileluasocket' then
+    if dgate=='dgate' then
+      sendservercommand('chmod 777 '..server..'src/dgate/luasocket/amake.sh')
+      HTML(sendservercommand('cd '..server..'src/dgate/luasocket|./amake.sh'))
+      sendservercommand('cp '..server..'src/dgate/luasocket/luasocket.a '..server..'src/dgate/build')
+    else
+      sendservercommand('mkdir '..server..'src\\dgate\\build32')
+      sendservercommand('mkdir '..server..'src\\dgate\\build64')
+      sendservercommand('del '..server..'src\\dgate\\build64\\luasocket.lib')
+      sendservercommand('del '..server..'src\\dgate\\build32\\luasocket.lib')
+      HTML(sendservercommand('mkdir '..server..'src\\dgate\\build64 & mkdir '..server..'src\\dgate\\build32'..' & cd '..server..'src\\dgate\\luasocket & call amake.bat'))
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  if param=='compilesqlite3' then
+    if dgate=='dgate' then
+      sendservercommand('mkdir '..server..'src/dgate/build')
+      sendservercommand('rm '..server..'src/dgate/build/sqlite3.o')
+      HTML(sendservercommand('gcc -DTHREADSAFE=1 -DHAVE_USLEEP -o '..server..'src/dgate/build/sqlite3.o -c '..server..'src/dgate/sqlite3/sqlite3.c -I'..server..'src/dgate/sqlite3'))
+    else
+      sendservercommand('mkdir '..server..'src\\dgate\\build32')
+      sendservercommand('mkdir '..server..'src\\dgate\\build64')
+      sendservercommand('del '..server..'src\\dgate\\build64\\sqlite3.obj')
+      sendservercommand('del '..server..'src\\dgate\\build32\\sqlite3.obj')
+      HTML(sendservercommand('mkdir '..server..'src\\dgate\\build64 & mkdir '..server..'src\\dgate\\build32'..' & cd '..server..'src\\dgate\\sqlite3 & call amake.bat & echo completed'))
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  if param=='compiledgate' then
+    if dgate=='dgate' then
+      local dbo = server..'src/dgate/build/sqlite3.o '
+      local dbl = ''
+      local dbi = '-I'..server..'src/dgate/sqlite3 '
+      local dbd = '-DUSESQLITE '
+      if CGI('DB', '')=='mysql' then
+        dbo = '-lmysqlclient '
+        dbl = '-L/usr/local/mysql/lib -L/usr/lib/mysql '
+        dbi = '-I/usr/local/mysql/include -I/usr/include/mysql '
+        dbd = '-DUSEMYSQL '     
+      end
+      if CGI('DB', '')=='pgsql' then
+        dbo = '-lpq '
+        dbl = '-L/usr/local/pgsql/lib '
+        dbi = '-I/usr/include/postgresql ' 
+        dbd = '-DPOSTGRES '     
+      end
+      sendservercommand('mkdir '..server..'src/dgate/build')
+      sendservercommand('rm '..server..'src/dgate/build/dgate')
+      sendservercommand(
+      'g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 '..
+      '-Wno-multichar -Wno-write-strings -Wno-format-overflow -DHAVE_LIBJPEG '..
+      '-DHAVE_LIBCHARLS '..
+      '-DHAVE_LIBOPENJPEG2 '..
+      dbd..
+      dbo..
+      dbi..
+      dbl..
+      --server..'src/dgate/build/lua.o '..
+      --server..'src/dgate/build/luasocket.a '..
+  
+      server..'src/dgate/build/charls.o '..
+      server..'src/dgate/build/openjpeg.o '..
+  
+      '-o '..server..'src/dgate/build/dgate '..
+      '-lpthread -ldl '..
+      '-I'..server..'src/dgate/src '..
+      server..'src/dgate/src/total.cpp '..
+      '-llua5.1 '..
+      '-I'..server..'src/dgate/lua_5.1.5 '..
+      '-I'..server..'src/dgate/dicomlib '..
+  
+      '-I'..server..'src/dgate/charls '..
+      '-I'..server..'src/dgate/openjpeg '..
+  
+      '-I'..server..'src/dgate/jpeg-6c '..
+      '-L'..server..'src/dgate/jpeg-6c -ljpeg '
+      )
+    else
+      sendservercommand('del '..server..'src\\dgate\\build64\\dgate.exe')
+      sendservercommand('del '..server..'src\\dgate\\build32\\dgate.exe')
+      HTML(sendservercommand('mkdir '..server..'src\\dgate\\build64 & mkdir '..server..'src\\dgate\\build32'..' & cd '..server..'src\\dgate\\src & call amake.bat & echo completed'))
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  if param=='compiledgatesmall' then
+    if dgate=='dgate' then
+      sendservercommand('mkdir '..server..'src/dgate/build')
+      sendservercommand('rm '..server..'src/dgate/build/dgatesmall')
+      sendservercommand(
+      'g++ -DUNIX -DNATIVE_ENDIAN=1 -Wno-write-strings -DNOINTJPEG '..
+      '-Wno-multichar -Wno-format-overflow '..
+      -- server..'src/dgate/build/lua.o '..
+      -- server..'src/dgate/build/luasocket.a '..
+      '-o '..server..'src/dgate/build/dgatesmall '..
+      '-I'..server..'src/dgate/src '..
+      server..'src/dgate/src/total.cpp '..
+      '-llua5.1 -lpthread -ldl '..
+      '-I'..server..'src/dgate/dicomlib '..
+      '-I'..server..'src/dgate/lua_5.1.5 '..
+      '-I'..server..'src/dgate/jpeg-6c '..
+      '-L'..server..'src/dgate/jpeg-6c -ljpeg '
+      )
+    else
+      sendservercommand('del '..server..'src\\dgate\\build64\\dgate.exe')
+      sendservercommand('del '..server..'src\\dgate\\build32\\dgate.exe')
+      HTML(sendservercommand('mkdir '..server..'src\\dgate\\build64 & mkdir '..server..'src\\dgate\\build32'..' & cd '..server..'src\\dgate\\src & call amake.bat & echo completed'))
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  local components, objects, description, build
+  if param=='compile' or param=='donecompile' or param=='rebuildgate' then
+    components = {'jpeg6c', 'openjpeg', 'charls', --[['lua',]] --[['luasocket',]] 'sqlite3', 'dgate'} -- , 'dgatesmall'}
+    objects = {'libjpeg.a', 'openjpeg.o', 'charls.o', --[['lua.o',]] --[['luasocket.a',]] 'sqlite3.o', 'dgate', 'dgatesmall'}
+    description = {'Jpeg codec', 'Jpeg2000 codec', 'JpegLS codec', --[['Lua interpreter',]] --[['Lua communication layer',]] 'Sqlite3 database', 'Final server binary', 'Service control app'}
+  
+    if dgate~='dgate' then
+      components[8]=nil -- no dgatesmall in windows
+      table.insert(components, 7, 'dicomlib')
+      table.insert(description, 7, 'dicom library')
+      objects = {'libjpeg.lib', 'openjp2.obj', 'charls.obj', --[['lua.obj',]] --[['luasocket.lib',]] 'sqlite3.obj', 'dicom.lib', 'dgate.exe'}
+    end
+    local bits = string.sub(dgate, 6, 7)
+    build = server..'src/dgate/build'..bits..'/'
+    if dgate~='dgate' then build = string.gsub(build, '/', sep) end
+  end
+  -----------------------------------------
+  if param=='rebuildgate' then
+    servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --quit:]]); return false")
+    if dgate=='dgate' then
+      sendservercommand('rm '..server..'dgate')
+      sendservercommand('rm '..build..'*')
+    else
+      sendservercommand('del '..server..dgate)
+      sendservercommand('del '..build..'*.*')
+    end
+    param = 'compile'
+  end
+  -----------------------------------------
+  if param=='compile' then
+    HTML("<b>Compile server components in: "..build.."</b><br>")
+    
+    HTML('<table>')
+    HTML('<td><b>Component</b><td><b>Description</b><td><b>Done</b><td><b>Actions</b>') 
+    for i=1, #components do
+      HTML('<tr>')
+      HTML('<td>'..components[i]..'<td>'..description[i])
+      if fileexists(build..objects[i]) then
+        HTML('<td><b>yes</b>')
+      else
+        HTML('<td>')
+      end
+      HTML([[<td><a href=# onclick="status('Compiling (may take a while) ...'); javascript:servicecommand('compile]]..components[i]..[[&DB='+document.getElementById('oForm').SelectDatabase.value); return false;">Compile</a>]])
+  
+      if components[i]=='dgate' and dgate=='dgate' then    
+        HTML('<td>Note: recompile needed when changing selected database below')
+      end
+    end
+    HTML('</table>')
+  
+    HTML([[<br><a href=# onclick="javascript:servicecommand('rebuildgate'); return false;">[Rebuild]</a>]])
+    HTML([[<br><a href=# onclick="javascript:servicecommand('donecompile'); setTimeout(returntowelcome, 2000); return false;">[Done]</a>]])
+    return param, true
+  end
+  -----------------------------------------
+  if param=='donecompile' then
+    for i=1, #components do
+      if components[i]=='dgate' then
+        if fileexists(build..objects[i]) then
+          servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --quit:]]); return false")
+          sendservercommand('cp '..server..'src/dgate/build/dgate '..server)
+          statuspage('Compilation completed ...')
+        else
+          statuspage('*** Server did not compile correctly ***')
+        end
+      end
+    end
+    return param, true
+  end
+  
+  -----------------------------------------
+  -----------------------------------------
+  if param=='editacrnema' then
+    local r = getfilecontents(server..'acrnema.map')
+    local c = string.match(r, "(%/%*.*%*%/\n)")
+    local s = string.gsub(r, "%/%*.*%*%/\n", "")
+    local t= split(s, '\n')
+    local t2={}
+    for i=1, #t do
+      if t[i]~='' then
+        t2[#t2+1] = t[i]
+      end
+    end
+    s = string.gsub(CGI('data', ''), ',', '\t\t')
+    if s~='null' then t2[tonumber(CGI('item', 9999))] = s end
+    create_server_file(server..'acrnema.map', c..table.concat(t2, '\n'))
+    param = 'acrnema'
+  end
+  -----------------------------------------
+  if param=='deleteacrnema' then
+    local r = getfilecontents(server..'acrnema.map')
+    local c = string.match(r, "(%/%*.*%*%/\n)")
+    local s = string.gsub(r, "%/%*.*%*%/\n", "")
+    local t= split(s, '\n')
+    local t2={}
+    for i=1, #t do
+      if t[i]~='' then
+        t2[#t2+1] = t[i]
+      end
+    end
+    table.remove(t2, tonumber(CGI('item', 9999)))
+    create_server_file(server..'acrnema.map', c..table.concat(t2, '\n'))
+    param = 'acrnema'
+  end
+  -----------------------------------------
+  if param=='addacrnema' then
+    local r = getfilecontents(server..'acrnema.map')
+    local c = string.match(r, "(%/%*.*%*%/\n)")
+    local s = string.gsub(r, "%/%*.*%*%/\n", "")
+    local t= split(s, '\n')
+    local t2={}
+    local star
+    for i=1, #t do
+      if t[i]~='' then
+        t2[#t2+1] = t[i]
+        if (string.find(t[i], '%*')~=nil) and (star==nil) then star = #t2 end
+      end
+    end
+    if star==nil then star = #t2+1 end
+    s = string.gsub(CGI('data', ''), ',', '\t\t')
+    if s~='null' then table.insert(t2, star, s) end
+    create_server_file(server..'acrnema.map', c..table.concat(t2, '\n'))
+    param = 'acrnema'
+  end
+  -----------------------------------------
+  if param=='acrnema' then
+    HTML("<b>Edit known dicom providers:</b><br>")
+  
+    local r = getfilecontents(server..'acrnema.map')
+    local s = string.gsub(r, "%/%*.*%*%/\n", "")
+    local t= split(s, '\n')
+    local t2={}
+    for i=1, #t do
+      if t[i]~='' then
+        t2[#t2+1] = t[i]
+      end
+    end
+    HTML('<table>')
+    HTML('<td><b>AE</b><td><b>IP</b><td><b>Port</b><td><b>Compression</b><td><b>Actions</b>') 
+    for i=1, #t2 do
+      HTML('<tr>')
+      local s=string.gsub(t2[i], '%s+', ',')
+      local t=string.gsub(t2[i], '%s+', '<td>')
+      HTML([[<td>]]..t)
+      
+      if i>1 then 
+        HTML([[<td><a href=# onclick="javascript:var s=prompt('Edit (AE,IP,Port,Compression)',']]..s..[[');servicecommand('editacrnema&item=]]..i..[[&data='+s); return false;">Edit</a>]]) 
+        HTML([[<td><a href=# onclick="javascript:servicecommand('deleteacrnema&item=]]..i..[['); return false;">Delete</a>]]) 
+      else
+        HTML([[<td>(not allowed)]]) 
+      end
+    end
+    HTML('</table>')
+  
+    HTML([[<td><a href=# onclick="javascript:var s=prompt('New entry (AE,IP,Port,Compression)','AE,IP,Port,Comp');servicecommand('addacrnema&data='+s); return false;">[Add new entry]</a>]]) 
+  
+    HTML([[<br><a href=# onclick="javascript:servicecommand('doneacrnema'); setTimeout(returntowelcome, 2000); return false;">[Done]</a>]])
+    return param, true
+  end
+  -----------------------------------------
+  if param=='doneacrnema' then
+    servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --read_amap:]]); return false")
+    statuspage('Updated known dicom providers')
+    return param, true
+  end
+  
+  -----------------------------------------
+  -----------------------------------------
+  -----------------------------------------
+  if param=='welcome' then
+    local allok = true
+    if not fileexists(server..dgate) and dgate=='dgate' then
+      HTML([[Welcome to <b>Conquest DICOM server</b>. Compilation is needed; select database to use below and click here to start compiling: <a href=# onclick="javascript:servicecommand('compile'); return false;">[start compiling]</a><br>]])
+      allok = false
+    end
+    if allok and not fileexists(server..'dicom.ini') then
+      HTML([[Welcome to <b>Conquest DICOM server</b>. Configuration is needed, review settings below (defaults are OK to start) and click this link: <a href=# onclick="javascript:servicecommand('config'+
+      '&AE='+document.getElementById('oForm').EditAE.value+
+      '&PORT='+document.getElementById('oForm').EditPort.value+
+      '&FN='+document.getElementById('oForm').SelectFileNameSyntax.value+
+      '&CP='+document.getElementById('oForm').SelectCompression.value+
+      '&M0='+document.getElementById('oForm').EditMAGDevice0.value+
+      '&DB='+document.getElementById('oForm').SelectDatabase.value+
+      '&SH='+document.getElementById('oForm').EditSQLHost.value+
+      '&SE='+document.getElementById('oForm').EditSQLServer.value+
+      '&SU='+document.getElementById('oForm').EditSQLUsername.value+
+      '&SP='+document.getElementById('oForm').EditSQLPassword.value+
+      ''
+      ); setTimeout(returntowelcome, 2000); return false;">[install/config]</a><br>]])
+      allok = false
+    end 
+    if allok and sendservercommand(server..dgate.." -w"..server.." "..[["--lua:a=dbquery('DICOMPatients', '*');return #(a or {})"]])=="0" then
+      HTML([[Welcome to <b>Conquest DICOM server</b>. Database regen is needed; click here to perform: <a href=# onclick="javascript:servicecommand('regen'); setTimeout(returntowelcome, 2000); return false;">[regenerate database]</a><br>]])
+      allok = false
+    end
+    if allok and string.find(sendservercommand(server..dgate.." -w"..server.." "..[[--echo:]]..getfile(server..'dicom.ini', 'MyACRNema *= (.*)') or 'CONQUESTSRV1') or '', 'UP')==nil then
+      HTML([[Welcome to <b>Conquest DICOM server</b>. Server is not running; click here to start: <a href=# onclick="javascript:servicecommand('start'); setTimeout(returntowelcome, 2000); return false;">[Start server]</a><br>]])
+      allok = false
+    end
+    
+    if allok then
+      HTML('<b>Server runtime information:</b><br><br>')
+      local r = sendservercommand(server..dgate.." -w"..server.." --display_status:")
+      if (r or '')=='' then
+        HTML('Server not running')
+      else
+        HTML(string.gsub(r, "Old JPEG.*", ""))
+        HTML('<br>')
+        HTML(string.gsub(string.gsub(r, "DICOM.*codec=%d", ""), "; Images sent=.*", ""))
+        HTML('<br>')
+        HTML(string.gsub(string.gsub(r, ".*Images sent=", "Images sent="), "Activity:.*", ""))
+        HTML('<br>')
+        HTML(string.gsub(string.gsub(r, ".*Space on", "Space on"), "", ""))
+      end
+    end
+  
+    return param, true
+  end
+    
+  -----------------------------------------
+  -----------------------------------------
+  if param=='config' then
+    if dgate=='dgate64.exe' then
+      copyfile(server..'install64\\dgate64.exe', server..'dgate64.exe')
+      copyfile(server..'install64\\lua5.1.dll', server..'lua5.1.dll')
+      copyfile(server..'install64\\libmysql64.dll', server..'libmysql64.dll')
+      copyfile(server..'install64\\libpq64.dll', server..'libpq64.dll')
+    elseif dgate=='dgate.exe' then
+      copyfile(server..'install32\\dgate.exe', server..'dgate.exe')
+      copyfile(server..'install32\\lua5.1.dll', server..'lua5.1.dll')
+      copyfile(server..'install64\\libmysql.dll', server..'libmysql.dll')
+      copyfile(server..'install64\\libeay32.dll', server..'libeay32.dll')
+      copyfile(server..'install64\\libiconv-2.dll', server..'libiconv-2.dll')
+      copyfile(server..'install64\\libintl-8.dll', server..'libintl-8.dll')
+      copyfile(server..'install64\\libssh2.dll', server..'libssh2.dll')
+      -- note 32 bits postgres DLLs not provided
+    end
+  
+    if not fileexists(server..'dicom.sql') then
+      create_server_dicomsql()
+    end
+  
+    if not fileexists(server..'dgatesop.lst') then
+      create_server_dgatesop('') -- enable jpeg by default
+    else
+      --
+    end
+  
+    if not fileexists(server..'dicom.ini') then
+      create_server_dicomini()
+    else
+      local sqlite=0; if CGI('DB', '')=='sqlite' then dbaseiii=0; sqlite=1 end
+      local dbaseiii=1; if CGI('DB', '')=='dbaseiii' then dbaseiii=1 end
+      local mysql=0; if CGI('DB', '')=='mysql' then dbaseiii=0; mysql=1 end
+      local pgsql=0; if CGI('DB', '')=='pgsql' then dbaseiii=0; pgsql=1 end
+      local doublebackslashtodb = 0
+      local useescapestringconstants = 0
+      if CGI('SE', '')=='' then dbaseiii=0 end
+      if pgsql==1 then useescapestringconstants=1 end
+      if mysql==1 or pgsql==1 then doublebackslashtodb=1 end
+  
+      editfile(server..'dicom.ini', '(MyACRNema *= ).*', '%1' .. CGI('AE', 'CONQUESTSRV1'))
+      editfile(server..'dicom.ini', '(TCPPort *= ).*', '%1' .. CGI('PORT', '5678'))
+  
+      editfile(server..'dicom.ini', '(DroppedFileCompression *= ).*', '%1' .. CGI('CP', '5678'))
+      editfile(server..'dicom.ini', '(IncomingCompression *= ).*', '%1' .. CGI('CP', '5678'))
+  
+      editfile(server..'dicom.ini', '(FileNameSyntax *= ).*', '%1' .. CGI('FN', '9'))
+      editfile(server..'dicom.ini', '(MAGDevice0 *= ).*', '%1' .. CGI('M0', server .. 'data' .. sep))
+  
+      editfile(server..'dicom.ini', '(SqLite *= ).*', '%1' .. sqlite)
+      editfile(server..'dicom.ini', '(MySQL *= ).*', '%1' .. mysql)
+      editfile(server..'dicom.ini', '(Postgres *= ).*', '%1' .. pgsql)
+      editfile(server..'dicom.ini', '(DoubleBackSlashToDB *= ).*', '%1' .. doublebackslashtodb)
+      editfile(server..'dicom.ini', '(UseEscapeStringConstants *= ).*', '%1' .. useescapestringconstants)
+      editfile(server..'dicom.ini', '(SQLServer *= ).*', '%1' .. CGI('SE', ''))
+  
+      editfile(server..'dicom.ini', '(SQLHost *= ).*', '%1' .. CGI('SH', '127.0.0.1'))
+      editfile(server..'dicom.ini', '(Username *= ).*', '%1' .. CGI('SU', ''))
+      editfile(server..'dicom.ini', '(Password *= ).*', '%1' .. CGI('SP', ''))
+    end
+  
+    if not fileexists(server..'acrnema.map') then
+      create_server_acrnema()
+    else
+      editfile(server..'acrnema.map', '^([%d%a]+)%s+(127%.0%.0%.1)%s+(%d+)%s+([%d%a]+)', 
+      CGI('AE', 'CONQUESTSRV1')..'		%2	'..CGI('PORT', '5678')..'		%4')
+    end
+  
+    statuspage('Server configured ... ')
+    return param, true
+  end
+  -----------------------------------------
+  if param=='webconfig' then
+    if true then -- not fileexists(cgiweb..'newweb'..sep..'dicom.ini') then
+      -- ladle link
+      if write then
+        servercommand("lua:os.execute([["..server..dgate.." -w"..server..
+        " --luastart:dofile('../lua/ladle.lua')]]); return false")
+      else
+        create_newweb_dicomini()
+      end
+    else
+      editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^TCPPort *= ).*', '%1' .. CGI('PORT', '5678'))
+      editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^viewer *= ).*', '%1' .. CGI('SVIEWER', 'wadoseriesviewer'))
+      editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^seriesviewer *= ).*', '%1' .. CGI('VIEWER', 'wadostudyviewer'))
+    end
+    statuspage('Web server configured ... ')
+    return param, true
+  end
+end
+
+local localConfig = {
+  AE='CONQUESTSRV1',
+  PORT=5678,
+  DB='sqlite',
+  SH='',
+  SU='',
+  SP='',
+  FN=3,
+  CP='UN',
+  M0='./Data',
+  READONLY=0,
+  VIEWONLY=0,
+  VIEWER='wadoseriesviewer',
+  SVIEWER='wadostudyviewer',
+}
+
+-- Running from the command line; if so test if things are setup correctly
+
+if CGI('xxx', 'xxx')~='xxx' then
+  package.path=package.path..';../lua/?.lua';
+  if string.find(arg[1], '/') then
+    package.cpath=package.cpath..';/usr/lib/lib?51.so';
+  else
+    package.cpath=package.cpath..';../clibs/?51.dll;../clibs/?/core.dll';
+  end
+  
+  if arg[4]=='console' then
+    dofile('../lua/console.wlua')
+    return
+  end
+
+  print(arg[4], arg[5])
+
+  CGI = function(key, default)
+    if localConfig[key] then
+      return localConfig[key]
+    else
+      return default
+    end
+  end
+
+  HTML = function(str)
+  end
+
+  print('Not running from webserver, testing dependencies for install GUI:')
+  runLocal=true
+  
+  -- locate server folder and detect OS type
+  if not string.find(arg[1], '/') and runquiet('..\\install64\\dgate64.exe -w. "--dolua:print([[[OK] ]]..version)"')~='' then
+    print('[OK] 64 bits Windows')
+    sep = '\\' dsep = '\\\\'
+    dgate  = 'dgate64.exe'
+    cgiclient = 'dgate.exe'
+    local f=io.popen('cd'); server = f:read('*all') f:close() server=string.match(server, '(.*)\\.-$')..sep
+  elseif not string.find(arg[1], '/') and runquiet('..\\install32\\dgate.exe -w. "--dolua:print([[[OK] ]]..version)"')~='' then
+    print('[OK] 32 bits Windows')
+    sep = '\\' dsep = '\\\\'
+    dgate  = 'dgate.exe'
+    cgiclient = 'dgate.exe'
+    local f=io.popen('cd'); server = f:read('*all') f:close() server=string.match(server, '(.*)\\.-$')..sep
+  elseif runquiet('../install/dgatesmall -w. "--dolua:print([[[OK] ]]..version)"')~='' then
+    print('[OK] Linux')
+    sep = '/' dsep = '/'
+    dgate  = 'dgate'
+    cgiclient = 'dgate'
+    local f=io.popen('pwd'); server = f:read('*all') f:close() server=string.match(server, '(.*)%/.-$')..sep
+    if os.execute('../dgate -w. "--dolua:print([[[OK] ]]..version)"')~='' then
+      print('[OK] Linux dgate compiled')
+    else
+      print('[OK] Linux dgate NOT compiled')
+    end
+  else
+    print('[ERROR] Unsupported OS or incomplete installation folder')
+  end
+  print('[OK] Server in '..server)
+
+  -- locate web server folders using a few possible locations
+  if fileexists('c:\\xampp\\apache\\conf\\httpd.conf') then
+    print('[OK] Webserver in c:\\xampp\\apache\\')
+    cgiweb = 'c:\\xampp\\cgi-bin\\'
+    htmlweb  = 'c:\\xampp\\htdocs\\'
+  elseif os.rename('/var/www/', '/var/www/')==true then
+    print('[OK] Webserver in /var/www/')
+    htmlweb  = '/var/www/'
+    if os.rename('/var/www/cgi-bin/', '/var/www/cgi-bin/')==true then
+      print('[OK] Webserver cgi-bin in /var/www/cgi-bin/')
+      cgiweb  = '/var/www/cgi-bin/'
+    elseif os.rename('/usr/lib/cgi-bin/', '/usr/lib/cgi-bin/')==true then
+      print('[OK] Webserver cgi-bin in /usr/lib/cgi-bin/')
+      cgiweb  = '/usr/lib/cgi-bin/'
+    end
+  elseif os.rename('/srv/www/', '/srv/www/')==true then
+    print('[OK] Webserver in /srv/www')
+    htmlweb  = '/srv/www/'
+    if os.rename('/srv/www/cgi-bin/', '/srv/www/cgi-bin/')==true then
+      print('[OK] Webserver cgi-bin in /srv/www/cgi-bin/')
+      cgiweb  = '/srv/www/cgi-bin/'
+    elseif os.rename('/usr/lib/cgi-bin/', '/usr/lib/cgi-bin/')==true then
+      print('[OK] Webserver cgi-bin in /usr/lib/cgi-bin/')
+      cgiweb  = '/usr/lib/cgi-bin/'
+    end
+  elseif os.rename('/srv/http/', '/srv/http/')==true then
+    print('[OK] Webserver in /srv/http')
+    htmlweb  = '/srv/http/'
+    if os.rename('/srv/cgi-bin/', '/srv/cgi-bin/')==true then
+      print('[OK] Webserver cgi-bin in /srv/cgi-bin/')
+      cgiweb  = '/srv/cgi-bin/'
+    elseif os.rename('/usr/lib/cgi-bin/', '/usr/lib/cgi-bin/')==true then
+      print('[OK] Webserver cgi-bib in /usr/lib/cgi-bin/')
+      cgiweb  = '/usr/lib/cgi-bin/'
+    end
+  end
+
+  if arg[4]=='subfunction' then
+    subfunctions(arg[5])
+    return
+  end
+
+  if pcall(function()require('socket') end) then
+    print('[OK] lua-socket')
+  else
+    print('[ERROR] lua-socket')
+  end
+  if pcall(function()require('iuplua') end) then
+    print('[OK] iuplua')
+  else
+    print('[ERROR] iuplua')
+  end
+  if pcall(function()require('persistence') end) then
+    print('[OK] persistence.lua')
+  else
+    print('[ERROR] persistence.lua')
+  end
+  
+  if fileexists('../dicom.ini') then
+    print('[OK] server configured')
+  else
+    print('[OK] server NOT configured')
+  end
+
+  local s = servercommand("lua:return 'service control software is running'")
+  if s=='service control software is running' then
+    print('[OK] server running')
+  else
+    print('[OK] server NOT running')
+  end
+
+  if Global then
+    print('[OK] running from Dgate')
+  else
+    print('[ERROR] must be run from Dgate')
+  end
+  
+  if sep=='\\' then
+    local bat=[[
+      @echo off
+      call ..\src\dgate\asetcompiler32.bat
+      "%compiler%\%ccompiler%" 1>nul 2>t.txt
+      type t.txt
+      del t.txt
+    ]]
+    create_server_file('t.bat', bat)
+    local a = string.match(runquiet('t.bat'), 'Version (.+)\nCopyright')
+    if a then 
+      print('[OK] C32 '..a)
+    else
+      print('[ERROR] C32') 
+    end
+
+    local bat=[[
+      @echo off
+      call ..\src\dgate\asetcompiler64.bat
+      "%compiler%\%ccompiler%" 1>nul 2>t.txt
+      type t.txt
+      del t.txt
+    ]]
+    create_server_file('t.bat', bat)
+    local a = string.match(runquiet('t.bat'), 'Version (.+)\nCopyright')
+    if a then 
+      print('[OK] C64 '..a) 
+    else
+      print('[ERROR] C64') 
+    end
+
+    local bat=[[
+      @echo off
+      call ..\src\dgate\asetcompiler32.bat
+      "%compiler%\nmake" 1>nul 2>t.txt
+      type t.txt
+      del t.txt
+    ]]
+    create_server_file('t.bat', bat)
+    local a = string.match(runquiet('t.bat'), 'Version (.+)\nCopyright')
+    if a then 
+      print('[OK] M32 '..a)
+    else
+      print('[ERROR] M32') 
+    end
+
+    local bat=[[
+      @echo off
+      call ..\src\dgate\asetcompiler64.bat
+      "%compiler%\nmake" 1>nul 2>t.txt
+      type t.txt
+      del t.txt
+    ]]
+    create_server_file('t.bat', bat)
+    local a = string.match(runquiet('t.bat'), 'Version (.+)\nCopyright')
+    if a then 
+      print('[OK] M64 '..a)
+    else
+      print('[ERROR] M64') 
+    end
+  else
+    runquiet('make --version >t.txt 2>nul')
+    resp = {}
+    for v in io.lines('t.txt') do table.insert(resp, v) end
+    if resp[1] then print('[OK] '..resp[1])
+    else print('[ERROR] no make; install with sudo apt install make')
+    end
+
+    runquiet('g++ --version >t.txt 2>nul')
+    resp = {} 
+    for v in io.lines('t.txt') do table.insert(resp, v) end    
+    if resp[1] then print('[OK] '..resp[1])
+    else print('[ERROR] no g++; install with sudo apt install g++')
+    end
+
+    runquiet('gcc --version >t.txt 2>nul')
+    resp = {}
+    for v in io.lines('t.txt') do table.insert(resp, v) end
+    if resp[1] then print('[OK] '..resp[1])
+    else print('[ERROR] no gcc')
+    end
+
+    runquiet('7za >t.txt 2>nul')
+    resp = {}
+    for v in io.lines('t.txt') do table.insert(resp, v) end
+    if resp[2] then print('[OK] '..resp[2])
+    else print('[ERROR] no 7za; install with sudo apt install p7zip-full')
+    end 
+
+    runquiet('unzip -v >t.txt 2>nul')
+    resp = {}
+    for v in io.lines('t.txt') do table.insert(resp, v) end
+    if resp[1] then print('[OK] '..resp[1])
+    else print('[ERROR] No unzip; install with sudo apt install unzip')
+    end
+
+    runquiet('lua5.1 -v 2>t.txt 1>nul')
+    resp = {}
+    for v in io.lines('t.txt') do table.insert(resp, v) end
+    if not string.find(resp[1], 'not found') then print('[OK] '..resp[1])
+    else print('[ERROR] No Lua5.1; install with sudo apt install lua5.1')
+    end
+
+    runquiet('apache2 -v >t.txt 2>nul')
+    resp = {}
+    for v in io.lines('t.txt') do table.insert(resp, v) end
+    if resp[1] then print('[OK] Apache '..resp[1])
+    else print('[ERROR] No apache2')
+    end
+
+    runquiet('a2query -m | grep "cgi"  >t.txt 2>nul')
+    resp = {}
+    for v in io.lines('t.txt') do table.insert(resp, v) end
+    if resp[1] then print('[OK] Apache CGI '..resp[1])
+    else print('[ERROR] No apache CGI; enable with sudo a2enmod cgid')
+    end
+
+    runquiet('sudo chmod 777 ../webviewer.sh')
+    runquiet('sudo chmod 777 ../maklinux')
+  end
+
+  create_server_dicomini()
+  
+  --local t = io.read()
+  --print(t)
+  
+  -- arg={};arg[1]=[[8086]];dofile('../lua/ladle.lua')
+  return;
+end
+
+local s = servercommand("lua:return 'service control software is running'")
+if s~='service control software is running' then
+  errorpage('service control software is NOT running, check windows.bat or linux.sh')
+  return
+end
+
+-- locate server (assumes web interface on same machine)
+if string.find(script_name, '%.exe') then
+  server = servercommand([[lua:f=io.popen('cd'); return f:read('*all')]])
+else
+  server = servercommand([[lua:f=io.popen('pwd'); return f:read('*all')]])
+end
+server = string.gsub(server, '\\[^\\]-$', '\\')
+server = string.gsub(server, '/[^/]-$', '/')
+
+-- get separator character
+if string.find(server, '/') then
+  sep = '/'
+  dsep = '/'
+end
+
 -- get configuration (cached)
 
 if not fileexists(server..'config.ini') then
@@ -736,6 +1643,7 @@ if not fileexists(server..'config.ini') then
 dgate = dgate
 cgiclient = dgate
 cgiweb = unknown
+htmlweb = unknown
   ]])
 
   -- find out which dgate can run to determine OS and bits
@@ -747,7 +1655,7 @@ cgiweb = unknown
     cgiclient = 'dgate.exe'
   end
   
-  -- locate web interface
+  -- locate web interface (cgi)
   local f
   if string.find(script_name, '%.exe') then
     f=io.popen('cd')
@@ -759,13 +1667,25 @@ cgiweb = unknown
   cgiweb = string.gsub(cgiweb, '\\[^\\]-$', '\\')
   cgiweb = string.gsub(cgiweb, '/[^/]-$', '/')
 
+  -- locate web interface (www root)
+  htmlweb = cgiweb .. '..' .. sep .. 'htdocs' .. sep
+  if os.rename('/var/www/', '/var/www/')==true then
+    htmlweb  = '/var/www/'
+  elseif os.rename('/srv/www/', '/srv/www/')==true then
+    htmlweb  = '/srv/www/'
+  elseif os.rename('/srv/http/', '/srv/http/')==true then
+    htmlweb  = '/srv/http/'
+  end
+
   editfile(server..'config.ini', '(dgate *= ).*', '%1' .. dgate)
   editfile(server..'config.ini', '(cgiclient *= ).*', '%1' .. cgiclient)
   editfile(server..'config.ini', '(cgiweb *= ).*', '%1' .. cgiweb)
+  editfile(server..'config.ini', '(htmlweb *= ).*', '%1' .. htmlweb)
 else
   dgate = getfile(server..'config.ini', 'dgate *= (.*)') or 'unknown'
   cgiclient = getfile(server..'config.ini', 'cgiclient *= (.*)') or 'unknown'
   cgiweb = getfile(server..'config.ini', 'cgiweb *= (.*)') or 'unknown'
+  htmlweb = getfile(server..'config.ini', 'htmlweb *= (.*)') or 'unknown'
 end
 
 -- generate page header
@@ -866,549 +1786,9 @@ end
 -- subfunctions
 -----------------------------------------
 param = CGI('parameter', '')
-if param=='start' then
-  if string.find(sendservercommand(server..dgate.." -w"..server.." "..[[--echo:]]..getfile(server..'dicom.ini', 'MyACRNema *= (.*)') or 'CONQUESTSRV1') or '', 'UP')==nil then
-    HTML('Server is starting ...')
-    if dgate=='dgate' then
-      servercommand("luastart:os.execute([["..server..dgate.." -w"..server.." -v]]); return false")
-	else
-      servercommand("luastart:os.execute([[start /D "..server.." conquestdicomserver.exe".."]]); return false")
-	end
-  else
-    HTML('Server was already running')
-  end
-  return
-end
------------------------------------------
-if param=='stop' then
-  if dgate=='dgate' then
-    servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --quit:]]); return false")
-  else
-    servercommand("lua:os.execute([["..server..dgate.." \"--lua:print('$ QUITGUI $')\"]]); return false")
-  end
-  statuspage('Server stopped')
-  return
-end
------------------------------------------
-if param=='regen' then
-  local pats=tonumber(sendservercommand(server..dgate.." -w"..server.." "..[["--lua:a=dbquery('DICOMPatients', '*');return #(a or {})"]]))
-  if pats==0 then
-    servercommand("lua:os.execute([["..server..dgate.." -w"..server.." -v -r]]); return false")
-    statuspage([[Database regen completed - click <a href=# onclick="javascript:servicecommand('welcome')">here</a> to refresh]])
-  else
-    statuspage([[*** Database contains ]]..pats..[[ patient(s) ***; click <a href=# onclick="javascript:servicecommand('regen!')">here</a> to confirm]])
-  end
-  return
-end
------------------------------------------
-if param=='regen!' then
-  servercommand("lua:os.execute([["..server..dgate.." -w"..server.." -v -r]]); return false")
-  statuspage([[Database regen completed - click <a href=# onclick="javascript:servicecommand('welcome')">here</a> to refresh]])
-  return
-end
------------------------------------------
-if param=='dbtest' then
-  HTML(sendservercommand(server..dgate.." -w"..server.." -v -o"))
-  return
-end
-
------------------------------------------
------------------------------------------
-if param=='compilejpeg6c' then
-  if dgate=='dgate' then
-    sendservercommand('mkdir '..server..'src/dgate/build')
-    sendservercommand('rm '..server..'src/dgate/build/libjpeg.a')
-    sendservercommand('cd '..server..'src/dgate/jpeg-6c ; ./configure; make; cp libjpeg.a '..server..'src/dgate/build')
-  else
-    sendservercommand('mkdir '..server..'src\\dgate\\build32')
-    sendservercommand('mkdir '..server..'src\\dgate\\build64')
-    sendservercommand('del '..server..'src\\dgate\\build64\\libjpeg.lib')
-    sendservercommand('del '..server..'src\\dgate\\build32\\libjpeg.lib')
-    HTML(sendservercommand('cd '..server..'src\\dgate\\jpeg-6c & call amake.bat'))
-  end
-  param = 'compile'
-end
------------------------------------------
-if param=='compilecharls' then
-  if dgate=='dgate' then
-    sendservercommand('mkdir '..server..'src/dgate/build')
-    sendservercommand('rm '..server..'src/dgate/build/charls.o')
-    HTML(sendservercommand('g++ -o '..server..'src/dgate/build/charls.o -c '..server..'src/dgate/charls/all.cpp -I'..server..'src/dgate/charls'))
-  else
-    sendservercommand('mkdir '..server..'src\\dgate\\build32')
-    sendservercommand('mkdir '..server..'src\\dgate\\build64')
-    sendservercommand('del '..server..'src\\dgate\\build64\\charls.obj')
-    sendservercommand('del '..server..'src\\dgate\\build32\\charls.obj')
-    HTML(sendservercommand('cd '..server..'src\\dgate\\charls & call amake.bat'))
-  end
-  param = 'compile'
-end
------------------------------------------
-if param=='compileopenjpeg' then
-  if dgate=='dgate' then
-    sendservercommand('mkdir '..server..'src/dgate/build')
-    sendservercommand('rm '..server..'src/dgate/build/openjpeg.o')
-    HTML(sendservercommand('gcc -o '..server..'src/dgate/build/openjpeg.o -c '..server..'src/dgate/openjpeg/all.c -I'..server..'src/dgate/openjpeg'))
-  else
-    sendservercommand('mkdir '..server..'src\\dgate\\build32')
-    sendservercommand('mkdir '..server..'src\\dgate\\build64')
-    sendservercommand('del '..server..'src\\dgate\\build64\\openjp2.obj')
-    sendservercommand('del '..server..'src\\dgate\\build32\\openjp2.obj')
-    HTML(sendservercommand('cd '..server..'src\\dgate\\openjpeg & call amake.bat'))
-  end
-  param = 'compile'
-end
------------------------------------------
-if param=='compiledicomlib' then
-  if dgate=='dgate' then
-    HTML("*** error: no separate compile needed")
-  else
-    sendservercommand('mkdir '..server..'src\\dgate\\build32')
-    sendservercommand('mkdir '..server..'src\\dgate\\build64')
-    sendservercommand('del '..server..'src\\dgate\\build64\\dicom.lib')
-    sendservercommand('del '..server..'src\\dgate\\build32\\dicom.lib')
-    sendservercommand('cd '..server..'src\\dgate\\dicomlib & call amake.bat')
-  end
-  param = 'compile'
-end
------------------------------------------
-if param=='compilelua' then
-  if dgate=='dgate' then
-    sendservercommand('mkdir '..server..'src/dgate/build')
-    sendservercommand('rm '..server..'src/dgate/build/lua.o')
-    HTML(sendservercommand('gcc -o '..server..'src/dgate/build/lua.o -c '..server..'src/dgate/lua_5.1.5/all.c -I'..server..'src/dgate/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX'))
-  else
-    sendservercommand('mkdir '..server..'src\\dgate\\build32')
-    sendservercommand('mkdir '..server..'src\\dgate\\build64')
-    sendservercommand('del '..server..'src\\dgate\\build64\\lua.obj')
-    sendservercommand('del '..server..'src\\dgate\\build32\\lua.obj')
-    HTML(sendservercommand('cd '..server..'src\\dgate\\lua_5.1.5 & call amake.bat'))
-  end
-  param = 'compile'
-end
------------------------------------------
-if param=='compileluasocket' then
-  if dgate=='dgate' then
-    sendservercommand('chmod 777 '..server..'src/dgate/luasocket/amake.sh')
-    HTML(sendservercommand('cd '..server..'src/dgate/luasocket|./amake.sh'))
-    sendservercommand('cp '..server..'src/dgate/luasocket/luasocket.a '..server..'src/dgate/build')
-  else
-    sendservercommand('mkdir '..server..'src\\dgate\\build32')
-    sendservercommand('mkdir '..server..'src\\dgate\\build64')
-    sendservercommand('del '..server..'src\\dgate\\build64\\luasocket.lib')
-    sendservercommand('del '..server..'src\\dgate\\build32\\luasocket.lib')
-    HTML(sendservercommand('mkdir '..server..'src\\dgate\\build64 & mkdir '..server..'src\\dgate\\build32'..' & cd '..server..'src\\dgate\\luasocket & call amake.bat'))
-  end
-  param = 'compile'
-end
------------------------------------------
-if param=='compilesqlite3' then
-  if dgate=='dgate' then
-    sendservercommand('mkdir '..server..'src/dgate/build')
-    sendservercommand('rm '..server..'src/dgate/build/sqlite3.o')
-    HTML(sendservercommand('gcc -DTHREADSAFE=1 -DHAVE_USLEEP -o '..server..'src/dgate/build/sqlite3.o -c '..server..'src/dgate/sqlite3/sqlite3.c -I'..server..'src/dgate/sqlite3'))
-  else
-    sendservercommand('mkdir '..server..'src\\dgate\\build32')
-    sendservercommand('mkdir '..server..'src\\dgate\\build64')
-    sendservercommand('del '..server..'src\\dgate\\build64\\sqlite3.obj')
-    sendservercommand('del '..server..'src\\dgate\\build32\\sqlite3.obj')
-    HTML(sendservercommand('mkdir '..server..'src\\dgate\\build64 & mkdir '..server..'src\\dgate\\build32'..' & cd '..server..'src\\dgate\\sqlite3 & call amake.bat & echo completed'))
-  end
-  param = 'compile'
-end
------------------------------------------
-if param=='compiledgate' then
-  if dgate=='dgate' then
-    local dbo = server..'src/dgate/build/sqlite3.o '
-    local dbl = ''
-    local dbi = '-I'..server..'src/dgate/sqlite3 '
-    local dbd = '-DUSESQLITE '
-    if CGI('DB', '')=='mysql' then
-      dbo = '-lmysqlclient '
-      dbl = '-L/usr/local/mysql/lib -L/usr/lib/mysql '
-      dbi = '-I/usr/local/mysql/include -I/usr/include/mysql '
-      dbd = '-DUSEMYSQL '     
-    end
-    if CGI('DB', '')=='pgsql' then
-      dbo = '-lpq '
-      dbl = '-L/usr/local/pgsql/lib '
-      dbi = '-I/usr/include/postgresql ' 
-      dbd = '-DPOSTGRES '     
-    end
-    sendservercommand('mkdir '..server..'src/dgate/build')
-    sendservercommand('rm '..server..'src/dgate/build/dgate')
-    sendservercommand(
-    'g++ -DUNIX -DNATIVE_ENDIAN=1 '..
-    '-Wno-multichar -Wno-write-strings -std=c++11 -DHAVE_LIBJPEG '..
-    '-DHAVE_LIBCHARLS '..
-    '-DHAVE_LIBOPENJPEG2 '..
-    dbd..
-    dbo..
-    dbi..
-    dbl..
-    --server..'src/dgate/build/lua.o '..
-    server..'src/dgate/build/luasocket.a '..
-
-    server..'src/dgate/build/charls.o '..
-    server..'src/dgate/build/openjpeg.o '..
-
-    '-o '..server..'src/dgate/build/dgate '..
-    '-lpthread -ldl '..
-    '-I'..server..'src/dgate/src '..
-    server..'src/dgate/src/total.cpp '..
-    '-llua5.1 '..
-    '-I'..server..'src/dgate/lua_5.1.5 '..
-    '-I'..server..'src/dgate/dicomlib '..
-
-    '-I'..server..'src/dgate/charls '..
-    '-I'..server..'src/dgate/openjpeg '..
-
-    '-I'..server..'src/dgate/jpeg-6c '..
-    '-L'..server..'src/dgate/jpeg-6c -ljpeg '
-    )
-  else
-    sendservercommand('del '..server..'src\\dgate\\build64\\dgate.exe')
-    sendservercommand('del '..server..'src\\dgate\\build32\\dgate.exe')
-    HTML(sendservercommand('mkdir '..server..'src\\dgate\\build64 & mkdir '..server..'src\\dgate\\build32'..' & cd '..server..'src\\dgate\\src & call amake.bat & echo completed'))
-  end
-  param = 'compile'
-end
------------------------------------------
-if param=='compiledgatesmall' then
-  if dgate=='dgate' then
-    sendservercommand('mkdir '..server..'src/dgate/build')
-    sendservercommand('rm '..server..'src/dgate/build/dgatesmall')
-    sendservercommand(
-    'g++ -DUNIX -DNATIVE_ENDIAN=1 -Wno-write-strings -DNOINTJPEG '..
-    '-Wno-multichar '..
-    server..'src/dgate/build/lua.o '..
-    server..'src/dgate/build/luasocket.a '..
-    '-o '..server..'src/dgate/build/dgatesmall '..
-    '-lpthread -ldl '..
-    '-I'..server..'src/dgate/src '..
-    server..'src/dgate/src/total.cpp '..
-    '-I'..server..'src/dgate/dicomlib '..
-    '-I'..server..'src/dgate/lua_5.1.5 '..
-    '-I'..server..'src/dgate/jpeg-6c '..
-    '-L'..server..'src/dgate/jpeg-6c -ljpeg '
-    )
-  else
-    sendservercommand('del '..server..'src\\dgate\\build64\\dgate.exe')
-    sendservercommand('del '..server..'src\\dgate\\build32\\dgate.exe')
-    HTML(sendservercommand('mkdir '..server..'src\\dgate\\build64 & mkdir '..server..'src\\dgate\\build32'..' & cd '..server..'src\\dgate\\src & call amake.bat & echo completed'))
-  end
-  param = 'compile'
-end
------------------------------------------
-local components, objects, description, build
-if param=='compile' or param=='donecompile' or param=='rebuildgate' then
-  components = {'jpeg6c', 'openjpeg', 'charls', 'lua', 'luasocket', 'sqlite3', 'dgate'} -- , 'dgatesmall'}
-  objects = {'libjpeg.a', 'openjpeg.o', 'charls.o', 'lua.o', 'luasocket.a', 'sqlite3.o', 'dgate', 'dgatesmall'}
-  description = {'Jpeg codec', 'Jpeg2000 codec', 'JpegLS codec', 'Lua interpreter', 'Lua communication layer', 'Sqlite3 database', 'Final server binary', 'Service control app'}
-
-  if dgate~='dgate' then
-    components[8]=nil -- no dgatesmall in windows
-    table.insert(components, 7, 'dicomlib')
-    table.insert(description, 7, 'dicom library')
-    objects = {'libjpeg.lib', 'openjp2.obj', 'charls.obj', 'lua.obj', 'luasocket.lib', 'sqlite3.obj', 'dicom.lib', 'dgate.exe'}
-  end
-  local bits = string.sub(dgate, 6, 7)
-  build = server..'src/dgate/build'..bits..'/'
-  if dgate~='dgate' then build = string.gsub(build, '/', sep) end
-end
------------------------------------------
-if param=='rebuildgate' then
-  servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --quit:]]); return false")
-  if dgate=='dgate' then
-    sendservercommand('rm '..server..'dgate')
-    sendservercommand('rm '..build..'*')
-  else
-    sendservercommand('del '..server..dgate)
-    sendservercommand('del '..build..'*.*')
-  end
-  param = 'compile'
-end
------------------------------------------
-if param=='compile' then
-  HTML("<b>Compile server components in: "..build.."</b><br>")
-  
-  HTML('<table>')
-  HTML('<td><b>Component</b><td><b>Description</b><td><b>Done</b><td><b>Actions</b>') 
-  for i=1, #components do
-    HTML('<tr>')
-    HTML('<td>'..components[i]..'<td>'..description[i])
-    if fileexists(build..objects[i]) then
-      HTML('<td><b>yes</b>')
-    else
-      HTML('<td>')
-    end
-    HTML([[<td><a href=# onclick="status('Compiling (may take a while) ...'); javascript:servicecommand('compile]]..components[i]..[[&DB='+document.getElementById('oForm').SelectDatabase.value); return false;">Compile</a>]])
-
-    if components[i]=='dgate' and dgate=='dgate' then    
-      HTML('<td>Note: recompile needed when changing selected database below')
-    end
-  end
-  HTML('</table>')
-
-  HTML([[<br><a href=# onclick="javascript:servicecommand('rebuildgate'); return false;">[Rebuild]</a>]])
-  HTML([[<br><a href=# onclick="javascript:servicecommand('donecompile'); setTimeout(returntowelcome, 2000); return false;">[Done]</a>]])
-  return
-end
------------------------------------------
-if param=='donecompile' then
-  for i=1, #components do
-    if components[i]=='dgate' then
-      if fileexists(build..objects[i]) then
-        servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --quit:]]); return false")
-        sendservercommand('cp '..server..'src/dgate/build/dgate '..server)
-        statuspage('Compilation completed ...')
-      else
-        statuspage('*** Server did not compile correctly ***')
-      end
-    end
-  end
-  return
-end
-
------------------------------------------
------------------------------------------
-if param=='editacrnema' then
-  local r = getfilecontents(server..'acrnema.map')
-  local c = string.match(r, "(%/%*.*%*%/\n)")
-  local s = string.gsub(r, "%/%*.*%*%/\n", "")
-  local t= split(s, '\n')
-  local t2={}
-  for i=1, #t do
-    if t[i]~='' then
-      t2[#t2+1] = t[i]
-    end
-  end
-  s = string.gsub(CGI('data', ''), ',', '\t\t')
-  if s~='null' then t2[tonumber(CGI('item', 9999))] = s end
-  create_server_file(server..'acrnema.map', c..table.concat(t2, '\n'))
-  param = 'acrnema'
-end
------------------------------------------
-if param=='deleteacrnema' then
-  local r = getfilecontents(server..'acrnema.map')
-  local c = string.match(r, "(%/%*.*%*%/\n)")
-  local s = string.gsub(r, "%/%*.*%*%/\n", "")
-  local t= split(s, '\n')
-  local t2={}
-  for i=1, #t do
-    if t[i]~='' then
-      t2[#t2+1] = t[i]
-    end
-  end
-  table.remove(t2, tonumber(CGI('item', 9999)))
-  create_server_file(server..'acrnema.map', c..table.concat(t2, '\n'))
-  param = 'acrnema'
-end
------------------------------------------
-if param=='addacrnema' then
-  local r = getfilecontents(server..'acrnema.map')
-  local c = string.match(r, "(%/%*.*%*%/\n)")
-  local s = string.gsub(r, "%/%*.*%*%/\n", "")
-  local t= split(s, '\n')
-  local t2={}
-  local star
-  for i=1, #t do
-    if t[i]~='' then
-      t2[#t2+1] = t[i]
-      if (string.find(t[i], '%*')~=nil) and (star==nil) then star = #t2 end
-    end
-  end
-  if star==nil then star = #t2+1 end
-  s = string.gsub(CGI('data', ''), ',', '\t\t')
-  if s~='null' then table.insert(t2, star, s) end
-  create_server_file(server..'acrnema.map', c..table.concat(t2, '\n'))
-  param = 'acrnema'
-end
------------------------------------------
-if param=='acrnema' then
-  HTML("<b>Edit known dicom providers:</b><br>")
-
-  local r = getfilecontents(server..'acrnema.map')
-  local s = string.gsub(r, "%/%*.*%*%/\n", "")
-  local t= split(s, '\n')
-  local t2={}
-  for i=1, #t do
-    if t[i]~='' then
-      t2[#t2+1] = t[i]
-    end
-  end
-  HTML('<table>')
-  HTML('<td><b>AE</b><td><b>IP</b><td><b>Port</b><td><b>Compression</b><td><b>Actions</b>') 
-  for i=1, #t2 do
-    HTML('<tr>')
-    local s=string.gsub(t2[i], '%s+', ',')
-    local t=string.gsub(t2[i], '%s+', '<td>')
-    HTML([[<td>]]..t)
-    
-    if i>1 then 
-      HTML([[<td><a href=# onclick="javascript:var s=prompt('Edit (AE,IP,Port,Compression)',']]..s..[[');servicecommand('editacrnema&item=]]..i..[[&data='+s); return false;">Edit</a>]]) 
-      HTML([[<td><a href=# onclick="javascript:servicecommand('deleteacrnema&item=]]..i..[['); return false;">Delete</a>]]) 
-    else
-      HTML([[<td>(not allowed)]]) 
-    end
-  end
-  HTML('</table>')
-
-  HTML([[<td><a href=# onclick="javascript:var s=prompt('New entry (AE,IP,Port,Compression)','AE,IP,Port,Comp');servicecommand('addacrnema&data='+s); return false;">[Add new entry]</a>]]) 
-
-  HTML([[<br><a href=# onclick="javascript:servicecommand('doneacrnema'); setTimeout(returntowelcome, 2000); return false;">[Done]</a>]])
-  return
-end
------------------------------------------
-if param=='doneacrnema' then
-  servercommand("lua:os.execute([["..server..dgate.." -w"..server.." --read_amap:]]); return false")
-  statuspage('Updated known dicom providers')
-  return
-end
-
------------------------------------------
------------------------------------------
------------------------------------------
-if param=='welcome' then
-  local allok = true
-  if not fileexists(server..dgate) and dgate=='dgate' then
-    HTML([[Welcome to <b>Conquest DICOM server</b>. Compilation is needed; select database to use below and click here to start compiling: <a href=# onclick="javascript:servicecommand('compile'); return false;">[start compiling]</a><br>]])
-    allok = false
-  end
-  if allok and not fileexists(server..'dicom.ini') then
-    HTML([[Welcome to <b>Conquest DICOM server</b>. Configuration is needed, review settings below (defaults are OK to start) and click this link: <a href=# onclick="javascript:servicecommand('config'+
-    '&AE='+document.getElementById('oForm').EditAE.value+
-    '&PORT='+document.getElementById('oForm').EditPort.value+
-    '&FN='+document.getElementById('oForm').SelectFileNameSyntax.value+
-    '&CP='+document.getElementById('oForm').SelectCompression.value+
-    '&M0='+document.getElementById('oForm').EditMAGDevice0.value+
-    '&DB='+document.getElementById('oForm').SelectDatabase.value+
-    '&SH='+document.getElementById('oForm').EditSQLHost.value+
-    '&SE='+document.getElementById('oForm').EditSQLServer.value+
-    '&SU='+document.getElementById('oForm').EditSQLUsername.value+
-    '&SP='+document.getElementById('oForm').EditSQLPassword.value+
-    ''
-    ); setTimeout(returntowelcome, 2000); return false;">[install/config]</a><br>]])
-    allok = false
-  end 
-  if allok and sendservercommand(server..dgate.." -w"..server.." "..[["--lua:a=dbquery('DICOMPatients', '*');return #(a or {})"]])=="0" then
-    HTML([[Welcome to <b>Conquest DICOM server</b>. Database regen is needed; click here to perform: <a href=# onclick="javascript:servicecommand('regen'); setTimeout(returntowelcome, 2000); return false;">[regenerate database]</a><br>]])
-    allok = false
-  end
-  if allok and string.find(sendservercommand(server..dgate.." -w"..server.." "..[[--echo:]]..getfile(server..'dicom.ini', 'MyACRNema *= (.*)') or 'CONQUESTSRV1') or '', 'UP')==nil then
-    HTML([[Welcome to <b>Conquest DICOM server</b>. Server is not running; click here to start: <a href=# onclick="javascript:servicecommand('start'); setTimeout(returntowelcome, 2000); return false;">[Start server]</a><br>]])
-    allok = false
-  end
-  
-  if allok then
-    HTML('<b>Server runtime information:</b><br><br>')
-    local r = sendservercommand(server..dgate.." -w"..server.." --display_status:")
-    if (r or '')=='' then
-      HTML('Server not running')
-    else
-      HTML(string.gsub(r, "Old JPEG.*", ""))
-      HTML('<br>')
-      HTML(string.gsub(string.gsub(r, "DICOM.*codec=%d", ""), "; Images sent=.*", ""))
-      HTML('<br>')
-      HTML(string.gsub(string.gsub(r, ".*Images sent=", "Images sent="), "Activity:.*", ""))
-      HTML('<br>')
-      HTML(string.gsub(string.gsub(r, ".*Space on", "Space on"), "", ""))
-    end
-  end
-
-  return
-end
-  
------------------------------------------
------------------------------------------
-if param=='config' then
-  if dgate=='dgate64.exe' then
-    copyfile(server..'install64\\dgate64.exe', server..'dgate64.exe')
-    copyfile(server..'install64\\lua5.1.dll', server..'lua5.1.dll')
-    copyfile(server..'install64\\libmysql64.dll', server..'libmysql64.dll')
-    copyfile(server..'install64\\libpq64.dll', server..'libpq64.dll')
-  elseif dgate=='dgate.exe' then
-    copyfile(server..'install32\\dgate.exe', server..'dgate.exe')
-    copyfile(server..'install32\\lua5.1.dll', server..'lua5.1.dll')
-    copyfile(server..'install64\\libmysql.dll', server..'libmysql.dll')
-    copyfile(server..'install64\\libeay32.dll', server..'libeay32.dll')
-    copyfile(server..'install64\\libiconv-2.dll', server..'libiconv-2.dll')
-    copyfile(server..'install64\\libintl-8.dll', server..'libintl-8.dll')
-    copyfile(server..'install64\\libssh2.dll', server..'libssh2.dll')
-    -- note 32 bits postgres DLLs not provided
-  end
-
-  if not fileexists(server..'dicom.sql') then
-    create_server_dicomsql()
-  end
-
-  if not fileexists(server..'dgatesop.lst') then
-    create_server_dgatesop('') -- enable jpeg by default
-  else
-    --
-  end
-
-  if not fileexists(server..'dicom.ini') then
-    create_server_dicomini()
-  else
-    local sqlite=0; if CGI('DB', '')=='sqlite' then dbaseiii=0; sqlite=1 end
-    local dbaseiii=1; if CGI('DB', '')=='dbaseiii' then dbaseiii=1 end
-    local mysql=0; if CGI('DB', '')=='mysql' then dbaseiii=0; mysql=1 end
-    local pgsql=0; if CGI('DB', '')=='pgsql' then dbaseiii=0; pgsql=1 end
-    local doublebackslashtodb = 0
-    local useescapestringconstants = 0
-    if CGI('SE', '')=='' then dbaseiii=0 end
-    if pgsql==1 then useescapestringconstants=1 end
-    if mysql==1 or pgsql==1 then doublebackslashtodb=1 end
-
-    editfile(server..'dicom.ini', '(MyACRNema *= ).*', '%1' .. CGI('AE', 'CONQUESTSRV1'))
-    editfile(server..'dicom.ini', '(TCPPort *= ).*', '%1' .. CGI('PORT', '5678'))
-
-    editfile(server..'dicom.ini', '(DroppedFileCompression *= ).*', '%1' .. CGI('CP', '5678'))
-    editfile(server..'dicom.ini', '(IncomingCompression *= ).*', '%1' .. CGI('CP', '5678'))
-
-    editfile(server..'dicom.ini', '(FileNameSyntax *= ).*', '%1' .. CGI('FN', '9'))
-    editfile(server..'dicom.ini', '(MAGDevice0 *= ).*', '%1' .. CGI('M0', server .. 'data' .. sep))
-
-    editfile(server..'dicom.ini', '(SqLite *= ).*', '%1' .. sqlite)
-    editfile(server..'dicom.ini', '(MySQL *= ).*', '%1' .. mysql)
-    editfile(server..'dicom.ini', '(Postgres *= ).*', '%1' .. pgsql)
-    editfile(server..'dicom.ini', '(DoubleBackSlashToDB *= ).*', '%1' .. doublebackslashtodb)
-    editfile(server..'dicom.ini', '(UseEscapeStringConstants *= ).*', '%1' .. useescapestringconstants)
-    editfile(server..'dicom.ini', '(SQLServer *= ).*', '%1' .. CGI('SE', ''))
-
-    editfile(server..'dicom.ini', '(SQLHost *= ).*', '%1' .. CGI('SH', '127.0.0.1'))
-    editfile(server..'dicom.ini', '(Username *= ).*', '%1' .. CGI('SU', ''))
-    editfile(server..'dicom.ini', '(Password *= ).*', '%1' .. CGI('SP', ''))
-  end
-
-  if not fileexists(server..'acrnema.map') then
-    create_server_acrnema()
-  else
-    editfile(server..'acrnema.map', '^([%d%a]+)%s+(127%.0%.0%.1)%s+(%d+)%s+([%d%a]+)', 
-    CGI('AE', 'CONQUESTSRV1')..'		%2	'..CGI('PORT', '5678')..'		%4')
-  end
-
-  statuspage('Server configured ... ')
-  return
-end
------------------------------------------
-if param=='webconfig' then
-  if true then -- not fileexists(cgiweb..'newweb'..sep..'dicom.ini') then
-    -- ladle link
-    if write then
-      servercommand("lua:os.execute([["..server..dgate.." -w"..server..
-      " --luastart:dofile('../lua/ladle.lua')]]); return false")
-    else
-      create_newweb_dicomini()
-    end
-  else
-    editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^TCPPort *= ).*', '%1' .. CGI('PORT', '5678'))
-    editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^viewer *= ).*', '%1' .. CGI('SVIEWER', 'wadoseriesviewer'))
-    editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^seriesviewer *= ).*', '%1' .. CGI('VIEWER', 'wadostudyviewer'))
-  end
-  statuspage('Web server configured ... ')
-  return
+if param~='' then
+  param, ret = subfunctions(param)
+  if ret==true then return end
 end
 
 -------------------------------------

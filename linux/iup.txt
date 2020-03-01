@@ -1,19 +1,32 @@
--- install conquest on ubuntu19 server with access to web interface and iup GUI
+-- install conquest on ubuntu18/19 server with access to web interface and iup GUI
 -- adapted for ubuntu19.10
+-- adapted for ubuntu18.04 LTS
+
+-- vmware specific:
+sudo nano /etc/netplan/xxx.yaml
+network:
+  version: 2
+  ethernets:
+    ens33:
+      dhcp4: yes
 
 sudo apt install make
-sudo apt install xterm
 sudo apt install g++
 sudo apt install apache2
 sudo apt install p7zip-full
 sudo apt install unzip
 sudo a2enmod cgi
-systemctl restart apache2
-sudo apt install openssh-server
+sudo systemctl restart apache2
 sudo apt install firefox
+sudo apt install lua5.1
+sudo apt install lua5.1-dev
+sudo apt install lua-socket
 
-export DISPLAY=192.168.1.67:0
-xterm -display 192.168.1.67:0
+sudo apt install xterm
+sudo apt install openssh-server
+
+export DISPLAY=192.168.31.1:0
+xterm
 
 VMWARE specific, enable NAT of SSH, IP address from ip a in host
 C:\ProgramData\VMware\vmnetnat.conf
@@ -29,9 +42,6 @@ chmod 777 maklinux
 ./maklinux
 ./dgate -v -r
 
-sudo apt install lua5.1
-sudo apt install lua5.1-dev
-
 mkdir iup
 wget -O iuplibs.tar.gz https://sourceforge.net/projects/iup/files/3.19.1/Linux%20Libraries/iup-3.19.1_Linux44_64_lib.tar.gz
 wget -O iuplualibs.tar.gz https://sourceforge.net/projects/iup/files/3.19.1/Linux%20Libraries/Lua51/iup-3.19.1-Lua51_Linux44_64_lib.tar.gz
@@ -39,7 +49,8 @@ wget -O iuplualibs.tar.gz https://sourceforge.net/projects/iup/files/3.19.1/Linu
 cd iup
 tar xvf ../iuplibs.tar.gz
 tar xvf ../iuplualibs.tar.gz
-sudo cp lib*.so /usr/lib
+sudo ./install
+export LUA_CPATH=./\?.so\;./lib\?.so\;./lib\?51.so\;
 
 cd ../conquest/
 ./dgate "--lua:package.cpath=package.cpath..';/usr/lib/lib?51.so';dofile('lua/console.wlua')"

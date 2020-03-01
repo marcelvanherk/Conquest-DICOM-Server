@@ -9,14 +9,16 @@
 # mvh 20181125 make /usr/local/man.man1, add luasocket to mysql compile
 # mvh 20200109 Fixed to linux line endings
 # mvh 20200215 Config for external lua5.1 library (see LUA=)
+# mvh 20200216 No overwite dicom.ini/acrnema.map; external luasocket
+# mvh 20200226 Check lua.o etc exist before rm
 
 #DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 SRC=./src/dgate;
 CONF=./linux/conf;
 LINUX=./linux;
 #LUA="$SRC/lua.o $SRC/luasocket/luasocket.a";
-#LUA=-llua5.1;
-LUA="-llua5.1 $SRC/luasocket/luasocket.a";
+LUA=-llua5.1;
+#LUA="-llua5.1 $SRC/luasocket/luasocket.a";
 FLAGS="-std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings -Wno-multichar -Wno-format-overflow -Wno-deprecated-declarations";
 INCS="-I$SRC/dicomlib -ljpeg -lpthread -ldl -I$SRC/src -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls";
 OBS="$SRC/charls.o $SRC/openjpeg.o";
@@ -30,10 +32,10 @@ sudo make install
 echo Please ignore the error above
 cd ../../..
 
-chmod 777 src/dgate/luasocket/amake.sh;
-cd src/dgate/luasocket;
-./amake.sh;
-cd ../../..
+#chmod 777 src/dgate/luasocket/amake.sh;
+#cd src/dgate/luasocket;
+#./amake.sh;
+#cd ../../..
 
 echo "Please choose DB type";
 
@@ -44,7 +46,7 @@ do
         "mysql")
 #			cd /usr/lib
 #			ln -s /usr/lib64/mysql .
-			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+#			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
 			g++ $FLAGS -DUSEMYSQL $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I/usr/local/mysql/include -I/usr/include/mysql -L/usr/local/mysql/lib -L/usr/lib/mysql -lmysqlclient;
@@ -52,14 +54,14 @@ do
 			;;
         "postgres")
 			export LD_LIBRARY_PATH="/usr/include/postgresql/";
-			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+#			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
 			g++ $FLAGS -DPOSTGRES $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I/usr/include/postgresql/ -L/usr/local/pgsql/lib -lpq;
 			break;
 			;;
         "sqlite")
-			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+#			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 			gcc -c -DTHREADSAFE=1 -DHAVE_USLEEP $SRC/sqlite3/sqlite3.c -I$SRC/sqlite3 -o $SRC/sqlite3.o;
 			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
@@ -68,7 +70,7 @@ do
 			break;
 			;;
 	"dbase")
-			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+#			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
 			g++ $FLAGS $OBS -o dgate $SRC/src/total.cpp $LUA $INCS;
@@ -84,17 +86,17 @@ done
 if [ $opt != "Quit" ] 
 then
 
-	rm $SRC/lua.o;
-	rm $SRC/charls.o;
-	rm $SRC/openjpeg.o;
+	[ -f $SRC/lua.o ] && rm $SRC/lua.o;
+	[ -f $SRC/charls.o ] && rm $SRC/charls.o;
+	[ -f $SRC/openjpeg.o ] && rm $SRC/openjpeg.o;
 
 	pkill -9 dgate;
 	sleep 0.2s;
 
-	cp $CONF/dicom.ini.$opt dicom.ini;
+	[ ! -f dicom.ini ] && cp $CONF/dicom.ini.$opt dicom.ini;
 	cp $CONF/dicom.sql.$opt dicom.sql;
 
-	cp $LINUX/acrnema.map acrnema.map;
+	[ ! -f acrnema.map ] && cp $LINUX/acrnema.map acrnema.map;
 	cp $LINUX/dgatesop.lst dgatesop.lst;
 
 	sudo cp ./dgate /usr/lib/cgi-bin/dgate ;
@@ -112,7 +114,7 @@ then
 	sudo cp /usr/lib/cgi-bin/.lua.linux /usr/lib/cgi-bin/.lua;
 
 	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate ;
-	sudo cp ./acrnema.map /usr/lib/cgi-bin/newweb/acrnema.map ;
+	#sudo cp ./acrnema.map /usr/lib/cgi-bin/newweb/acrnema.map ;
 	
 	sudo cp -r ./webserver/htdocs/* /var/www;
 	sudo cp -r ./webserver/htdocs/* /var/www/html;

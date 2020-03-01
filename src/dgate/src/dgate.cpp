@@ -1137,11 +1137,12 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			Added LUA51EXTERN option for dynamic loading of lua5.1.dll
 20200211	mvh	Take luasocket out when LUA51EXTERN defined
 20200215	mvh	Make sure globalPDU.L is created in dolua:
+20200216	mvh	1.5.0beta3; remove static linked luasocket
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-beta2"
+#define DGATE_VERSION "1.5.0-beta3"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -8348,9 +8349,9 @@ int luaopen_pack(lua_State *L)
 
 // endof pack library
 
-#ifndef LUA51EXTERN
-extern "C" int luaopen_socket_core(lua_State *L);
-#endif
+//#ifndef LUA51EXTERN
+//extern "C" int luaopen_socket_core(lua_State *L);
+//#endif
 
 const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
 { if (!*L) 
@@ -8436,10 +8437,10 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     
     lua_getfield(*L, LUA_GLOBALSINDEX, "package");
     lua_getfield(*L, -1, "preload");
-#ifndef LUA51EXTERN
-    lua_pushcfunction(*L, luaopen_socket_core);
-    lua_setfield(*L, -2, "socket.core");
-#endif
+//#ifndef LUA51EXTERN
+//    lua_pushcfunction(*L, luaopen_socket_core);
+//    lua_setfield(*L, -2, "socket.core");
+//#endif
     lua_pushcfunction(*L, luaopen_pack);
     lua_setfield(*L, -2, "pack");
   }

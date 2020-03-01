@@ -13,6 +13,7 @@
 -- mvh 20200125: Added dicommove
 -- mvh 20200126: Added sql and servercommand; but disable when readOnly set
 -- mvh 20200214: Removes os. call for ladle
+-- mvh 20200301: Added swupdate command; note requires 777 access /home/tmp in linux
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -153,6 +154,24 @@ function remotesql(q)
   return servercommand('lua:sql([['..q..']])')
 end
 
+function copyfile(f, g)
+    servercommand('lua:'..
+    'local h=io.open([['..f..']], [[rb]]) '..
+    'local s=h:read([[*a]]) '..
+    'h:close() '..
+    'local h=io.open([['..g..']], [[wb]]) '..
+    'h:write(s) '..
+    'h:close() '..
+    'print([[copied from '..f..']]) '..
+    'print([[copied to '..g..']]) '..
+    '')
+end
+
+function fileexists(f)
+  return servercommand('lua:local h=io.open([['..f..']]);'..
+  'if h then h:close() return 1 else return 0 end')=="1"
+end
+
 if CGI('parameter')=='test' then
   HTML('Content-type: application/json\n\n');
   print(servercommand('get_param:MyACRNema'))
@@ -216,6 +235,38 @@ if CGI('parameter')=='servercommand' then
   if not readOnly then io.write(servercommand(CGI('command'))) end
   return
 end
+if CGI('parameter')=='swupdate' then
+  HTML('Content-type: application/json\n\n')
+  local fn, n, ds = '', '', '/'
+  fn = CGI('filename', 'x.x')
+  if os.rename('c:\\temp\\', 'c:\\temp\\')==true then
+    n='c:\\temp\\'..fn
+    ds = '\\'
+  else
+    n='/home/tmp/'..fn
+  end
+  local f=io.open(n, 'wb')
+  f:write(CGI())
+  f:close()
+  local g = servercommand('lua:return Global.basedir')
+  if fileexists(g..'lua'..ds..fn)==1 then 
+    copyfile(n, g..'lua'..ds..fn) 
+  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn)==1 then 
+    copyfile(n,     g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn) 
+  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn)==1 then 
+    copyfile(n,     g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn) 
+  elseif fileexists(g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn)==1 then 
+    copyfile(n,     g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn) 
+  elseif string.find(fn, '.lua') then 
+    copyfile(n, g..'lua'..ds..fn) 
+  elseif string.find(fn, '.html') then 
+    copyfile(n, g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn) 
+  elseif string.find(fn, '.js') then 
+    copyfile(n, g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn) 
+  end
+  os.remove(n)
+  return
+end
 
 if s==nil then
   errorpage('server not running')
@@ -255,34 +306,9 @@ end
 HTML("<IMG SRC='%sconquest.jpg' ALT='Written by Conquest Project'>", Global.WebCodeBase)
 HTML("<HR>")
 
---if (os==nil) or (os.getenv('REQUEST_METHOD')=='GET') then 
-  HTML("<PRE>")
-  HTML(servercommand('display_status:'))
-  HTML("</PRE>")
---end
-
---HTML(os.getenv('REQUEST_METHOD'))
---HTML(os.getenv('CONTENT_LENGTH') or 0)
---HTML(os.getenv('REQUEST_URI'))
---HTML(os.getenv('PATH_INFO') or 'no path')
---if false and uploadedfile~='' then
---  local h=io.open(uploadedfile, [[rb]])
---  local s=h:read([[*a]])
---  HTML(s)
---  h:close()
---end
---print(#CGI())
---x=DicomObject:new()
---x:SetVR(0x9999,0x300,[[test]])
---x:SetVR(0x9999,0x400,[[attachfile:test,newuids stage ih_test;set PatientID to "ih_test_1"]])
---x:SetVR(0x9999,0x401,"")
---print(dicomecho('CONQUESTSRV1'), x) -- requires acrnema.map
---uri = split(os.getenv('REQUEST_URI'), '/')
---local tabl = uri[4] or ''
---local key = uri[5] or ''
---local sql = 'select * from '..tabl..' where patientid='..key
---HTML(uploadedfile)
---if os.getenv('REQUEST_METHOD')~='GET' then return end
+HTML("<PRE>")
+HTML(servercommand('display_status:'))
+HTML("</PRE>")
 
 HTML("<HR>");
 

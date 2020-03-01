@@ -1,0 +1,13 @@
+[Unit]
+Description=conquest dicom server service
+After=network.target
+[Service]
+ExecStart=/home/osboxes/conquest/dgate -w/home/osboxes/conquest -v
+KillMode=process
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=conquest-server
+[Install]
+WantedBy=multi-user.target

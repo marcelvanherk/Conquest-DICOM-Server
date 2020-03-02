@@ -14,6 +14,7 @@
 -- mvh 20200126: Added sql and servercommand; but disable when readOnly set
 -- mvh 20200214: Removes os. call for ladle
 -- mvh 20200301: Added swupdate command; note requires 777 access /home/tmp in linux
+-- mvh 20200302: Other test for linux, use os.getenv('SCRIPT_FILENAME'); directly copy to web 
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -154,22 +155,24 @@ function remotesql(q)
   return servercommand('lua:sql([['..q..']])')
 end
 
+function fileexists(f)
+  return servercommand('lua:local h=io.open([['..f..']], [[r]]);'..
+  'if h then h:close() return 1 else return 0 end')=="1" and true or false
+end
+
 function copyfile(f, g)
     servercommand('lua:'..
     'local h=io.open([['..f..']], [[rb]]) '..
     'local s=h:read([[*a]]) '..
     'h:close() '..
-    'local h=io.open([['..g..']], [[wb]]) '..
-    'h:write(s) '..
-    'h:close() '..
+    'local j=io.open([['..g..']], [[wb]]) '..
+    'j:write(s) '..
+    'j:close() '..
     'print([[copied from '..f..']]) '..
     'print([[copied to '..g..']]) '..
     '')
-end
-
-function fileexists(f)
-  return servercommand('lua:local h=io.open([['..f..']]);'..
-  'if h then h:close() return 1 else return 0 end')=="1"
+    if fileexists(f)==false then error('nothing to copy') end
+    if fileexists(g)==false then error('failed copy '..f..' to '..g) end
 end
 
 if CGI('parameter')=='test' then
@@ -237,34 +240,61 @@ if CGI('parameter')=='servercommand' then
 end
 if CGI('parameter')=='swupdate' then
   HTML('Content-type: application/json\n\n')
-  local fn, n, ds = '', '', '/'
+  local fn, n, ds, web, cgi, target = '', '', '/'
   fn = CGI('filename', 'x.x')
-  if os.rename('c:\\temp\\', 'c:\\temp\\')==true then
+  -- if true or os.rename('c:\\temp\\', 'c:\\temp\\')==true then
+  if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
     n='c:\\temp\\'..fn
     ds = '\\'
+    web = 'c:\\xampp\\htdocs\\'
+    cgi = 'c:\\xampp\\cgi-bin\\'
   else
     n='/home/tmp/'..fn
+    web = '/var/www/html/'
+    cgi = '/usr/lib/cgi-bin/'
   end
   local f=io.open(n, 'wb')
   f:write(CGI())
   f:close()
   local g = servercommand('lua:return Global.basedir')
-  if fileexists(g..'lua'..ds..fn)==1 then 
-    copyfile(n, g..'lua'..ds..fn) 
-  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn)==1 then 
+  
+  -- error(tostring(fileexists(g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn)))
+  
+  if fileexists(    g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn)==true then 
     copyfile(n,     g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn) 
-  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn)==1 then 
+    copyfile(n,                                  web..'inholland'..ds..fn) 
+    target = web..'inholland'..ds..fn
+  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn)==true then 
     copyfile(n,     g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn) 
-  elseif fileexists(g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn)==1 then 
+    copyfile(n,                                  web..'inholland'..ds..'js'..ds..fn) 
+    target = web..'inholland'..ds..'js'..ds..fn
+  elseif fileexists(g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn)==true then 
     copyfile(n,     g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn) 
+    copyfile(n,                                   cgi..'newweb'..ds..fn)
+    target = cgi..'newweb'..ds..fn
+  elseif fileexists(g..'lua'..ds..fn)==true then 
+    copyfile(n,     g..'lua'..ds..fn) 
+    target = g..'lua'..ds..fn
+  elseif fileexists(g..'src'..ds..'dgate'..ds..'src'..ds..fn)==true then 
+    copyfile(n,     g..'src'..ds..'dgate'..ds..'src'..ds..fn) 
+    target = g..'src'..ds..'dgate'..ds..'src'..ds..fn
   elseif string.find(fn, '.lua') then 
     copyfile(n, g..'lua'..ds..fn) 
+    target = g..'lua'..ds..fn
+  elseif string.find(fn, '.wlua') then 
+    copyfile(n, g..'lua'..ds..fn) 
+    target = g..'lua'..ds..fn
   elseif string.find(fn, '.html') then 
     copyfile(n, g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn) 
+    copyfile(n,                              web..'inholland'..ds..fn) 
+    target = web..'inholland'..ds..fn
   elseif string.find(fn, '.js') then 
     copyfile(n, g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn) 
+    copyfile(n,                              cgi..'inholland'..ds..'js'..de..fn) 
+    target = cgi..'inholland'..ds..'js'..de..fn
   end
   os.remove(n)
+  HTML('Update succeeded of\n\n'..fn..'\n\n--->\n\n'..target)
   return
 end
 

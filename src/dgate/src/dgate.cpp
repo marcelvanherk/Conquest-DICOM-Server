@@ -1138,6 +1138,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200211	mvh	Take luasocket out when LUA51EXTERN defined
 20200215	mvh	Make sure globalPDU.L is created in dolua:
 20200216	mvh	1.5.0beta3; remove static linked luasocket
+20200302        mvh     Open lua scripts in im/exportconverters at Global.basedir .. name (relative paths)
+			Note: web contents and process require absolute paths
 
 ENDOFUPDATEHISTORY
 */
@@ -10520,6 +10522,7 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
     { FILE *f;
       int ret;
       char cmd[1024];
+      char fn[256];
 
       cmd[0]=0;
       MyGetPrivateProfileString ( "scripts", line, cmd, cmd, 1024, ConfigFile);
@@ -10529,14 +10532,19 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
       { char *b = strchr(line,'(');
         if (b) *b=0;
 	f = fopen(line, "rt");
+	if (!f) 
+	{ strcpy(fn, BaseDir);
+          strcat(fn, line);
+          f = fopen(fn, "rt");
+	}
         if (f)
         { if (strstr(line, ".lua"))	// direct call of lua file
           { int i, n;
             fclose(f);
 
             char script[512]; 
-            strcpy(script, "dofile('");
-            for (i=0, n=8; i<strlen(line); i++)
+            strcpy(script, "dofile(Global.basedir..'");
+            for (i=0, n=24; i<strlen(line); i++)
             { if (line[i]=='\\')
               { script[n++] = '\\';
                 script[n++] = '\\';
@@ -11644,7 +11652,7 @@ BOOL prefetchprocess(char *data, ExtendedPDU_Service *PDU, char *dum)
     if (p && memicmp(p-4, ".lua", 4)==0)
     { struct scriptdata sd1 = {PDU, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
       char script[512]; int i, n;
-      strcpy(script, "dofile('");
+      strcpy(script, "dofile('"); // allow absolute path only!
       *p=0;
       for (i=0, n=8; i<strlen(data+230); i++)
       { if (data[i+230]=='\\')

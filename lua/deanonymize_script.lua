@@ -10,6 +10,7 @@
 -- 20160113	mvh	Added staged operation using "stage" command_line
 -- 20200127	mvh	Allow stage *: pick stage based on actual patientID; reject on error
 -- 20200202     mvh     * in command line sets 9999,9000 with orginal patient ID
+-- 20200302     mvh     Fix DirSep for linux, add Global.basedir
 -- =============================================================================
 
 --[[ To test; r-click evaluate in console after project-run:
@@ -22,6 +23,8 @@ Data.Dump('c:\\data\\image_restored.txt')
 ]]
 
 local scriptversion = "1.3; date 20200127"
+local DirSep      = '/'
+if string.find(Global.BaseDir, '\\') then DirSep = '\\' end
 
 local pre, pid = Data.PatientID
 
@@ -53,7 +56,7 @@ end
 local pid2 = string.gsub(pid, '[\\/:*?"<>|]', '_')
 
 -- Log file handling (trailing backslash required for mkdir)
-local logdir = "DicomAnonymized_Log\\"..pid2.."\\";
+local logdir = Global.basedir.."DicomAnonymized_Log"..DirSep..pid2..DirSep;
 local logfile = pid2..'_'..(Data.StudyDate or '19700101')..'_'..(Data.Modality or 'UN')..'_'..(Data.SOPInstanceUID or 'unknown')..'.deanonymize.log'
 script('mkdir '..logdir);
 

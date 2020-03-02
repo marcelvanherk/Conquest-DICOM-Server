@@ -1,5 +1,6 @@
 #mvh 20151206  1.4.17d compatibility
 #mvh 20160314  for 1.4.19beta
+#mvh 20200302  for 1.5.0beta
 
 [sscscp]
 MicroPACS                = sscscp
@@ -22,4 +23,4 @@ source = *.lua
 
 [AnyPage]
 source = start.lua
-exceptions=start,listpatients,liststudies,listseries,listimageswiththumbs,listimages,wadostudyviewer,wadoseriesviewer,wadoviewerhelp,slice,listtrials,listtrialpatients
+exceptions=start,listpatients,liststudies,listseries,listimageswiththumbs,listimages,wadostudyviewer,wadoseriesviewer,wadoviewerhelp,slice,listtrials,listtrialpatients,weasis_starter,dwvviewer_starter,papaya_starter,iframe_starter,dumpvars,addlocalfile,attachfile

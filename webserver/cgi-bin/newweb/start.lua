@@ -15,6 +15,7 @@
 -- mvh 20200214: Removes os. call for ladle
 -- mvh 20200301: Added swupdate command; note requires 777 access /home/tmp in linux
 -- mvh 20200302: Other test for linux, use os.getenv('SCRIPT_FILENAME'); directly copy to web 
+-- mvh 20200303: Added serverpage command: writes without header; uploadsql
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -238,6 +239,10 @@ if CGI('parameter')=='servercommand' then
   if not readOnly then io.write(servercommand(CGI('command'))) end
   return
 end
+if CGI('parameter')=='serverpage' then
+  if not readOnly then io.write(servercommand(CGI('command'))) end
+  return
+end
 if CGI('parameter')=='swupdate' then
   HTML('Content-type: application/json\n\n')
   local fn, n, ds, web, cgi, target = '', '', '/'
@@ -292,9 +297,30 @@ if CGI('parameter')=='swupdate' then
     copyfile(n, g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn) 
     copyfile(n,                              cgi..'inholland'..ds..'js'..de..fn) 
     target = cgi..'inholland'..ds..'js'..de..fn
+  else
+    target = '** NOT FOUND **'
   end
   os.remove(n)
   HTML('Update succeeded of\n\n'..fn..'\n\n--->\n\n'..target)
+  return
+end
+
+if CGI('parameter')=='uploadsql' then
+  local n
+  local fn = CGI('filename', 'x.x')
+  HTML('Content-type: application/json\n\n')
+  if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
+    n='c:\\temp\\'..fn
+  else
+    n='/home/tmp/'..fn
+  end
+  local f=io.open(n, 'wb')
+  f:write(CGI())
+  f:close()
+  servercommand("lua:sql([[delete from UIDMods where Stage like '"..CGI('ref').."%']])")
+  local g = servercommand('lua:h=io.open([['..n..']], "r") t=h:read([[*all]]) h:close() return sql(t)')
+  print(g)
+  os.remove(n)
   return
 end
 

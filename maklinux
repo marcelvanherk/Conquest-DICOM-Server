@@ -39,7 +39,7 @@ cd ../../..
 
 echo "Please choose DB type";
 
-options=("mysql" "postgres" "sqlite" "dbase" "Quit")
+options=("mysql" "postgres" "sqlite" "dbase" "precompiled" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in
@@ -69,6 +69,14 @@ do
 			rm $SRC/sqlite3.o;
 			break;
 			;;
+
+        "precompiled")
+	                cp linux/dgate dgate;
+	                cp linux/dgate install/dgatesmall;
+			chmod 777 dgate;
+			break;
+			;;
+
 	"dbase")
 #			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
@@ -76,6 +84,7 @@ do
 			g++ $FLAGS $OBS -o dgate $SRC/src/total.cpp $LUA $INCS;
 			break;	
 			;;
+
         "Quit")
             break
             ;;
@@ -100,6 +109,7 @@ then
 	cp $LINUX/dgatesop.lst dgatesop.lst;
 
 	sudo cp ./dgate /usr/lib/cgi-bin/dgate ;
+	sudo cp ./dgate /usr/lib/cgi-bin/dgate.exe ;
 	sudo cp ./dicom.sql /usr/lib/cgi-bin/dicom.sql ;
 	sudo cp ./acrnema.map /usr/lib/cgi-bin/acrnema.map ;
 
@@ -114,10 +124,15 @@ then
 	sudo cp /usr/lib/cgi-bin/.lua.linux /usr/lib/cgi-bin/.lua;
 
 	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate ;
+	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate.exe ;
 	#sudo cp ./acrnema.map /usr/lib/cgi-bin/newweb/acrnema.map ;
 	
 	sudo cp -r ./webserver/htdocs/* /var/www;
 	sudo cp -r ./webserver/htdocs/* /var/www/html;
 	
 	mkdir data/dbase
+	
+	chmod 777 console.sh
+	chmod 777 webviewer.sh	
+	chmod 777 install/linux.sh	
 fi

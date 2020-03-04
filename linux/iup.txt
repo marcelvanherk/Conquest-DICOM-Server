@@ -9,26 +9,34 @@ network:
   ethernets:
     ens33:
       dhcp4: yes
+sudo netplan -d apply
+sudo reboot now
 
-sudo apt install make
-sudo apt install g++
+sudo apt update
+(sudo apt install make)
+(sudo apt install g++)
 sudo apt install apache2
 sudo apt install p7zip-full
 sudo apt install unzip
 sudo a2enmod cgi
 sudo systemctl restart apache2
-sudo apt install firefox
 sudo apt install lua5.1
-sudo apt install lua5.1-dev
+sudo apt install liblua5.1-0
 sudo apt install lua-socket
 
+-- for inholland software updater
+sudo mkdir /home/tmp
+sudo chmod 777 /home/tmp
+
+-- optional
+sudo apt install firefox
 sudo apt install xterm
 sudo apt install openssh-server
 
 export DISPLAY=192.168.31.1:0
 xterm
 
-VMWARE specific, enable NAT of SSH, IP address from ip a in host
+VMWARE specific, enable NAT of SSH, take IP address from "ip a" in host
 C:\ProgramData\VMware\vmnetnat.conf
 [incomingtcp]
 8889 = 192.168.116.128:22
@@ -41,6 +49,12 @@ unzip ../dicomserver150beta3.zip
 chmod 777 maklinux
 ./maklinux
 ./dgate -v -r
+nano dicom.ini
+(2x replace relative with absolute paths)
+sudo cp conquest.service /etc/systemd/system
+systemctl start conquest.service
+systemctl enable conquest.service
+systemctl status conquest.service
 
 mkdir iup
 wget -O iuplibs.tar.gz https://sourceforge.net/projects/iup/files/3.19.1/Linux%20Libraries/iup-3.19.1_Linux44_64_lib.tar.gz

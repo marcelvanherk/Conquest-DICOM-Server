@@ -16,6 +16,7 @@
 -- mvh 20200301: Added swupdate command; note requires 777 access /home/tmp in linux
 -- mvh 20200302: Other test for linux, use os.getenv('SCRIPT_FILENAME'); directly copy to web 
 -- mvh 20200303: Added serverpage command: writes without header; uploadsql
+-- mvh 20200305: Added project parameter to swupdate; added dbquerysqldownload
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -205,6 +206,18 @@ if CGI('parameter')=='dbqueryluaformat' then
   io.write(r)
   return
 end
+if CGI('parameter')=='dbquerysqldownload' then
+  returnfile=tempfile([[.txt]]);
+  local f=io.open(returnfile,[[w]]);
+  f:write([[Content-type: application/text\nContent-Disposition: attachment;filename="]]..
+    CGI('filename')..[["\n\n]]);
+  local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
+  for k,v in ipairs(r) do 
+    f:write([[insert into ]]..CGI('table')..[[(]]..CGI('fields')..[[) value (']]..
+      table.concat(v,[[',']])..[[');\n]]);
+  end
+  f:close()
+end  
 if CGI('parameter')=='dicomquery' then
   HTML('Content-type: application/json\n\n')
   local r=remotequery(CGI('AE'),CGI('level'),CGI('query'),true)
@@ -262,21 +275,39 @@ if CGI('parameter')=='swupdate' then
   f:write(CGI())
   f:close()
   local g = servercommand('lua:return Global.basedir')
+  project = CGI('project', 'inholland')
   
-  -- error(tostring(fileexists(g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn)))
-  
-  if fileexists(    g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn)==true then 
-    copyfile(n,     g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn) 
-    copyfile(n,                                  web..'inholland'..ds..fn) 
+  -- Distribute file to one of these folders:
+  -- try htdocs/project
+  -- try htdocs/js/project
+  -- try cgi-bin/project
+  -- try server/lua/project
+  -- try server/lua
+  -- try server/src/dgate/src
+  -- remaining lua into server/lua
+  -- remaining wlua into server/lua
+  -- remaining html into htdocs/project
+  -- remaining js into htdocs/project/js
+    
+  if fileexists(    g..'webserver'..ds..'htdocs'..ds..project..ds..fn)==true then 
+    copyfile(n,     g..'webserver'..ds..'htdocs'..ds..project..ds..fn) 
+    copyfile(n,                                  web..project..ds..fn) 
     target = web..'inholland'..ds..fn
-  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn)==true then 
-    copyfile(n,     g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn) 
-    copyfile(n,                                  web..'inholland'..ds..'js'..ds..fn) 
+  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn)==true then 
+    copyfile(n,     g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
+    copyfile(n,                                  web..project..ds..'js'..ds..fn) 
     target = web..'inholland'..ds..'js'..ds..fn
+  elseif fileexists(g..'webserver'..ds..'cgi-bin'..ds..project..ds..fn)==true then 
+    copyfile(n,     g..'webserver'..ds..'cgi-bin'..ds..project..ds..fn) 
+    copyfile(n,                                   cgi..project..ds..fn)
+    target = cgi..'newweb'..ds..fn
   elseif fileexists(g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn)==true then 
     copyfile(n,     g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn) 
     copyfile(n,                                   cgi..'newweb'..ds..fn)
     target = cgi..'newweb'..ds..fn
+  elseif fileexists(g..'lua'..ds..project..ds..fn)==true then 
+    copyfile(n,     g..'lua'..ds..project..ds..fn) 
+    target = g..'lua'..ds..fn
   elseif fileexists(g..'lua'..ds..fn)==true then 
     copyfile(n,     g..'lua'..ds..fn) 
     target = g..'lua'..ds..fn
@@ -290,18 +321,22 @@ if CGI('parameter')=='swupdate' then
     copyfile(n, g..'lua'..ds..fn) 
     target = g..'lua'..ds..fn
   elseif string.find(fn, '.html') then 
-    copyfile(n, g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..fn) 
-    copyfile(n,                              web..'inholland'..ds..fn) 
+    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..fn) 
+    copyfile(n,                              web..project..ds..fn) 
     target = web..'inholland'..ds..fn
   elseif string.find(fn, '.js') then 
-    copyfile(n, g..'webserver'..ds..'htdocs'..ds..'inholland'..ds..'js'..ds..fn) 
-    copyfile(n,                              cgi..'inholland'..ds..'js'..de..fn) 
-    target = cgi..'inholland'..ds..'js'..de..fn
+    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
+    copyfile(n,                              cgi..project..ds..'js'..de..fn) 
+    target = cgi..'inholland'..ds..'js'..ds..fn
   else
     target = '** NOT FOUND **'
   end
   os.remove(n)
-  HTML('Update succeeded of\n\n'..fn..'\n\n--->\n\n'..target)
+  if fileexists(target) then
+    HTML('Update succeeded of\n\n'..fn..'\n\n--->\n\n'..target)
+  else
+    HTML('Update **FAILED** of\n\n'..fn..'\n\n--->\n\n'..target)
+  end
   return
 end
 
@@ -317,7 +352,9 @@ if CGI('parameter')=='uploadsql' then
   local f=io.open(n, 'wb')
   f:write(CGI())
   f:close()
-  servercommand("lua:sql([[delete from UIDMods where Stage like '"..CGI('ref').."%']])")
+  if CGI('ref')~='' then
+    servercommand("lua:sql([[delete from UIDMods where Stage like '"..CGI('ref').."%']])")
+  end
   local g = servercommand('lua:h=io.open([['..n..']], "r") t=h:read([[*all]]) h:close() return sql(t)')
   print(g)
   os.remove(n)

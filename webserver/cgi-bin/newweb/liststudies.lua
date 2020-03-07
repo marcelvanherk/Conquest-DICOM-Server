@@ -6,6 +6,7 @@
 -- 20181215   mvh   Added remotequery to depend less on web cgi functionality
 -- 20181230   mvh   Removed dicomquery, only kept remotequery
 -- 20190112   mvh   Use | to separate items to help with special characters in patientID
+-- 20200307   mvh   Avoid query with '***'
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -28,7 +29,7 @@ function mycomp(a,b)
   end
   
 function InitializeVar()
- if (CGI('patientidmatch') ~='') then
+ if (CGI('patientidmatch') ~='' and CGI('patientidmatch') ~='*') then
      query_pid='*'..CGI('patientidmatch')..'*'
  else
     q=CGI('query')
@@ -45,14 +46,14 @@ function InitializeVar()
    end
  end
   
- if (patientnamematch ~= '') then
+ if (patientnamematch ~= '' and CGI('patientnamematch') ~='*') then
      query_pna='*'..CGI('patientnamematch')..'*' ;
  else 
   query_pna='' 
  end
 
  if (CGI('studydatematch') ~= '') then
-   if string.len(CGI('studydatematch'))<8 then
+   if (string.len(CGI('studydatematch'))<8) and CGI('studydatematch') ~='*'then
      query_pst='*'..CGI('studydatematch')..'*'
    else
      query_pst=CGI('studydatematch')

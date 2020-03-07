@@ -12,6 +12,7 @@
 -- 20190112   mvh   Use | to separate items to help with special characters in patientID
 -- 20200112   mvh   Added optional stage to zipanonymized
 -- 20200113   mvh   Small fix in that
+-- 20200307   mvh   Avoid query with '***'
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 version = version  or ''
@@ -35,25 +36,25 @@ function mycomp(a,b)
   end
 
 function InitializeVar()
- if (CGI('patientidmatch') ~='') then
+ if (CGI('patientidmatch') ~='' and CGI('patientidmatch') ~='*') then
      query_pid='*'..CGI('patientidmatch')..'*'
  else
   query_pid='' 
  end
 
- if (patientnamematch ~= '') then
+ if (patientnamematch ~= '' and CGI('patientnamematch') ~='*') then
      query_pna='*'..CGI('patientnamematch')..'*' ;
  else 
   query_pna='' 
  end
 
- if (CGI('studydatematch') ~= '') then
+ if (CGI('studydatematch') ~= '' and CGI('studydatematch') ~='*') then
      query_pst='*'..CGI('studydatematch')..'*' ;
  else
    query_pst='' 
  end
 
- if (CGI('startdatematch') ~= '') then
+ if (CGI('startdatematch') ~= '' and CGI('startdatematch') ~='*') then
      query_sta='*'..CGI('startdatematch')..'*' ;
  else 
   query_sta='' 

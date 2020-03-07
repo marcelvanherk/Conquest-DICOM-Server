@@ -4,6 +4,7 @@
 -- 20181215   mvh   Added remotequery to limit dependency on cgi functionality
 -- 20181230   mvh   Removed dicomquery, only kept remotequery
 -- 20200127   mvh   List ImageID instead of PatientName; fix sort if no InstanceNumber
+-- 20200307   mvh   Avoid query with '***'
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -28,25 +29,25 @@ function mycomp(a,b)
 
   
 function InitializeVar()
- if (CGI('patientidmatch') ~='') then
+ if (CGI('patientidmatch') ~='' and CGI('patientidmatch') ~='*') then
      query_pid='*'..CGI('patientidmatch')..'*'
  else
   query_pid='*' 
  end
 
- if (patientnamematch ~= '') then
+ if (patientnamematch ~= '' and CGI('patientnamematch') ~='*') then
      query_pna='*'..CGI('patientnamematch')..'*' ;
  else 
   query_pna='*' 
  end
 
- if (CGI('studydatematch') ~= '') then
+ if (CGI('studydatematch') ~= '' and CGI('studydatematch') ~='*') then
      query_pst='*'..CGI('studydatematch')..'*' ;
  else
    query_pst='*' 
  end
 
- if (CGI('startdatematch') ~= '') then
+ if (CGI('startdatematch') ~= '' and CGI('startdatematch') ~='*') then
      query_sta='*'..CGI('startdatematch')..'*' ;
  else 
   query_sta='*' 

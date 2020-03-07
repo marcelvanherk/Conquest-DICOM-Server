@@ -13,6 +13,7 @@ sudo netplan -d apply
 sudo reboot now
 
 sudo apt update
+(if next two steps skipped must use precompiled option)
 (sudo apt install make)
 (sudo apt install g++)
 sudo apt install apache2
@@ -29,10 +30,11 @@ sudo mkdir /home/tmp
 sudo chmod 777 /home/tmp
 
 -- optional
-sudo apt install firefox
-sudo apt install xterm
 sudo apt install openssh-server
 
+-- optional
+sudo apt install firefox
+sudo apt install xterm
 export DISPLAY=192.168.31.1:0
 xterm
 
@@ -55,6 +57,8 @@ sudo cp conquest.service /etc/systemd/system
 systemctl start conquest.service
 systemctl enable conquest.service
 systemctl status conquest.service
+sudo nano /usr/lib/cgi-bin/newweb/dicom.ini
+add line "TempDir = /home/tmp"
 
 mkdir iup
 wget -O iuplibs.tar.gz https://sourceforge.net/projects/iup/files/3.19.1/Linux%20Libraries/iup-3.19.1_Linux44_64_lib.tar.gz
@@ -68,3 +72,7 @@ export LUA_CPATH=./\?.so\;./lib\?.so\;./lib\?51.so\;
 
 cd ../conquest/
 ./dgate "--lua:package.cpath=package.cpath..';/usr/lib/lib?51.so';dofile('lua/console.wlua')"
+
+sudo e4defrag /
+dd if=/dev/zero of=wipefile bs=1M; sync; rm wipefile
+sudo vmware-toolbox-cmd disk shrinkonly

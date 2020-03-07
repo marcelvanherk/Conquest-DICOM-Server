@@ -1140,6 +1140,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200216	mvh	1.5.0beta3; remove static linked luasocket
 20200302        mvh     Open lua scripts in im/exportconverters at Global.basedir .. name (relative paths)
 			Note: web contents and process require absolute paths
+20200307        mvh     Instead of tempfile now can use Command:SetVR(0x9999,0x0403,"val")
+			This allows two way data communication: input and output using 0x9999,0x0401
 
 ENDOFUPDATEHISTORY
 */
@@ -22980,7 +22982,7 @@ BOOL StorageApp	::	ServerChild (int theArg )
 			if (SilentText[0])
 				ServerTask(SilentText, PDU, DCO, Response, ConnectedIP, tempfile, ThreadNum);
 			
-  		        VR *vr2 = DCO.GetVR(0x9999, 0x0401);
+  		        VR *vr2 = DCO.GetVR(0x9999, 0x0403);
 
 		        if (tempfile[0])
 				{
@@ -23027,7 +23029,7 @@ BOOL StorageApp	::	ServerChild (int theArg )
 				{
 				void *p=malloc(vr2->Length);
 				memcpy(p, vr2->Data, vr2->Length);
-				VR *vr3 = new VR(vr2->Group, vr2->Element, vr2->Length, p, TRUE);
+				VR *vr3 = new VR(0x9999, 0x0401, vr2->Length, p, TRUE);
 				SOPVerification.WriteResponse(&PDU, &DCO, vr3);
 				}
 			else	

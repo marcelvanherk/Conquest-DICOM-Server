@@ -10,16 +10,28 @@
 # mvh 20200110 For 1.5.0beta; Fix pushd use
 # mvh 20200215 For 1.5.0beta2; Added Wno-format-overflow
 # mvh 20200216 For 1.5.0beta3; Use external lua
+# mvh 20200308 For 1.5.0; Precompiled dgate as fallback, conquest.service
 
 SRC=../src/dgate;
 CGI=/usr/lib/cgi-bin; # /var/www/cgi-bin for Fedora
+export CONQUEST=$(cd ..;pwd)
+export CONQUESTTEMP=$CONQUEST/temp
+[ ! -d $CONQUESTTEMP ] && mkdir $CONQUESTTEMP
+chmod 777 $CONQUESTTEMP
+export IP=$(hostname -I | xargs)
+
+envsubst <../conquest.service >t.t
+sudo cp t.t /etc/systemd/system/conquest.service
+sudo systemctl daemon-reload
+sudo systemctl stop conquest.service
+rm t.t
 
 sudo fuser -k 5912/tcp;
 
 #sudo setenforce Permissive; # unblock for Fedora
 
 cp ../dgate.dic .
-mkdir lua
+[ ! -d lua ] && mkdir lua
 cp ../lua/anonymize_script.lua lua
 
 #chmod 777 $SRC/luasocket/amake.sh;
@@ -27,6 +39,7 @@ cp ../lua/anonymize_script.lua lua
 #./amake.sh;
 #popd;
 
+cp ../linux/dgate ./dgatesmall;
 # gcc -o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DNOINTJPEG -Wno-write-strings -o dgatesmall -I$SRC/src $SRC/src/total.cpp -lpthread -ldl -llua5.1 -I$SRC/dicomlib -I$SRC/lua_5.1.5 -Wno-multichar -Wno-format-overflow;
 
@@ -45,4 +58,4 @@ sudo cp dicom.ini $CGI/service;
 sudo mkdir -p $CGI/newweb;
 sudo chmod 777 $CGI/newweb;
 
-sensible-browser http://127.0.0.1/cgi-bin/service/dgate;
+sensible-browser http://$IP/cgi-bin/service/dgate?temp=$CONQUESTTEMP;

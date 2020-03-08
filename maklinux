@@ -16,7 +16,7 @@
 
 export CONQUEST=$(pwd)
 export CONQUESTTEMP=$CONQUEST/temp
-mkdir $CONQUESTTEMP
+[ ! -d $CONQUESTTEMP ] && mkdir $CONQUESTTEMP
 chmod 777 $CONQUESTTEMP
 export IP=$(hostname -I | xargs)
 
@@ -161,6 +161,7 @@ then
 	then
 		sudo systemctl stop conquest.service
 		sudo cp t.t /etc/systemd/system/conquest.service
+		sudo systemctl daemon-reload
 		sudo systemctl start conquest.service
 		sudo systemctl enable conquest.service
 		sudo systemctl status conquest.service

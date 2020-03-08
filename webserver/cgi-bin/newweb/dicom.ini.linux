@@ -8,6 +8,7 @@ ACRNemaMap               = acrnema.map
 Dictionary               = dgate.dic
 WebServerFor             = 127.0.0.1
 TCPPort                  = 5678
+TempDir                  = ${CONQUESTTEMP}
 
 [webdefaults]
 size     = 560

@@ -1,7 +1,7 @@
 #
 # This file contains configuration information for the conquest cgi web server;
 # it must be in the same directory as the dgate.exe in the web server script directory.
-# The server home page is then "http://127.0.0.1/cgi-bin/dgate?mode=top"
+# The server home page is then "http://${IP}/cgi-bin/dgate?mode=top"
 #
 # modified 20070213: default to n4, note about ocx only required on client
 # modified 20080902: webreadonly ON; graphics and viewer configs; sample scripted web pages
@@ -12,6 +12,7 @@
 # modified 20130528: Added new viewers, OpenCLinica; For 1.4.17 release
 # modified 20130813: small fixes For 1.4.17b release
 # 20160425: Simplified for 1.4.19beta
+# 20200307: made templated
 
 [sscscp]
 MicroPACS                = sscscp
@@ -23,7 +24,7 @@ kFactorFile              = dicom.sql
 # gives access to the SQL server of the DICOM server
 # use of independent database is also allowed (depends on scripts used)
 
-SQLServer                = ./data/dbase/conquest.db3
+SQLServer                = ${CONQUEST}/data/dbase/conquest.db3
 SQlite                   = 1
 
 # gives access to all DICOM servers known in acrnema.map
@@ -42,13 +43,14 @@ MyACRNema		 = CONQUESTSRV1
 
 # path to script engine: ocx will not download images if wrong - shows as black square with controls
 
-WebScriptAddress         = http://127.0.0.1/cgi-bin/dgate
+WebScriptAddress         = http://${IP}/cgi-bin/dgate
 
 # if set to 1 (default), the web user cannot edit databases and (in future) other things
 # webpush enables push of data to other servers
 
 WebReadonly              = 0
 WebPush                  = 1
+TempDir                  = ${CONQUESTTEMP}
 
 # these settings control size of slice and series viewers, max size of transmitted dicom images 
 # (0=original), compression for images sent to the activex (may be un,n1..4,j1,j2), the size of 

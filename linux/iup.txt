@@ -2,7 +2,8 @@
 -- adapted for ubuntu19.10
 -- adapted for ubuntu18.04 LTS
 
--- vmware specific:
+-- vmware specific, enable network:
+(temporary: sudo dhclient ens33, or fixed:)
 sudo nano /etc/netplan/xxx.yaml
 network:
   version: 2
@@ -22,12 +23,9 @@ sudo apt install unzip
 sudo a2enmod cgi
 sudo systemctl restart apache2
 sudo apt install lua5.1
-sudo apt install liblua5.1-0
+(precompiled: sudo apt install liblua5.1-0)
+(compiled: sudo apt install lua5.1-dev)
 sudo apt install lua-socket
-
--- for inholland software updater
-sudo mkdir /home/tmp
-sudo chmod 777 /home/tmp
 
 -- optional
 sudo apt install openssh-server
@@ -50,15 +48,7 @@ cd conquest
 unzip ../dicomserver150beta3.zip
 chmod 777 maklinux
 ./maklinux
-./dgate -v -r
-nano dicom.ini
-(2x replace relative with absolute paths)
-sudo cp conquest.service /etc/systemd/system
-systemctl start conquest.service
-systemctl enable conquest.service
-systemctl status conquest.service
-sudo nano /usr/lib/cgi-bin/newweb/dicom.ini
-add line "TempDir = /home/tmp"
+(the precompiled dgate is built on Ubuntu14)
 
 mkdir iup
 wget -O iuplibs.tar.gz https://sourceforge.net/projects/iup/files/3.19.1/Linux%20Libraries/iup-3.19.1_Linux44_64_lib.tar.gz
@@ -68,7 +58,7 @@ cd iup
 tar xvf ../iuplibs.tar.gz
 tar xvf ../iuplualibs.tar.gz
 sudo ./install
-export LUA_CPATH=./\?.so\;./lib\?.so\;./lib\?51.so\;
+((export LUA_CPATH=./\?.so\;./lib\?.so\;./lib\?51.so\;))
 
 cd ../conquest/
 ./dgate "--lua:package.cpath=package.cpath..';/usr/lib/lib?51.so';dofile('lua/console.wlua')"

@@ -2,6 +2,7 @@
 # Example Linux version using MySQL
 # Copy this file to dicom.ini to use it
 # 20190110: For 1.5.0beta
+# 20200308: Templated
 
 [sscscp]
 MicroPACS                = sscscp
@@ -42,7 +43,7 @@ DebugLevel               = 0
 # Configuration of disk(s) to store images
 MAGDeviceFullThreshold   = 30
 MAGDevices               = 1
-MAGDevice0               = ./data/
+MAGDevice0               = ${CONQUEST}/data/
 
 [lua]
 association = package.path=package.path..';'..Global.basedir..'lua/?.lua'

@@ -4,6 +4,7 @@
 # 20051218: Set DoubleBackSlashToDB to 1 (needed for postgres)
 # 20100819: Set UseEscapeStringConstants to 1
 # 20190110: For 1.5.0beta
+# 20200308: Templated
 
 [sscscp]
 MicroPACS                = sscscp
@@ -44,7 +45,7 @@ DebugLevel               = 0
 # Configuration of disk(s) to store images
 MAGDeviceFullThreshold   = 30
 MAGDevices               = 1
-MAGDevice0               = ./data/
+MAGDevice0               = ${CONQUEST}/data/
 
 [lua]
 association = package.path=package.path..';'..Global.basedir..'lua/?.lua'

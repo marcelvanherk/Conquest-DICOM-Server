@@ -2,6 +2,7 @@
 # Example Linux version using built-in dbaseIII file driver
 # Copy this file to dicom.ini to use it
 # 20190110: For 1.5.0beta
+# 20200308: Templated
 
 [sscscp]
 MicroPACS                = sscscp
@@ -12,7 +13,7 @@ TCPPort                  = 5678
 
 # Host for postgres or mysql only, name, username and password for database
 SQLHost                  = localhost
-SQLServer                = ./data/dbase/
+SQLServer                = ${CONQUEST}/data/dbase/
 Username                 = dontcare
 Password                 = dontcare
 PostGres                 = 0
@@ -45,7 +46,7 @@ DebugLevel               = 0
 # Configuration of disk(s) to store images
 MAGDeviceFullThreshold   = 30
 MAGDevices               = 1
-MAGDevice0               = ./data/
+MAGDevice0               = ${CONQUEST}/data/
 
 [lua]
 association = package.path=package.path..';'..Global.basedir..'lua/?.lua'

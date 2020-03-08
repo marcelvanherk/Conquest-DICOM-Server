@@ -17,10 +17,16 @@
 -- mvh 20200302: Other test for linux, use os.getenv('SCRIPT_FILENAME'); directly copy to web 
 -- mvh 20200303: Added serverpage command: writes without header; uploadsql
 -- mvh 20200305: Added project parameter to swupdate; added dbquerysqldownload
+-- mvh 20200307: Use tempdir from dicom.ini
+-- mvh 20200308: Note: NEVER use tempfile call unless in dicom server!, Fixed dbquerysqldownload
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
 local readOnly = gpps('webdefaults', 'readOnly', '0')~='0'
+
+function tempfile()
+  error('tempfile not supported in CGI')
+end
 
 -- split string into pieces, return as table
 function split(str, pat)
@@ -203,20 +209,17 @@ end
 if CGI('parameter')=='dbqueryluaformat' then
   HTML('Content-type: application/text\n\n')
   local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
-  io.write(r)
+  io.write(table_print(r))
   return
 end
 if CGI('parameter')=='dbquerysqldownload' then
-  returnfile=tempfile([[.txt]]);
-  local f=io.open(returnfile,[[w]]);
-  f:write([[Content-type: application/text\nContent-Disposition: attachment;filename="]]..
-    CGI('filename')..[["\n\n]]);
+  io.write('Content-type: application/text\nContent-Disposition: attachment;filename="'..
+    CGI('filename', 'dbquery.sql')..'"\n\n');
   local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
   for k,v in ipairs(r) do 
-    f:write([[insert into ]]..CGI('table')..[[(]]..CGI('fields')..[[) value (']]..
-      table.concat(v,[[',']])..[[');\n]]);
+    io.write([[insert into ]]..CGI('table')..[[(]]..CGI('fields')..[[) value (']]..
+      table.concat(v,[[',']]).."');\n");
   end
-  f:close()
 end  
 if CGI('parameter')=='dicomquery' then
   HTML('Content-type: application/json\n\n')
@@ -227,12 +230,6 @@ end
 if CGI('parameter')=='dicomqueryluaformat' then
   HTML('Content-type: application/text\n\n')
   local r=remotequery(CGI('AE'),CGI('level'),CGI('query'))
-  io.write(r)
-  return
-end
-if CGI('parameter')=='dicomquery' then
-  HTML('Content-type: application/json\n\n')
-  local r=remotequery(CGI('AE'),CGI('level'),CGI('query'),true)
   io.write(r)
   return
 end
@@ -267,7 +264,7 @@ if CGI('parameter')=='swupdate' then
     web = 'c:\\xampp\\htdocs\\'
     cgi = 'c:\\xampp\\cgi-bin\\'
   else
-    n='/home/tmp/'..fn
+    n=gpps('sscscp', 'tempdir', '/home/tmp')..ds..fn
     web = '/var/www/html/'
     cgi = '/usr/lib/cgi-bin/'
   end
@@ -347,7 +344,7 @@ if CGI('parameter')=='uploadsql' then
   if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
     n='c:\\temp\\'..fn
   else
-    n='/home/tmp/'..fn
+    n=gpps('sscscp', 'tempdir', '/home/tmp')..'/'..fn
   end
   local f=io.open(n, 'wb')
   f:write(CGI())

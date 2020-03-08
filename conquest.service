@@ -2,7 +2,7 @@
 Description=conquest dicom server service
 After=network.target
 [Service]
-ExecStart=/home/osboxes/conquest/dgate -w/home/osboxes/conquest -v
+ExecStart=${CONQUEST}/dgate -w${CONQUEST} -v
 KillMode=process
 Restart=always
 RestartSec=10

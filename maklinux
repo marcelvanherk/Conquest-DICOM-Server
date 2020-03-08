@@ -11,8 +11,15 @@
 # mvh 20200215 Config for external lua5.1 library (see LUA=)
 # mvh 20200216 No overwite dicom.ini/acrnema.map; external luasocket
 # mvh 20200226 Check lua.o etc exist before rm
+# mvh 20200304 Added precompiled option, also create .exe in web;
+# mvh 20200308 Write temp folder and conquest folders where needed;
 
-#DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+export CONQUEST=$(pwd)
+export CONQUESTTEMP=$CONQUEST/temp
+mkdir $CONQUESTTEMP
+chmod 777 $CONQUESTTEMP
+export IP=$(hostname -I | xargs)
+
 SRC=./src/dgate;
 CONF=./linux/conf;
 LINUX=./linux;
@@ -28,8 +35,9 @@ chmod 777 src/dgate/jpeg-6c/configure
 cd src/dgate/jpeg-6c
 ./configure
 make
+echo Please ignore the errors below
 sudo make install
-echo Please ignore the error above
+echo Please ignore the errors above
 cd ../../..
 
 #chmod 777 src/dgate/luasocket/amake.sh;
@@ -74,6 +82,7 @@ do
 	                cp linux/dgate dgate;
 	                cp linux/dgate install/dgatesmall;
 			chmod 777 dgate;
+			chmod 777 install/dgatesmall;
 			break;
 			;;
 
@@ -102,7 +111,7 @@ then
 	pkill -9 dgate;
 	sleep 0.2s;
 
-	[ ! -f dicom.ini ] && cp $CONF/dicom.ini.$opt dicom.ini;
+	[ ! -f dicom.ini ] && envsubst < $CONF/dicom.ini.$opt > dicom.ini;
 	cp $CONF/dicom.sql.$opt dicom.sql;
 
 	[ ! -f acrnema.map ] && cp $LINUX/acrnema.map acrnema.map;
@@ -113,26 +122,48 @@ then
 	sudo cp ./dicom.sql /usr/lib/cgi-bin/dicom.sql ;
 	sudo cp ./acrnema.map /usr/lib/cgi-bin/acrnema.map ;
 
-	sudo mkdir -p /usr/lib/cgi-bin ;
+	[ ! -d /usr/lib/cgi-bin ] && sudo mkdir -p /usr/lib/cgi-bin ;
 	sudo chmod 777 /usr/lib/cgi-bin ;
 
 	sudo cp -r ./webserver/cgi-bin/* /usr/lib/cgi-bin;
 	sudo cp -r ./webserver/cgi-bin/.lua /usr/lib/cgi-bin;
 	sudo cp -r ./webserver/cgi-bin/.lua.linux /usr/lib/cgi-bin;
-	sudo cp /usr/lib/cgi-bin/dicom.ini.linux /usr/lib/cgi-bin/dicom.ini;
-	sudo cp /usr/lib/cgi-bin/newweb/dicom.ini.linux /usr/lib/cgi-bin/newweb/dicom.ini;
+	envsubst < ./webserver/cgi-bin/dicom.ini.linux > t.t;
+	sudo cp t.t /usr/lib/cgi-bin/dicom.ini;
+	envsubst < ./webserver/cgi-bin/newweb/dicom.ini.linux > t.t;
+	sudo cp t.t /usr/lib/cgi-bin/newweb/dicom.ini;
 	sudo cp /usr/lib/cgi-bin/.lua.linux /usr/lib/cgi-bin/.lua;
+	rm t.t
 
 	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate ;
 	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate.exe ;
-	#sudo cp ./acrnema.map /usr/lib/cgi-bin/newweb/acrnema.map ;
 	
 	sudo cp -r ./webserver/htdocs/* /var/www;
 	sudo cp -r ./webserver/htdocs/* /var/www/html;
 	
-	mkdir data/dbase
+	[ ! -d data/dbase ] && mkdir data/dbase
 	
 	chmod 777 console.sh
 	chmod 777 webviewer.sh	
-	chmod 777 install/linux.sh	
+	chmod 777 install/linux.sh
+	
+	read -p "Regenerate the database?" -r
+	echo $REPLY
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		./dgate -v -r
+	fi
+
+	envsubst <conquest.service >t.t
+	read -p "Install as service?" -r
+	echo $REPLY
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		sudo systemctl stop conquest.service
+		sudo cp t.t /etc/systemd/system/conquest.service
+		sudo systemctl start conquest.service
+		sudo systemctl enable conquest.service
+		sudo systemctl status conquest.service
+	fi
+	rm t.t
 fi

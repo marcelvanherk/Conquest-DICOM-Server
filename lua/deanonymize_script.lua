@@ -11,6 +11,8 @@
 -- 20200127	mvh	Allow stage *: pick stage based on actual patientID; reject on error
 -- 20200202     mvh     * in command line sets 9999,9000 with orginal patient ID
 -- 20200302     mvh     Fix DirSep for linux, add Global.basedir
+-- 20200308     mvh     Used wrong quotes in stage * code; postgresql tripped over it
+--			case of UIDMODS; mariadb tripped over it
 -- =============================================================================
 
 --[[ To test; r-click evaluate in console after project-run:
@@ -30,7 +32,7 @@ local pre, pid = Data.PatientID
 
 if Data.PatientID~='' then
   if command_line=='*' then
-    local r=dbquery('UIDMods','distinct stage','newUID="'..Data.PatientID..'"')
+    local r=dbquery("UIDMODS","distinct stage","newUID='"..Data.PatientID.."'")
     if r==nil then 
       print('** sql error **')
       reject()

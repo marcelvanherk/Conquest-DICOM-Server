@@ -19,6 +19,7 @@
 -- mvh 20200305: Added project parameter to swupdate; added dbquerysqldownload
 -- mvh 20200307: Use tempdir from dicom.ini
 -- mvh 20200308: Note: NEVER use tempfile call unless in dicom server!, Fixed dbquerysqldownload
+--               Fix UIDMODS case
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -71,7 +72,7 @@ function counttrials()
   local count = 
       servercommand('lua:'..
 	  [[
-	  local a=dbquery('UIDMods', 'DISTINCT Stage') or {}
+	  local a=dbquery('UIDMODS', 'DISTINCT Stage') or {}
 	  local count=0
 	  for i=1, #a do
             if a[i][1]~='' and a[i][1]~='(empty)' then count=count+1 end
@@ -350,7 +351,7 @@ if CGI('parameter')=='uploadsql' then
   f:write(CGI())
   f:close()
   if CGI('ref')~='' then
-    servercommand("lua:sql([[delete from UIDMods where Stage like '"..CGI('ref').."%']])")
+    servercommand("lua:sql([[delete from UIDMODS where Stage like '"..CGI('ref').."%']])")
   end
   local g = servercommand('lua:h=io.open([['..n..']], "r") t=h:read([[*all]]) h:close() return sql(t)')
   print(g)

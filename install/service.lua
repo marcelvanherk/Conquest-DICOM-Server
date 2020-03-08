@@ -1353,7 +1353,6 @@ local localConfig = {
   M0='./Data',
   READONLY=0,
   VIEWONLY=0,
-  TEMP='',
   VIEWER='wadoseriesviewer',
   SVIEWER='wadostudyviewer',
 }

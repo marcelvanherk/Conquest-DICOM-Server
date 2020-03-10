@@ -20,6 +20,7 @@
 -- mvh 20200307: Use tempdir from dicom.ini
 -- mvh 20200308: Note: NEVER use tempfile call unless in dicom server!, Fixed dbquerysqldownload
 --               Fix UIDMODS case
+-- mvh 20200310: Split uploadsql query into lines and then execute - for mysql compatibility
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -218,7 +219,7 @@ if CGI('parameter')=='dbquerysqldownload' then
     CGI('filename', 'dbquery.sql')..'"\n\n');
   local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
   for k,v in ipairs(r) do 
-    io.write([[insert into ]]..CGI('table')..[[(]]..CGI('fields')..[[) value (']]..
+    io.write([[insert into ]]..CGI('table')..[[ (]]..CGI('fields')..[[) value (']]..
       table.concat(v,[[',']]).."');\n");
   end
 end  
@@ -339,7 +340,20 @@ if CGI('parameter')=='swupdate' then
 end
 
 if CGI('parameter')=='uploadsql' then
-  local n
+  local n=0
+  HTML('Content-type: application/json\n\n')
+  if CGI('ref')~='' then
+    servercommand("lua:sql([[delete from UIDMODS where Stage like '"..CGI('ref').."%']])")
+  end
+  local s=CGI()
+  s = split(s, '\n')
+  for k,v in ipairs(s) do
+    n= n+tonumber(servercommand("lua:return sql([["..v.."]])") or 0)
+  end
+  print(n)
+  return
+
+  --[[
   local fn = CGI('filename', 'x.x')
   HTML('Content-type: application/json\n\n')
   if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
@@ -350,13 +364,11 @@ if CGI('parameter')=='uploadsql' then
   local f=io.open(n, 'wb')
   f:write(CGI())
   f:close()
-  if CGI('ref')~='' then
-    servercommand("lua:sql([[delete from UIDMODS where Stage like '"..CGI('ref').."%']])")
-  end
-  local g = servercommand('lua:h=io.open([['..n..']], "r") t=h:read([[*all]]) h:close() return sql(t)')
+  local g = servercommand('lua:h=io.open([_['..n..']_], "r") t=h:read([_[*all]_]) h:close() return sql(t)')
   print(g)
   os.remove(n)
   return
+  ]]
 end
 
 if s==nil then

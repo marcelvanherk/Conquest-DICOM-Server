@@ -13,6 +13,7 @@
 # mvh 20200226 Check lua.o etc exist before rm
 # mvh 20200304 Added precompiled option, also create .exe in web;
 # mvh 20200308 Write temp folder and conquest folders where needed;
+# mvh 20200310 Do overwrite dicom.ini, but make backup first
 
 export CONQUEST=$(pwd)
 export CONQUESTTEMP=$CONQUEST/temp
@@ -111,7 +112,8 @@ then
 	pkill -9 dgate;
 	sleep 0.2s;
 
-	[ ! -f dicom.ini ] && envsubst < $CONF/dicom.ini.$opt > dicom.ini;
+	[ -f dicom.ini ] && cp dicom.ini dicom.ini.bak
+	envsubst < $CONF/dicom.ini.$opt > dicom.ini;
 	cp $CONF/dicom.sql.$opt dicom.sql;
 
 	[ ! -f acrnema.map ] && cp $LINUX/acrnema.map acrnema.map;

@@ -1,5 +1,1 @@
-if exist "C:\Program Files (x86)\Embarcadero\Studio\16.0" (call "C:\Program Files (x86)\Embarcadero\Studio\16.0\bin\rsvars.bat")
-if exist "C:\Program Files (x86)\Embarcadero\Studio\18.0" (call "C:\Program Files (x86)\Embarcadero\Studio\18.0\bin\rsvars.bat")
-if exist "C:\Program Files (x86)\Embarcadero\Studio\19.0" (call "C:\Program Files (x86)\Embarcadero\Studio\19.0\bin\rsvars.bat")
-
-msbuild \software\dicomserver\dgateserv\dgateserv.dproj /p:config=Release /p:platform=Win32
+"C:\Program Files (x86)\borland\Delphi5\Bin\dcc32" DgateServ.dpr

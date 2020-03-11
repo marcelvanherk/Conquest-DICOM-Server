@@ -17,16 +17,15 @@
   20100901    mvh    Avoid RaiseLastWin32Error for common errors: it now shows a crash window
   20101111    mvh    Avoid RaiseLastWin32Error for failure to start, use ShowMessage
   20101113    mvh    Fix for vista - stop does not reach service                
-  20101116    mvh    Stop before uninstall fixes uninstall for vista
-  20181218    mvh    Adapt for Delphi XE8; note that original author is unknown
-  20190316    mvh    Delphi XE8 version does not seem to work (command line passing to slave issue)
+  20101116    mvh    Stop before uninstall fixes uninstall for vista                
+  20200311    mvh    Reverted to delphi5 version - note original author unknown
 }
 
 unit uService;
 
 interface
 
-uses Windows, WinSvc, SysUtils;
+uses Windows, WinSvc, SysUtils, Dialogs;
 
 {$IFDEF WIN32}
   {$IFNDEF VER90} //Delphi2
@@ -174,12 +173,12 @@ const
 
 procedure ServiceMainWrapperCode(Argc: DWORD; Argv: PPChar); stdcall;
 begin
-  TService((MagicConst)).ServiceMain(Argc,Argv);
+  TService(pointer(MagicConst)).ServiceMain(Argc,Argv);
 end;
 
 procedure HandlerWrapperCode(dwCtrlCode: DWORD); stdcall;
 begin
-  TService((MagicConst)).Handler(dwCtrlCode);
+  TService(pointer(MagicConst)).Handler(dwCtrlCode);
 end;
 
 procedure DummyProc;
@@ -239,7 +238,7 @@ end;
 destructor TService.Destroy;
 begin
   if Assigned(FServiceMainWrapper) then
-    VirtualFree(@FServiceMainWrapper,0,MEM_RELEASE);
+    VirtualFree(Pointer(FServiceMainWrapper),0,MEM_RELEASE);
   FServiceMainWrapper:=nil;
   inherited;
 end;
@@ -269,16 +268,16 @@ begin
   HandlerWrapperAddr:=PChar(@HandlerWrapperCode);
   DummyProcAddr:=PChar(@DummyProc);
   CodeLen:=DummyProcAddr-ServiceMainWrapperAddr;
-  FServiceMainWrapper:=VirtualAlloc(nil,CodeLen,MEM_COMMIT,PAGE_READWRITE);
+  Pointer(FServiceMainWrapper):=VirtualAlloc(nil,CodeLen,MEM_COMMIT,PAGE_READWRITE);
   {$IFDEF DELPHI3UP} Assert(Assigned(FServiceMainWrapper)); {$ENDIF}
-  Move(ServiceMainWrapperAddr^,PChar(@FServiceMainWrapper)^,CodeLen);
-  PChar(@FServiceHandlerWrapper):=PChar(@FServiceMainWrapper);
-  inc(PChar(@FServiceHandlerWrapper),HandlerWrapperAddr-ServiceMainWrapperAddr);
-  if Replace(PChar(@FServiceMainWrapper),HandlerWrapperAddr-ServiceMainWrapperAddr,MagicConst,integer(self))<>1 then
+  Move(ServiceMainWrapperAddr^,PChar(FServiceMainWrapper)^,CodeLen);
+  PChar(FServiceHandlerWrapper):=PChar(FServiceMainWrapper);
+  inc(PChar(FServiceHandlerWrapper),HandlerWrapperAddr-ServiceMainWrapperAddr);
+  if Replace(PChar(FServiceMainWrapper),HandlerWrapperAddr-ServiceMainWrapperAddr,MagicConst,integer(self))<>1 then
     {$IFDEF DELPHI3UP} Assert(False) {$ENDIF};
-  if Replace(PChar(@FServiceHandlerWrapper),DummyProcAddr-HandlerWrapperAddr,MagicConst,integer(self))<>1 then
+  if Replace(PChar(FServiceHandlerWrapper),DummyProcAddr-HandlerWrapperAddr,MagicConst,integer(self))<>1 then
     {$IFDEF DELPHI3UP} Assert(False) {$ENDIF};
-  if not VirtualProtect(@FServiceMainWrapper,CodeLen,PAGE_EXECUTE,@OldProtect) then
+  if not VirtualProtect(Pointer(FServiceMainWrapper),CodeLen,PAGE_EXECUTE,@OldProtect) then
     {$IFDEF DELPHI3UP} Assert(False) {$ENDIF};
 end;
 
@@ -581,7 +580,7 @@ begin
       if uppercase(copy(t, 2, 250))='UNINSTALL' then break;
       if uppercase(copy(t, 2, 250))='?'         then break;
 {$IFDEF DEBUG}
-      if uppercase(copy(t, 2, 250))='TEST'      then break;
+      if uppercase(t, 2, 250))='TEST'      then break;
 {$ENDIF}
       count := i+1;
     end;

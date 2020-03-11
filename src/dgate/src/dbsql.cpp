@@ -234,6 +234,7 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20190914	mvh	Cache changeUID and changeUIDTo (UIDCache); accelerates anomymisation enormously
 20191011	mvh	Fixed this for non-staged operation
 20191019	mvh	Extended TempString to 1024 to avoid buffer overrun
+20200311	mvh	Make sure progress logs inactive even in case of error
 */
 
 #define NCACHE 256
@@ -3849,6 +3850,7 @@ NewDeleteDICOM(
 	if(!ADDO.GetSize())
 		{
 		delete DDOCopy;
+		if (Thread) Progress.printf("Process=%d, Active=0", Thread);
 		return ( TRUE );
 		}
 	delete DDOCopy;
@@ -3857,7 +3859,10 @@ NewDeleteDICOM(
 		{
 		qDDO = ADDO.Get(Index);
 		if(!qDDO)
+			{
+			if (Thread) Progress.printf("Process=%d, Active=0", Thread);
 			return ( FALSE );
+			}
 
 		LastFromSeries = FALSE;
 		if (Index == ADDO.GetSize()-1)
@@ -3866,10 +3871,11 @@ NewDeleteDICOM(
 			{ 
 			vr  = qDDO->GetVR(0x0020, 0x000e);
                		vr2 = ADDO.Get(Index+1)->GetVR(0x0020, 0x000e);
-			if(!vr)
+			if(!vr || !vr2)
+				{
+				if (Thread) Progress.printf("Process=%d, Active=0", Thread);
 				return ( FALSE );
-			if(!vr2)
-				return ( FALSE );
+				}
 		    	if (vr->Length==vr2->Length)
 				{
 				if (memcmp(vr->Data, vr2->Data, vr->Length)!=0)
@@ -3881,7 +3887,10 @@ NewDeleteDICOM(
 
 		vr = qDDO->GetVR(0x0008, 0x0018);
 		if(!vr)
+			{
+			if (Thread) Progress.printf("Process=%d, Active=0", Thread);
 			return ( FALSE );
+			}
 
 		char pat[66];				/* get the patient ID */
         	pat[0]=0;
@@ -4005,24 +4014,30 @@ int	NewModifyDICOM(DICOMDataObject	*DDO, const char *script, int Thread, int cop
 		return ( FALSE );
 		}
 	Index = 0;
-	if (Thread) Progress.printf("Process=%d, Type='modifydicom', Active=1", Thread);
 
 	if(!ADDO.GetSize())
 		{
 		delete DDOCopy;
 		return ( TRUE );
 		}
+	if (Thread) Progress.printf("Process=%d, Type='modifydicom', Active=1", Thread);
 	delete DDOCopy;
 	
 	while ( Index < ADDO.GetSize() )
 		{
 		qDDO = ADDO.Get(Index);
 		if(!qDDO)
+			{
+			if (Thread) Progress.printf("Process=%d, Active=0", Thread);
 			return ( FALSE );
+			}
 
 		vr = qDDO->GetVR(0x0008, 0x0018);
 		if(!vr)
+			{
+			if (Thread) Progress.printf("Process=%d, Active=0", Thread);
 			return ( FALSE );
+			}
 
 		char pat[66];				/* get the patient ID */
         	pat[0]=0;

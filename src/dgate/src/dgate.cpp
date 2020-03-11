@@ -1142,11 +1142,13 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			Note: web contents and process require absolute paths
 20200307        mvh     Instead of tempfile now can use Command:SetVR(0x9999,0x0403,"val")
 			This allows two way data communication: input and output using 0x9999,0x0401
+20200311        mvh	1.5.0-beta4 version, fix attachfile of zip under Linux 
+20200311        mvh	Make sure progress closes on failure of commands 
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-beta3"
+#define DGATE_VERSION "1.5.0-beta4"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -3276,7 +3278,7 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
                               long length=strlen(TempPath);
                               TempPath[length] = PATHSEPCHAR;
                               TempPath[length+1] = '\0';
-                              LoadAndDeleteDir(TempPath, NewPatid, PDU, Thread==0?0:Thread+1);
+                              LoadAndDeleteDir(TempPath, NewPatid, PDU, Thread==0?0:Thread+1, script);
                               rmdir(TempPath);
                               }
                         }
@@ -11361,6 +11363,7 @@ static int DcmMove(const char *patid, char* pszSourceAE, char* pszDestinationAE,
 		if(!PDU.Read(&DCOR))
 			{
 			OperatorConsole.printf("***preretrieve/forward xxx to: association lost\n");
+			if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 			return 2;	// associate lost: may retry
 			}
 
@@ -11466,6 +11469,7 @@ char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, in
 			{
 			OperatorConsole.printf("***dicommove: AE not found: %s\n", pszSourceAE);
 			sprintf(StatusString, "***dicommove: AE not found: %s", pszSourceAE);
+			if (atoi(callback)) Progress.printf("Process=%d, Active=0\n", atoi(callback));
 			strcpy(retvalue, StatusString);
 			return retvalue;
 			}
@@ -11473,6 +11477,7 @@ char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, in
 			{
 			OperatorConsole.printf("***dicommove: could not connect to AE: %s\n", pszSourceAE);
 			sprintf(StatusString, "***dicommove: could not connect to AE: %s", pszSourceAE);
+			if (atoi(callback)) Progress.printf("Process=%d, Active=0\n", atoi(callback));
 			strcpy(retvalue, StatusString);
 			return retvalue;
 			}
@@ -11522,6 +11527,7 @@ char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, in
 			{
 			OperatorConsole.printf("***dicommove: association lost\n");
 			sprintf(StatusString, "***dicommove: association lost");
+			if (atoi(callback)) Progress.printf("Process=%d, Active=0\n", atoi(callback));
 			strcpy(retvalue, StatusString);
 			return retvalue;
 			}
@@ -11530,6 +11536,7 @@ char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, in
 			{
 			OperatorConsole.printf("***dicommove: invalid C-move response\n");
 			sprintf(StatusString, "***dicommove: invalid C-move response");
+			if (atoi(callback)) Progress.printf("Process=%d, Active=0\n", atoi(callback));
 			strcpy(retvalue, StatusString);
 			PDU.Close();
 			return retvalue;
@@ -11571,6 +11578,7 @@ char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, in
 			{
 			OperatorConsole.printf("***dicommove: remote DICOM error\n");
 			sprintf(StatusString, "***dicommove: remote DICOM error");
+			if (atoi(callback)) Progress.printf("Process=%d, Active=0\n", atoi(callback));
 			NonDestructiveDumpDICOMObject(&DCOR);
 			strcpy(retvalue, StatusString);
 			PDU.Close();
@@ -23900,6 +23908,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 			{
 			PDU2.Close();
 			OperatorConsole.printf("*** Grab - association lost in C-FIND\n");
+			if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 			return ( FALSE );	// association lost
 			}
 		// is this a C-Find-RSP ?
@@ -23908,6 +23917,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 			PDU.Close();
 			PDU2.Close();
 			OperatorConsole.printf("*** Grab - wrong response for C-FIND\n");
+			if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 			return(FALSE);
 			}
 		// is there a data set?
@@ -23916,6 +23926,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 			PDU.Close();
 			PDU2.Close();
 			OperatorConsole.printf("Grab - finished\n");
+			if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 			return( TRUE );
 			}
 		// no success
@@ -23924,6 +23935,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 			PDU.Close();
 			PDU2.Close();
 			OperatorConsole.printf("*** Grab - C-FIND failed\n");
+			if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 			return ( FALSE );
 			}
 		// read response data
@@ -23932,6 +23944,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 			PDU.Close();
 			PDU2.Close();
 			OperatorConsole.printf("*** Grab - C-FIND failed\n");
+			if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 			return(FALSE);
 			}
 
@@ -23945,6 +23958,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 				PDU.Close();
 				PDU2.Close();
 				OperatorConsole.printf("*** Grab - C-FIND error\n");
+				if (Thread) Progress.printf("Process=%d, Active=0\n", Thread);
 				return ( TRUE );
 				}
 

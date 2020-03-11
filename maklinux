@@ -14,6 +14,7 @@
 # mvh 20200304 Added precompiled option, also create .exe in web;
 # mvh 20200308 Write temp folder and conquest folders where needed;
 # mvh 20200310 Do overwrite dicom.ini, but make backup first
+# mvh 20200311 Lost mariadb change, use mariadb and mysql include folders for ubuntu14 compatibility
 
 export CONQUEST=$(pwd)
 export CONQUESTTEMP=$CONQUEST/temp
@@ -48,17 +49,17 @@ cd ../../..
 
 echo "Please choose DB type";
 
-options=("mysql" "postgres" "sqlite" "dbase" "precompiled" "Quit")
+options=("mariadb" "postgres" "sqlite" "dbase" "precompiled" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in
-        "mysql")
+        "mariadb")
 #			cd /usr/lib
 #			ln -s /usr/lib64/mysql .
 #			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
-			g++ $FLAGS -DUSEMYSQL $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I/usr/local/mysql/include -I/usr/include/mysql -L/usr/local/mysql/lib -L/usr/lib/mysql -lmysqlclient;
+			g++ $FLAGS -DUSEMYSQL $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I/usr/local/mariadb/include -I/usr/include/mariadb -I/usr/include/mysql -L/usr/local/mariadb/lib -L/usr/lib/mariadb -lmariadbclient;
 			break;
 			;;
         "postgres")

@@ -24,6 +24,7 @@
 20170528 mvh Test on JFIF marker in 20140209 change for lossless RGB jpeg is not YCR coded
 20170827 mvh No longer use IU type for transfer syntax must be UI
 20181123 mvh Changed TransferSyntaxUID back to IU (is in preamble)
+20200314 mvh Added JPEGIGNORELOSSLESSJFIFCOLORSPACE flag, ignores color space in JFIF header for lossless
 */
 
 #define guard 265536
@@ -638,6 +639,7 @@ jskip_input_data (j_decompress_ptr cinfo, long num_bytes)
  *  If I have made some mistakes (most likely) you can contact me bruce.barton
  *  (the mail symbol goes here) me.com.  Let me know where I can find a sample of
  *  the image that didn't work. */
+
 BOOL DecompressJPEGL(DICOMDataObject* pDDO)
 {
     ImageData                   imageData;
@@ -731,7 +733,12 @@ BOOL DecompressJPEGL(DICOMDataObject* pDDO)
     if (cinfo.process == JPROC_LOSSLESS &&
         cinfo.jpeg_color_space != JCS_RGB &&
         cinfo.out_color_components == 3 &&
+#ifdef JPEGIGNORELOSSLESSJFIFCOLORSPACE
+	true)
+#else	
 	!cinfo.saw_JFIF_marker)  // added 20170528
+#endif
+	
     {
         OperatorConsole.printf("DecompressJPEGL: forced jpeg colorspace for lossless to RGB\n");
         cinfo.jpeg_color_space = JCS_RGB;

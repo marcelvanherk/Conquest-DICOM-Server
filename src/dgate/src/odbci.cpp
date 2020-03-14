@@ -177,6 +177,7 @@
 20180805   mvh    Added SQLiteStartup parameter; defaults to "PRAGMA synchronous=OFF" as it was
 20181231   mvh    Reset bind type array when binding 1, avoids write into unbound variables
 20200119   mvh    Hardcode MYSQL_PORT to 3306
+20200314   mvh    Removed UNENCRYPTED clause for postgres
 */
 
 /*
@@ -5901,7 +5902,7 @@ BOOL	Database :: CreateDatabase (
 #ifdef POSTGRES
         if (Postgres)
         	{
-		sprintf (SQLStatement, "CREATE ROLE %s LOGIN UNENCRYPTED PASSWORD '%s' VALID UNTIL 'infinity'", User, lPassword);
+		sprintf (SQLStatement, "CREATE ROLE %s LOGIN PASSWORD '%s' VALID UNTIL 'infinity'", User, lPassword);
                 if (PGSQLExec(SQLStatement))
 			{ 
 			SystemDebug.printf ( "***Failed PGSQLExec : %.1000s\n", SQLStatement);

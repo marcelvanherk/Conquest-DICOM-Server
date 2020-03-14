@@ -665,6 +665,7 @@ When            Who     What
 20200203        mvh     Copy lua5.1.dll to web server; list time of lua5.1.dll in bugreport; version 1.5.beta2
 20200204        mvh     Small fix in that for newweb
 20200311        mvh     Version to 1.5.0beta4
+20200314        mvh     Version to 1.5.0; jpeg support renamed and default ON during install
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -700,8 +701,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0beta4';
-const BUILDDATE = '20200311';
+const VERSION = '1.5.0';
+const BUILDDATE = '20200314';
 const testmode = 0;
 
 {************************************************************************}
@@ -2581,7 +2582,7 @@ begin
     CreateDGATESOP_LST(FileExists(ExtractFileDir(ParamStr(0)) + '\dcmdjpeg.exe'));
 
   // Check dgatesop.lst to see if JPEG support is enabled
-  JPEGSupport := false;
+  JPEGSupport := true;
   AssignFile(f, ExtractFileDir(ParamStr(0)) + '\dgatesop.lst');
   Reset(f);
   while not Eof(f) do

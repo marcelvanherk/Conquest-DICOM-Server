@@ -18,6 +18,7 @@
 -- 20190103: Added tickcount
 -- 20200109: 1.5.0-beta, Added dicomecho, listoldestpatients, crc, CGI()
 -- 20200125: Added new parameters to Serialize and dicommove, updated text a bit
+-- 20200314: release 1.5.0
 
 --[[
 -- read/write data, create sequences, and write into sequences (if [] not passed, [0] is assumed)

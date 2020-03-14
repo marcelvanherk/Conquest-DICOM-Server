@@ -1,0 +1,20 @@
+mysql_install_db.exe --datadir=C:\db --service=MyDB --password=secret
+sc start MyDB
+
+
+    Download postgresql from https://www.enterprisedb.com/download-postgresql-binaries;
+    Unzip it;
+    Open a cmd;
+    Enter into the ‘bin’ directory;
+    Init the database:
+        initdb.exe -D ../data -–username=postgres –-auth=trust
+    Start the database:
+        pg_ctl.exe start -D ../data
+    Open another cmd;
+    Enter into the ‘bin’ directory;
+    Log into the database:
+        psql –username=postgres
+    Create a password for your user:
+        ALTER USER postgres WITH PASSWORD ‘VeryVerySecret’;
+//    Install adminpack extension:
+//        CREATE EXTENSION adminpack;

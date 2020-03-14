@@ -1144,11 +1144,12 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			This allows two way data communication: input and output using 0x9999,0x0401
 20200311        mvh	1.5.0-beta4 version, fix attachfile of zip under Linux 
 20200311        mvh	Make sure progress closes on failure of commands 
+20200314        mvh	Release 1.5.0; Update dgate -?
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0-beta4"
+#define DGATE_VERSION "1.5.0"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -12658,7 +12659,6 @@ PrintOptions ()
 	fprintf(stderr, "    --attachanytostudy:any,sample        patient|study|series in sample file\n" );
 	fprintf(stderr, "    --attachanytoseries:any,sample       Do not attach same at different levels\n" );
 	fprintf(stderr, "    --attachrtplantortstruct:plan,struc Attach rtplan to rtstruct\n" );
-	fprintf(stderr, "    --attachfile:file,script  Process dicom file with script and load\n" );
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Maintenance options:\n");
 	fprintf(stderr, "    --initializetables:       Clear and create database\n" );
@@ -12713,7 +12713,7 @@ PrintOptions ()
 	fprintf(stderr, "    --put_remoteae:in,AE,name Write/add accepted remote AE title\n" );
 	fprintf(stderr, "    --delete_remoteae:index   Delete accepted remote AE title\n" );
 	fprintf(stderr, "    --get_dic:index,fmt       List any dicom dictionary item\n" );
-	fprintf(stderr, "    --mk_binary_dic:filename  Save dictionary in binary form\n" );
+	fprintf(stderr, "    --mk_binary_dic:filename  Save dictionary in faster binary form\n" );
 	fprintf(stderr, "    --get_sqldef:level,in,fmt List any database field definition\n" );
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Communication options:\n");

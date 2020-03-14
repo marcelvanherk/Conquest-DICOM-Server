@@ -77,6 +77,7 @@
 20190322	mvh	Fixed that
 20191019        mvh     Removed sorting for CountOnly query (SQL fails on postgres)
 20200125	mvh	Accept 9999,0c000 ConquestImageQueryOrder (use field name, is truncated to 10)
+20200314	mvh	Implemented QueriesReturnISO_IR flag
 */
 
 #ifndef	WHEDGE
@@ -90,6 +91,7 @@ extern char	StudyQuerySortOrder[];
 extern char	SeriesQuerySortOrder[];
 extern char	ImageQuerySortOrder[];
 extern int 	WorkListReturnsISO_IR_100;
+extern int	QueriesReturnISO_IR;
 extern int 	EnableComputedFields;
 extern int	DoubleBackSlashToDB;
 extern int	UseEscapeStringConstants;
@@ -1026,6 +1028,17 @@ BOOL	QueryOnPatient (
 				++Index;
 				}
 
+			if (QueriesReturnISO_IR)
+				{
+				vr = RDDO->GetVR(0x0008, 0x0005);
+				if(!vr)
+					{
+					VR *vrNew = new VR(0x0008, 0x0005, 10, TRUE);
+					sprintf((char*)vrNew->Data, "ISO_IR %d", QueriesReturnISO_IR);
+					RDDO->Push(vrNew);
+					}
+				}
+
 			if(SendAE)
 				RDDO->Push(ConstructAE());
 
@@ -1418,6 +1431,17 @@ BOOL	QueryOnStudy (
 				++Index;
 				}
 
+			if (QueriesReturnISO_IR)
+				{
+				vr = RDDO->GetVR(0x0008, 0x0005);
+				if(!vr)
+					{
+					VR *vrNew = new VR(0x0008, 0x0005, 10, TRUE);
+					sprintf((char*)vrNew->Data, "ISO_IR %d", QueriesReturnISO_IR);
+					RDDO->Push(vrNew);
+					}
+				}
+
 			if(SendAE)
 				RDDO->Push(ConstructAE());
 
@@ -1805,6 +1829,17 @@ BOOL	QueryOnSeries (
 					qSops->Push(ConstructVRFromSQL (DBQMaster.Get(Index), EMask.Get(Index)->Group, EMask.Get(Index)->Element, VRLength, SQLResult.Get(Index)));
 			
 				++Index;
+				}
+
+			if (QueriesReturnISO_IR)
+				{
+				vr = RDDO->GetVR(0x0008, 0x0005);
+				if(!vr)
+					{
+					VR *vrNew = new VR(0x0008, 0x0005, 10, TRUE);
+					sprintf((char*)vrNew->Data, "ISO_IR %d", QueriesReturnISO_IR);
+					RDDO->Push(vrNew);
+					}
 				}
 
 			if(SendAE)
@@ -2356,6 +2391,17 @@ BOOL	QueryOnImage (
 					SQLResult.Get(Index));
 				RDDO->Push(vr);
 				++Index;
+				}
+
+			if (QueriesReturnISO_IR)
+				{
+				vr = RDDO->GetVR(0x0008, 0x0005);
+				if(!vr)
+					{
+					VR *vrNew = new VR(0x0008, 0x0005, 10, TRUE);
+					sprintf((char*)vrNew->Data, "ISO_IR %d", QueriesReturnISO_IR);
+					RDDO->Push(vrNew);
+					}
 				}
 
 			if(SendAE)

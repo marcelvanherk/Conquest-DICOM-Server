@@ -344,6 +344,7 @@ if CGI('parameter')=='uploadsql' then
   HTML('Content-type: application/json\n\n')
   if CGI('ref')~='' then
     servercommand("lua:sql([[delete from UIDMODS where Stage like '"..CGI('ref').."%']])")
+    changeuid('') -- clear UID cache
   end
   local s=CGI()
   s = split(s, '\n')

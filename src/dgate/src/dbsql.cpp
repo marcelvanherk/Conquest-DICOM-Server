@@ -235,6 +235,8 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20191011	mvh	Fixed this for non-staged operation
 20191019	mvh	Extended TempString to 1024 to avoid buffer overrun
 20200311	mvh	Make sure progress logs inactive even in case of error
+20200314	mvh	Calling ChangeUID with "" for OldUID clears the UID cache
+			Added QueriesReturnISO_IR flag
 */
 
 #define NCACHE 256
@@ -356,6 +358,7 @@ char	SeriesQuerySortOrder[256]="";
 char	ImageQuerySortOrder[256]="";
 char	AllowTruncate[256]="";
 int     WorkListReturnsISO_IR_100=0;
+int	QueriesReturnISO_IR=0;
 int     EnableComputedFields=0;
 
 // Forward declaration
@@ -432,6 +435,10 @@ ConfigDBSpecials(void)
 			(char*) Temp, 128, ConfigFile);
 		WorkListReturnsISO_IR_100 = atoi(Temp);
 		}
+
+	MyGetPrivateProfileString ( RootSC, "QueriesReturnISO_IR", "0",
+			(char*) Temp, 128, ConfigFile);
+	QueriesReturnISO_IR = atoi(Temp);
 
 	MyGetPrivateProfileString ( RootSC, "EnableComputedFields", "0",
 		(char*) Temp, 128, ConfigFile);
@@ -1993,6 +2000,13 @@ int UIDCache(char *in, char *out, char *stage)
 	{ 
 	int i, sum, r;
 	char *p = in;
+	
+	// to clear cache call e.g. ChangeUID("", "", "")
+	if (*in==0)
+		{
+		UIDTop = UIDBottom = 0;
+		return -1;
+		}
 
 	sum = 0;
 	while(*p) sum+=*p++;
@@ -2065,6 +2079,7 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 
 	if (OldUID[0]==0) 
 		{
+		UIDCache("", NewUID, "");
 		*NewUID = 0;
 		return TRUE;
 		}

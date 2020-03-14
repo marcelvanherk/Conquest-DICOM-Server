@@ -29,6 +29,7 @@
 20181217        mvh     Added printsop.cxx
 20190109        mvh     Make uncompconv unconditional; is used in converter to bitmap image
 20200203	mvh	Added LUA51EXTERN option for dynamic loading of lua5.1.dll
+20200314	mvh	Added JPEGIGNORELOSSLESSJFIFCOLORSPACE
 */
 
 /* Example to compile with BC55:
@@ -85,6 +86,8 @@
 #define FUJI_FIX // Allows decompressing Fuji AC3 jpeg compressed,not encapsulated images.
 #define NOVARAD_FIX // Works around the intentional corruptions NovaPacs (NovaRad) adds to the images.
 #endif
+
+#define JPEGIGNORELOSSLESSJFIFCOLORSPACE	// fixes issue with BomberBugs image 12345, is lossless but states YcR coding
 
 #ifdef WINDOWS
 #include <stddef.h>

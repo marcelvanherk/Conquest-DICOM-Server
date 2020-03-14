@@ -170,8 +170,8 @@ object Form1: TForm1
           Top = 226
           Width = 217
           Height = 17
-          Hint = 'Uses novel code by Bruce Barton'
-          Caption = 'Enable JPEG(2000) support'
+          Hint = 'Enable for modern DICOM systems'
+          Caption = 'Enable Explicit and JPEG transfers'
           ParentShowHint = False
           ShowHint = True
           TabOrder = 2

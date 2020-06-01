@@ -2,6 +2,7 @@
  (C) Jan de Vaan 2007-2010, all rights reserved. See the accompanying "License.txt" for licensed use. 
 */ 
 
+// mvh 20200317 removed here unnecessary #include <iostream>
 
 #ifndef JLS_INTERFACE
 #define JLS_INTERFACE
@@ -30,7 +31,7 @@
 
 #ifdef __cplusplus
 
-#include <iostream>
+//#include <iostream>
 
 extern "C" 
 {

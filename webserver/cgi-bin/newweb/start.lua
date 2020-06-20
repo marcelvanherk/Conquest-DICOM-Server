@@ -21,6 +21,10 @@
 -- mvh 20200308: Note: NEVER use tempfile call unless in dicom server!, Fixed dbquerysqldownload
 --               Fix UIDMODS case
 -- mvh 20200310: Split uploadsql query into lines and then execute - for mysql compatibility
+-- mvh 20200407: Added images target to updater
+-- mvh 20200505: Added uploadtable command
+-- mvh 20200514: Adjusted uploadtable for linux; backup old versions
+-- note: first time upload of images gives error in line 188
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -259,7 +263,6 @@ if CGI('parameter')=='swupdate' then
   HTML('Content-type: application/json\n\n')
   local fn, n, ds, web, cgi, target = '', '', '/'
   fn = CGI('filename', 'x.x')
-  -- if true or os.rename('c:\\temp\\', 'c:\\temp\\')==true then
   if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
     n='c:\\temp\\'..fn
     ds = '\\'
@@ -296,6 +299,10 @@ if CGI('parameter')=='swupdate' then
     copyfile(n,     g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
     copyfile(n,                                  web..project..ds..'js'..ds..fn) 
     target = web..'inholland'..ds..'js'..ds..fn
+  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn)==true then 
+    copyfile(n,     g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn) 
+    copyfile(n,                                  web..project..ds..'images'..ds..fn) 
+    target = web..'inholland'..ds..'images'..ds..fn
   elseif fileexists(g..'webserver'..ds..'cgi-bin'..ds..project..ds..fn)==true then 
     copyfile(n,     g..'webserver'..ds..'cgi-bin'..ds..project..ds..fn) 
     copyfile(n,                                   cgi..project..ds..fn)
@@ -325,8 +332,16 @@ if CGI('parameter')=='swupdate' then
     target = web..'inholland'..ds..fn
   elseif string.find(fn, '.js') then 
     copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
-    copyfile(n,                              cgi..project..ds..'js'..de..fn) 
+    copyfile(n,                              cgi..project..ds..'js'..ds..fn) 
     target = cgi..'inholland'..ds..'js'..ds..fn
+  elseif string.find(fn, '.css') then 
+    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
+    copyfile(n,                              cgi..project..ds..'js'..ds..fn) 
+    target = cgi..'inholland'..ds..'js'..ds..fn
+  elseif string.find(fn, '.png') then 
+    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn) 
+    copyfile(n,                              cgi..project..ds..'images'..ds..fn) 
+    target = cgi..'inholland'..ds..'images'..ds..fn
   else
     target = '** NOT FOUND **'
   end
@@ -370,6 +385,29 @@ if CGI('parameter')=='uploadsql' then
   os.remove(n)
   return
   ]]
+end
+
+if CGI('parameter')=='uploadtable' then
+  local ds = '/'
+  local g = servercommand('lua:return Global.basedir')
+  fn = CGI('filename', 'x.x')
+  if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
+    ds = '\\'
+  end
+  HTML('Content-type: application/json\n\n')
+  local s=CGI()
+  servercommand("lua:f=io.popen([[mkdir "..g.."tables]]) f:close()")
+  if fileexists(g.."tables"..ds..CGI('filename')) then
+    for i=1,1000 do
+      if not fileexists(g.."tables"..ds..CGI('filename')..'.'..i) then
+        copyfile(g.."tables"..ds..CGI('filename'), g.."tables"..ds..CGI('filename')..'.'..i)
+	break
+      end
+    end
+  end
+  servercommand('lua:local s=[['..s..']]; f = io.open([['..g..'tables]]..[['..ds..CGI('filename', 'ignore')..']], [[wt]]); f:write(s); f:close()')
+  print(1)
+  return
 end
 
 if s==nil then

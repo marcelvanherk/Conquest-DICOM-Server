@@ -13,6 +13,7 @@
 -- 20200112   mvh   Added optional stage to zipanonymized
 -- 20200113   mvh   Small fix in that
 -- 20200307   mvh   Avoid query with '***'
+-- 20200618   mvh   Fixed hardcoded CONQUESTSRV1 in 'deleter'
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 version = version  or ''
@@ -196,7 +197,7 @@ if CGI('parameter', '')=='deleter' then
 		'";s.SeriesInstanceUID="'..(items[3] or '')..
 		'";s.SOPInstanceUID="'..(items[4] or '')..
 		'";s.QueryRetrieveLevel="IMAGE'..
-		'";a=dicomquery("CONQUESTSRV1", "IMAGE", s);return #a')
+		'";a=dicomquery("'..servercommand('get_param:MyACRNema')..'", "IMAGE", s);return #a')
   print('really delete: '..CGI('item', '') .. ' with '..n..' images ? ')
   if (readOnly) then 
     print([[<a href=# onclick="servicecommand('nop&item=]]..CGI('item')..[[')">Not allowed</a><br>]]) 

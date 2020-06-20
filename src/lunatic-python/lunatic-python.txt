@@ -1,0 +1,12 @@
+sudo apt install python3.8
+sudo apt install python3.8-dev
+cd src/lunatic-python
+./amake.sh
+lua
+  python=require('python')
+  python.execute('import sys;print(sys.version)')
+sudo apt install python3-pip
+pip3 install numpy
+pip3 install scipy
+pip3 install pydicom
+pip3 install dicom-contour

@@ -1145,11 +1145,15 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200311        mvh	1.5.0-beta4 version, fix attachfile of zip under Linux 
 20200311        mvh	Make sure progress closes on failure of commands 
 20200314        mvh	Release 1.5.0; Update dgate -?
+20200316        mvh	Added dogloballua: servercommand - runs in global context in critical section
+			Also added critical section for nightly, background and dgate.lua
+20200528        mvh	Version to 1.5.0a; changed truncation of AnyPageExceptions from 255 to 511
+                        Use single DB per folder in LoadAndDeleteDir
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0"
+#define DGATE_VERSION "1.5.0a"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -3142,7 +3146,7 @@ void TestSyntax(char *filename, int syntax, ExtendedPDU_Service *PDU);
 void TestThreadedSave(char *filename);
 void ProcessHL7Data(char *data);
 static void NewTempFile(char *name, const char *ext);
-BOOL AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU);
+BOOL AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU, Database *PDB=NULL);
 
 static BOOL dgate_IsDirectory(char *TempPath)
 {
@@ -3169,7 +3173,14 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 	HANDLE		fdHandle;
 	WIN32_FIND_DATA	FileData;
 	char		TempPath[512];
-	int count=0;
+	int             count=0;
+        Database        DB;
+
+        if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+		{
+		OperatorConsole.printf("***Error Connecting to SQL\n");
+		return ( FALSE );
+		}
 
 	strcpy(TempPath, dir);
 	strcat(TempPath, "*.*");
@@ -3215,7 +3226,7 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 						char dum[1024];
 						AttachFile(TempPath, script, dum, PDU);
 						}
-					else if (!AddImageFile (TempPath, NewPatid, PDU))
+					else if (!AddImageFile (TempPath, NewPatid, PDU, &DB))
 						{
 						DICOMDataObject	DDO;
 						lua_setvar(PDU, "Filename", TempPath);
@@ -3245,6 +3256,13 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 
       char            TempPath[PATH_MAX];
       char            *n;
+      Database        DB;
+
+      if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+		{
+		OperatorConsole.printf("***Error Connecting to SQL\n");
+		return ( FALSE );
+		}
 
       strcpy(TempPath, dir);
       TempPath[strlen(TempPath)-1]=0;
@@ -3292,13 +3310,13 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 					char dum[1024];
 					AttachFile(TempPath, script, dum, PDU);
 					}
-				else if (!AddImageFile (TempPath, NewPatid, PDU))
+				else if (!AddImageFile (TempPath, NewPatid, PDU, &DB))
                                     { 
 			            BOOL success = FALSE;
                                     for (int i=0; i<30; i++)
                                           { 
 				          Sleep(5000);
-                                          if (AddImageFile (TempPath, NewPatid, PDU)) 
+                                          if (AddImageFile (TempPath, NewPatid, PDU, &DB)) 
                                               { success = TRUE;
                                                 break;
                                               }
@@ -3329,17 +3347,25 @@ BOOL BackgroundExec(char *ProcessBinary, char *Args);
 
 // Add image file to server (also copies file!); optional changes patient ID before entering file
 BOOL
-AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU)
+AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU, Database	*PDB)
 	{
 	DICOMDataObject*	pDDO;
 	int			i;//, len;
 //	VR			*vrSOPInstanceUID;
 	DICOMDataObject		DDO;
-	Database		DB;
+	Database		DB, *pDB;
 	char			rFilename[1024];
 	BOOL			rc;
 	char			szRootSC[64], szTemp[64];
-
+        
+        pDB = &DB;
+        if (PDB) 
+          pDB=PDB;
+	else if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+		{
+		OperatorConsole.printf("***Error Connecting to SQL\n");
+		return ( FALSE );
+		}
 
 	MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile);
   	MyGetPrivateProfileString(szRootSC, "ImportExportDragAndDrop", "1", szTemp, 64, ConfigFile);
@@ -3457,12 +3483,6 @@ AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU)
 		}
 
 
-	if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
-		{
-		OperatorConsole.printf("***Error Connecting to SQL\n");
-		return ( FALSE );
-		}
-
 	pDDO = LoadForGUI(filename);
 	if(!pDDO)
 		{
@@ -3497,7 +3517,7 @@ AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU)
         rc = TRUE;	// failed compression leaves original object
 
 	// if ((rc == FALSE) || (!SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"dropped", (unsigned char *)"dropped", 0, !atoi(szTemp))))
-	if ((rc == FALSE) || (!SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, 0, !atoi(szTemp))))
+	if ((rc == FALSE) || (!SaveToDisk(*pDB, NULL, pDDO, rFilename, TRUE, PDU, 0, !atoi(szTemp))))
 		{
 		OperatorConsole.printf("***[AddImageFile] Error entering object into server: %s\n", filename);
 //		if (pDDO)
@@ -8539,6 +8559,7 @@ static ExtendedPDU_Service import_forward_PDU[MAXExportConverters * MAXExportCon
 static time_t import_forward_PDU_time[MAXExportConverters][MAXExportConverters];
 static BOOL import_forward_active[MAXExportConverters][MAXExportConverters];
 static CRITICAL_SECTION count_critical;
+static CRITICAL_SECTION dolua_critical;
 
 static BOOL WINAPI import_forward_PDU_close_thread(char *folder)
 { while (TRUE)
@@ -12537,12 +12558,14 @@ static BOOL WINAPI zipthread(void)
       { ScriptTriggered = TRUE;
         char cmd[1024];
 	MyGetPrivateProfileString("lua", "nightly", "", cmd, 1024, ConfigFile);
+	EnterCriticalSection(&dolua_critical);
         globalPDU.SetLocalAddress ( (BYTE *)"global" );
         globalPDU.SetRemoteAddress ( (BYTE *)"nightly" );
 	globalPDU.ThreadNum = 0;
         struct scriptdata sd = {&globalPDU, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, 0, 0};
 	do_lua(&(globalPDU.L), cmd, &sd);
-	if (sd.DDO) delete sd.DDO;
+	LeaveCriticalSection(&dolua_critical);
+	// if (sd.DDO) delete sd.DDO;
       }
     }
     else
@@ -12552,12 +12575,14 @@ static BOOL WINAPI zipthread(void)
     { ScriptTriggered = TRUE;
       char cmd[1024];
       MyGetPrivateProfileString("lua", "background", "", cmd, 1024, ConfigFile);
+      EnterCriticalSection(&dolua_critical);
       globalPDU.SetLocalAddress ( (BYTE *)"global" );
       globalPDU.SetRemoteAddress ( (BYTE *)"background" );
       globalPDU.ThreadNum = 0;
       struct scriptdata sd = {&globalPDU, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, 0, 0};
       do_lua(&(globalPDU.L), cmd, &sd);
-      if (sd.DDO) delete sd.DDO;
+      LeaveCriticalSection(&dolua_critical);
+      // if (sd.DDO) delete sd.DDO;
       ScriptTriggered = FALSE;
     }
   }
@@ -20181,6 +20206,15 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (sd.DDO) delete sd.DDO;
 		}
 
+	if (memcmp(SilentText, "dogloballua:", 12)==0)		////// Note: not used by dgate --dolua: at all, for use in servercommand only
+		{					// Runs in global context so keeps data over instances
+		EnterCriticalSection(&dolua_critical);
+		struct scriptdata sd = {&globalPDU, &DCO, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, ConnectedIP};
+		p = (char *)do_lua(&(globalPDU.L), SilentText+12, &sd);
+		if (p) strcpy(Response, p);
+		LeaveCriticalSection(&dolua_critical);
+		}
+
 	else if (memcmp(SilentText, "extract:", 8)==0)
 		{
 		char t[512], u[512];
@@ -23442,6 +23476,8 @@ main ( int	argc, char	*argv[] )
  	  for (j=0; j<MAXExportConverters; j++)
   	    import_c_init[i][j]=FALSE;
 
+	InitializeCriticalSection(&dolua_critical);
+
 	char	*query_string = getenv( "CONTENT_LENGTH" );
 	if (query_string && *query_string && argc==1) 
 		{
@@ -23611,6 +23647,7 @@ main ( int	argc, char	*argv[] )
 	        OperatorConsole.On();
 		LoadKFactorFile((char*)KFACTORFILE);
 		InitACRNemaAddressArray();
+		EnterCriticalSection(&dolua_critical);
   	        globalPDU.SetLocalAddress ( (BYTE *)"standalone" );
   	        globalPDU.SetRemoteAddress ( (BYTE *)"standalone" );
   		globalPDU.ThreadNum = 0;
@@ -23625,18 +23662,21 @@ main ( int	argc, char	*argv[] )
 			}
                 lua_setglobal (globalPDU.L, "arg");
 		do_lua(&(globalPDU.L), cmd, &sd);
-  		if (sd.DDO) delete sd.DDO;
+		LeaveCriticalSection(&dolua_critical);
+  		// if (sd.DDO) delete sd.DDO;
   		if (sd.rc==2 || sd.rc==6) exit(1); // reject on startup
 		}
 
   	char cmd[1024];
 	MyGetPrivateProfileString("lua", "startup", "", cmd, 1024, ConfigFile);
+	EnterCriticalSection(&dolua_critical);
         globalPDU.SetLocalAddress ( (BYTE *)"global" );
         globalPDU.SetRemoteAddress ( (BYTE *)"global" );
 	globalPDU.ThreadNum = 0;
         struct scriptdata sd = {&globalPDU, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, 0, 0};
 	if (cmd[0]) do_lua(&(globalPDU.L), cmd, &sd);
-	if (sd.DDO) delete sd.DDO;
+	LeaveCriticalSection(&dolua_critical);
+	// if (sd.DDO) delete sd.DDO;
 	if (sd.rc==2 || sd.rc==6) exit(1); // reject on startup
 
 #ifdef UNIX
@@ -24584,7 +24624,7 @@ static void DgateCgi(char *query_string, char *ext, char *argv0)
   if (buf[0]) strcpy(AnyPage, buf);
 
   strcpy(AnyPageExceptions, ",");
-  MyGetPrivateProfileString ( "AnyPage", "exceptions", "", AnyPageExceptions+1, 255, ConfigFile);
+  MyGetPrivateProfileString ( "AnyPage", "exceptions", "", AnyPageExceptions+1, 511, ConfigFile);
   strcat(AnyPageExceptions, ",");
 
   MyGetPrivateProfileString ( "webdefaults", "port", (char *)Port, (char*)Port,       256, ConfigFile);

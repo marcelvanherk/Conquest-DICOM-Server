@@ -19,6 +19,8 @@
 20121214        mvh     Set l_onoff to 0 (3x) to fix connection with some dicom systems
 20130429        lsp     Removed unused FarProc
 20140528        lsp     Kept member initialization only in constructors: not GNUC specific
+20200617        mvh     Replaced UNIX version of SendBinary with luasocket inspired waiting code
+20200618        mvh     Made send() timeout ~20s by increasingly longer nanosleep
 */
 
 /****************************************************************************
@@ -507,6 +509,7 @@ BOOL	Socket	::	Poll(void)
 	return (select(Socketfd + 1, &fds, NULL, NULL, &tv)==1);
 	}
 
+#ifdef	WINDOWS
 BOOL		Socket	::	SendBinary(BYTE *s, UINT	count)
 	{
 	if ( !Connected)
@@ -518,6 +521,38 @@ BOOL		Socket	::	SendBinary(BYTE *s, UINT	count)
 		}
 	return ( TRUE );
 	}
+#else
+BOOL		Socket	::	SendBinary(BYTE *s, UINT	count)
+	{
+        struct timespec t;
+	if ( !Connected)
+		return ( 0 );
+		
+        t.tv_sec =0;
+        t.tv_nsec=1000000;
+
+	for (int i=1; i<200; i++)
+		{
+		long put = send ( Socketfd, (char *) s, count, 0);
+		if (put>0)
+			{
+			return TRUE;
+			}
+		int err = errno;
+		/* send can't really return 0, but EPIPE means the connection was closed */
+		if (put == 0 || err == EPIPE) return FALSE;
+		/* the call was interrupted, just try again */
+		if (err == EINTR) continue;
+		/* if failed fatal reason, report error */
+		if (err != EAGAIN) return FALSE;
+		/* wait until we can send something or we timeout */
+                nanosleep(&t, NULL);
+                t.tv_nsec+=1000000;
+		}
+
+	return ( FALSE );
+	}
+#endif
 	
 INT	Socket	::	ReadBinary(BYTE *s, UINT	count)
 	{

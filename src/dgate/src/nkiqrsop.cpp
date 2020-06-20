@@ -265,6 +265,7 @@
 20201022	mvh	Added DCO to CallImportConverterN calls; read split and slicelimit below QueryMoveScript
 20201025	mvh	Print reduced number of images actually sent
 20200202	mvh	Fix intermittent failure of atof(pVR->Data) when Data is e.g. " 1", it reads beyond the array
+20200528        mvh     Fixed Pivoglot reported use of GetAtoi instead of GetUINT16 to read bitsperpixel
 */
 
 //#define bool BOOL
@@ -4356,7 +4357,7 @@ CompressJPEGImage(DICOMDataObject **pDDO, int lFileCompressMode, int *ActualMode
 	pVR = (*pDDO)->GetVR(0x0028, 0x0100);
 	if (pVR) 
 		{
-			if (pVR->Length>=2 && pVR->Getatoi() < 8)
+			if (pVR->Length>=2 && pVR->GetUINT16() < 8)
 			{
 			SystemDebug.printf("[CompressJPEGImage]: JPEG compression skipped for <8 bits data\n");
 	        	return FALSE;

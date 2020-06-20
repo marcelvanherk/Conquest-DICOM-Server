@@ -42,7 +42,7 @@ C:\ProgramData\VMware\vmnetnat.conf
 8889 = 192.168.116.128:22
 Stop and Start VMware NAT service
 
-wget http://ingenium.home.xs4all.nl/dicomserver/dicomserver150beta3.zip
+wget http://ingenium.home.xs4all.nl/dicomserver/dicomserver150a.zip
 mkdir conquest
 cd conquest
 unzip ../dicomserver150beta3.zip

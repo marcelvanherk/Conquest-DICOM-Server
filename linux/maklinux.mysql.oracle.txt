@@ -1,0 +1,174 @@
+#!/bin/bash
+# mvh 20160425 for 1.4.19beta
+# mvh 20160516 use ln -s for shared server/webserver configs
+# mvh 20161117 back to cp, added chmod for src/dgate/jpeg-6c/configure 
+# mvh 20161122 Fixed order of newweb copy 
+# mvh 20170211 Fix include paths in mysql option 
+# mvh 20170504 Set rights for web folder; document mariadb lib link (but commented out)
+# mvh 20181117 Added luasocket to compile
+# mvh 20181125 make /usr/local/man.man1, add luasocket to mysql compile
+# mvh 20200109 Fixed to linux line endings
+# mvh 20200215 Config for external lua5.1 library (see LUA=)
+# mvh 20200216 No overwite dicom.ini/acrnema.map; external luasocket
+# mvh 20200226 Check lua.o etc exist before rm
+# mvh 20200304 Added precompiled option, also create .exe in web;
+# mvh 20200308 Write temp folder and conquest folders where needed;
+# mvh 20200310 Do overwrite dicom.ini, but make backup first
+# mvh 20200311 Lost mariadb change, use mariadb and mysql include folders for ubuntu14 compatibility
+
+export CONQUEST=$(pwd)
+export CONQUESTTEMP=$CONQUEST/temp
+[ ! -d $CONQUESTTEMP ] && mkdir $CONQUESTTEMP
+chmod 777 $CONQUESTTEMP
+export IP=$(hostname -I | xargs)
+
+SRC=./src/dgate;
+CONF=./linux/conf;
+LINUX=./linux;
+LUA="$SRC/lua.o $SRC/luasocket/luasocket.a";
+#LUA=-llua5.1;
+#LUA="-llua5.1 $SRC/luasocket/luasocket.a";
+FLAGS="-std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings -Wno-multichar -Wno-format-overflow -Wno-deprecated-declarations";
+INCS="-I$SRC/dicomlib -ljpeg -lpthread -ldl -I$SRC/src -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls";
+OBS="$SRC/charls.o $SRC/openjpeg.o";
+
+sudo mkdir -p /usr/local/man/man1
+chmod 777 src/dgate/jpeg-6c/configure
+cd src/dgate/jpeg-6c
+./configure
+make
+echo Please ignore the errors below
+sudo make install
+echo Please ignore the errors above
+cd ../../..
+
+chmod 777 src/dgate/luasocket/amake.sh;
+cd src/dgate/luasocket;
+./amake.sh;
+cd ../../..
+
+echo "Please choose DB type";
+
+options=("mysql" "postgres" "sqlite" "dbase" "precompiled" "Quit")
+select opt in "${options[@]}"
+do
+    case $opt in
+        "mysql")
+			cd /usr/lib
+			ln -s /usr/lib64/mysql .
+			cd $CONQUEST
+			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
+			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
+			g++ $FLAGS -DUSEMYSQL $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I/usr/include/mysql -L/usr/lib/mysql -lmysqlclient;
+			break;
+			;;
+        "postgres")
+			export LD_LIBRARY_PATH="/usr/include/postgresql/";
+#			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
+			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
+			g++ $FLAGS -DPOSTGRES $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I/usr/include/postgresql/ -L/usr/local/pgsql/lib -lpq;
+			break;
+			;;
+        "sqlite")
+#			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+			gcc -c -DTHREADSAFE=1 -DHAVE_USLEEP $SRC/sqlite3/sqlite3.c -I$SRC/sqlite3 -o $SRC/sqlite3.o;
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
+			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
+			g++ $FLAGS -DUSESQLITE $SRC/sqlite3.o $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I$SRC/sqlite3;
+			rm $SRC/sqlite3.o;
+			break;
+			;;
+
+        "precompiled")
+	                cp linux/dgate dgate;
+	                cp linux/dgate install/dgatesmall;
+			chmod 777 dgate;
+			chmod 777 install/dgatesmall;
+			break;
+			;;
+
+	"dbase")
+#			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
+			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
+			g++ $FLAGS $OBS -o dgate $SRC/src/total.cpp $LUA $INCS;
+			break;	
+			;;
+
+        "Quit")
+            break
+            ;;
+        *) echo invalid option;;
+    esac
+done
+
+if [ $opt != "Quit" ] 
+then
+
+	[ -f $SRC/lua.o ] && rm $SRC/lua.o;
+	[ -f $SRC/charls.o ] && rm $SRC/charls.o;
+	[ -f $SRC/openjpeg.o ] && rm $SRC/openjpeg.o;
+
+	pkill -9 dgate;
+	sleep 0.2s;
+
+	[ -f dicom.ini ] && cp dicom.ini dicom.ini.bak
+	envsubst < $CONF/dicom.ini.$opt > dicom.ini;
+	cp $CONF/dicom.sql.$opt dicom.sql;
+
+	[ ! -f acrnema.map ] && cp $LINUX/acrnema.map acrnema.map;
+	cp $LINUX/dgatesop.lst dgatesop.lst;
+
+	sudo cp ./dgate /usr/lib/cgi-bin/dgate ;
+	sudo cp ./dgate /usr/lib/cgi-bin/dgate.exe ;
+	sudo cp ./dicom.sql /usr/lib/cgi-bin/dicom.sql ;
+	sudo cp ./acrnema.map /usr/lib/cgi-bin/acrnema.map ;
+
+	[ ! -d /usr/lib/cgi-bin ] && sudo mkdir -p /usr/lib/cgi-bin ;
+	sudo chmod 777 /usr/lib/cgi-bin ;
+
+	sudo cp -r ./webserver/cgi-bin/* /usr/lib/cgi-bin;
+	sudo cp -r ./webserver/cgi-bin/.lua /usr/lib/cgi-bin;
+	sudo cp -r ./webserver/cgi-bin/.lua.linux /usr/lib/cgi-bin;
+	envsubst < ./webserver/cgi-bin/dicom.ini.linux > t.t;
+	sudo cp t.t /usr/lib/cgi-bin/dicom.ini;
+	envsubst < ./webserver/cgi-bin/newweb/dicom.ini.linux > t.t;
+	sudo cp t.t /usr/lib/cgi-bin/newweb/dicom.ini;
+	sudo cp /usr/lib/cgi-bin/.lua.linux /usr/lib/cgi-bin/.lua;
+	rm t.t
+
+	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate ;
+	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate.exe ;
+	
+	sudo cp -r ./webserver/htdocs/* /var/www;
+	sudo cp -r ./webserver/htdocs/* /var/www/html;
+	
+	[ ! -d data/dbase ] && mkdir data/dbase
+	
+	chmod 777 console.sh
+	chmod 777 webviewer.sh	
+	chmod 777 install/linux.sh
+	
+	read -p "Regenerate the database?" -r
+	echo $REPLY
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		./dgate -v -r
+	fi
+
+	envsubst <conquest.service >t.t
+	read -p "Install as service?" -r
+	echo $REPLY
+	if [[ $REPLY =~ ^[Yy]$ ]]
+	then
+		sudo systemctl stop conquest.service
+		sudo cp t.t /etc/systemd/system/conquest.service
+		sudo systemctl daemon-reload
+		sudo systemctl start conquest.service
+		sudo systemctl enable conquest.service
+		sudo systemctl status conquest.service
+	fi
+	rm t.t
+fi

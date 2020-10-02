@@ -666,6 +666,9 @@ When            Who     What
 20200204        mvh     Small fix in that for newweb
 20200311        mvh     Version to 1.5.0beta4
 20200314        mvh     Version to 1.5.0; jpeg support renamed and default ON during install
+20200704        mvh     Version to 1.5.0a; Fix case of database table names
+20201002        mvh     Version to 1.5.0b; Fix DiskFreeGB()*1024
+                        Fix ALTER TABLE UIDMODS syntax; comparison in find local missing was reversed
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -701,8 +704,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0';
-const BUILDDATE = '20200314';
+const VERSION = '1.5.0b';
+const BUILDDATE = '20201002';
 const testmode = 0;
 
 {************************************************************************}
@@ -5354,7 +5357,7 @@ begin
 
   // Update UIDMODS table from 1.4.17 format to 1.4.19 format if needed
   if NewInstallDone then
-    ServerTask('', 'lua:local a=dbquery("UIDMODS", "Stage", "Stage=1"); if a==nil then sql("ALTER TABLE UIDMODS ADD COLUMN Stage varchar(32)"); sql("ALTER TABLE UIDMODS ADD COLUMN Annotation varchar(64)"); print("updated UIDMODS table"); end');
+    ServerTask('', 'lua:local a=dbquery("UIDMODS", "Stage", "Stage=1"); if a==nil then sql("ALTER TABLE UIDMODS ADD Stage varchar(32)"); sql("ALTER TABLE UIDMODS ADD COLUMN Annotation varchar(64)"); print("updated UIDMODS table"); end');
   NewInstall := false;
   TestLocalServer(false, false);
 end;
@@ -5874,12 +5877,12 @@ begin
 
     if FileExists(curdir + '\USEDBASEIIIWITHOUTODBC') then
       ServerTask('',
-      'todbf:'+dbdir+'\|DicomPatients|PatientID LIKE '+'''%'+ComboBox1.Text+'%''|'+PatSort)
+      'todbf:'+dbdir+'\|DICOMPatients|PatientID LIKE '+'''%'+ComboBox1.Text+'%''|'+PatSort)
     else
       ServerTask('',
-      'todbf:'+dbdir+'\|DicomPatients|PatientID LIKE '+'''%'+ComboBox1.Text+'%'' OR PatientNam LIKE '+'''%'+ComboBox1.Text+'%''|'+PatSort);
+      'todbf:'+dbdir+'\|DICOMPatients|PatientID LIKE '+'''%'+ComboBox1.Text+'%'' OR PatientNam LIKE '+'''%'+ComboBox1.Text+'%''|'+PatSort);
 
-    MDBFTable1.FileName := dbdir+'\DicomPatients.DBF';
+    MDBFTable1.FileName := dbdir+'\DICOMPatients.DBF';
     WaitForFile(MDBFTable1.FileName, 1);
     if FileExists(MDBFTable1.FileName) then
     begin
@@ -5894,8 +5897,8 @@ begin
     Table1.Close;
 
     ServerTask('',
-      'todbf:'+dbdir+'\|DicomPatients||'+PatSort+'|10000');
-    MDBFTable1.FileName := dbdir+'\DicomPatients.DBF';
+      'todbf:'+dbdir+'\|DICOMPatients||'+PatSort+'|10000');
+    MDBFTable1.FileName := dbdir+'\DICOMPatients.DBF';
     WaitForFile(MDBFTable1.FileName, 1);
     if FileExists(MDBFTable1.FileName) then
     begin
@@ -6247,8 +6250,8 @@ begin
   p := Table1.FieldByName('PATIENTID').AsString;
   q := Table3.FieldByName('SERIESINST').AsString;
   ServerTask('',
-  'todbf:'+dbdir+'\|DicomImages|ImagePat = ''' + processfilter(p) + ''' and SeriesInst = ''' + processfilter(q) + '''|'+ImageSort);
-  MDBFTable4.FileName := dbdir+'\DicomImages.DBF';
+  'todbf:'+dbdir+'\|DICOMImages|ImagePat = ''' + processfilter(p) + ''' and SeriesInst = ''' + processfilter(q) + '''|'+ImageSort);
+  MDBFTable4.FileName := dbdir+'\DICOMImages.DBF';
   WaitForFile(MDBFTable4.FileName, 1);
   if FileExists(MDBFTable4.FileName) then
   begin
@@ -6293,8 +6296,8 @@ begin
   Table4.Close;
   p := Table1.FieldByName('PATIENTID').AsString;
   ServerTask('',
-  'todbf:'+dbdir+'\|DicomStudies|PatientID = ''' + processfilter(p) + '''|'+StudySort);
-  MDBFTable2.FileName := dbdir+'\DicomStudies.DBF';
+  'todbf:'+dbdir+'\|DICOMStudies|PatientID = ''' + processfilter(p) + '''|'+StudySort);
+  MDBFTable2.FileName := dbdir+'\DICOMStudies.DBF';
   WaitForFile(MDBFTable2.FileName, 1);
   if FileExists(MDBFTable2.FileName) then
   begin
@@ -6367,8 +6370,8 @@ begin
   p := Table1.FieldByName('PATIENTID').AsString;
   q := Table2.FieldByName('STUDYINSTA').AsString;
   ServerTask('',
-  'todbf:'+dbdir+'\|DicomSeries|SeriesPat = ''' + processfilter(p) + '''  and StudyInsta = ''' + processfilter(q) + '''|'+SeriesSort);
-  MDBFTable3.FileName := dbdir+'\DicomSeries.DBF';
+  'todbf:'+dbdir+'\|DICOMSeries|SeriesPat = ''' + processfilter(p) + '''  and StudyInsta = ''' + processfilter(q) + '''|'+SeriesSort);
+  MDBFTable3.FileName := dbdir+'\DICOMSeries.DBF';
   WaitForFile(MDBFTable3.FileName, 1);
   if FileExists(MDBFTable3.FileName) then
   begin
@@ -8498,14 +8501,16 @@ begin
   'local r2 = dicomquery(remoteae, "IMAGE", q2);' +
   'if r2==nil then f:write("\nno connection with "..remoteae.."\n") returnfile=s f:close() return end; ' +
   'local sops = {}; '+
-  'for i=0, #r1-1 do sops[r1[i].SOPInstanceUID]=r1[i].PatientID end; '+
-  'for i=0, #r2-1 do sops[r2[i].SOPInstanceUID]=nil end; '+
+  'for i=0, #r2-1 do sops[r2[i].SOPInstanceUID]=r2[i].PatientID end; '+
+  'for i=0, #r1-1 do sops[r1[i].SOPInstanceUID]=nil end; '+
   'local pats = {}; for k,v in pairs(sops) do pats[v] = (pats[v] or 0) + 1 end; '+
   'for k,v in pairs(pats) do f:write(k .. ",") end; f:write("\n"); ' +
-  'f:write("images in "..localae .. " = " .. #r1 .. "\n"); ' +
-  'f:write("images in "..remoteae .. " = " .. #r2 .. "\n"); ' +
+  'f:write("images in "..localae  .. " (local) = " .. #r1 .. "\n"); ' +
+  'f:write("images in "..remoteae .. " (remote) = " .. #r2 .. "\n\n"); ' +
   'local total=0; for k,v in pairs(pats) do total=total+v; f:write(k .. " misses " .. v .. " images\n") end; ' +
-  'f:write("total missing image = " .. total .. "\n"); ' +
+  'f:write("\n"); ' +
+  'f:write("total missing images = " .. total .. "\n"); ' +
+  'f:write("Select "..localae.." as destination and press copy to collect them!\n"); ' +
   'returnfile=s f:close();' +
   '';
   ServerTask('#query.txt','lua:'+code);
@@ -10028,13 +10033,13 @@ begin
   if (copy(t, 1, length('02:00'))='02:00')
       and (StrToIntDef(trim(EditNightlyMoveTreshold.text), 0)<>0)
       and ComboBoxMoveTarget.Enabled
-      and (DiskFreeGB(Label10.Caption[1])/1024 < StrToIntDef(trim(EditNightlyMoveTreshold.text), 0)) then
+      and (DiskFreeGB(Label10.Caption[1])*1024 < StrToIntDef(trim(EditNightlyMoveTreshold.text), 0)) then
   begin
     if not MoveTriggered then
     begin
       MoveTriggered := true;
 
-      mb := StrToIntDef(trim(EditNightlyMoveTreshold.text), 0) - DiskFreeGB(Label10.Caption[1]) div 1024;
+      mb := StrToIntDef(trim(EditNightlyMoveTreshold.text), 0) - DiskFreeGB(Label10.Caption[1]) * 1024;
 
       WriteMemo(MaintenanceMemo, 'Making space at night by moving LRU patients to: ' + ComboBoxMoveTarget.Text, 100, 200, 'maintenance');
       WriteMemo(MaintenanceMemo, 'Amount of MB to move: ' + IntToStr(mb), 100, 200, 'maintenance');
@@ -10191,7 +10196,7 @@ begin
     exit;
   end;
 
-  if (DiskFreeGB(Label10.Caption[1])/1024 > BurnThreshold) and not ForceArchival then
+  if (DiskFreeGB(Label10.Caption[1])*1024 > BurnThreshold) and not ForceArchival then
   begin
     ArchiveStatus := '&Enough space on drive: ' +
                      IntToStr(DiskFreeGB(Label10.Caption[1])) + ' GB';

@@ -2,6 +2,7 @@
 // 20160313	mvh	protected against missing modifier.lua
 // 20161120     mvh     test syntax for DBASEIII now limited in functionality
 //                      to avoid it starting new database indexing
+// 20201002     mvh     Quote command line to allow patient ID with spaces
 
 unit ModifyDicom;
 
@@ -89,12 +90,12 @@ begin
   MemoScript.Lines.SaveToFile('modifier.lua');
   if FileExists(curdir + '\USEDBASEIIIWITHOUTODBC') then
   begin
-    RunProgramWaiting(dgateExe, CurDir, ['-lmodifier.log', '--lua:readdicom('''+Form1.Table1.Fields[0].AsString+':'+Form1.Table4.Fields[0].AsString+''');dofile(''modifier.lua'')']);
+    RunProgramWaiting(dgateExe, CurDir, ['-lmodifier.log', '"--lua:readdicom('''+Form1.Table1.Fields[0].AsString+':'+Form1.Table4.Fields[0].AsString+''');dofile(''modifier.lua'')"']);
     ShowMessage('Output is displayed in server status window');
   end
   else
   begin
-    RunProgramWaiting(dgateExe, CurDir, ['-lmodifier.log', '--dolua:readdicom('''+Form1.Table1.Fields[0].AsString+':'+Form1.Table4.Fields[0].AsString+''');dofile(''modifier.lua'')']);
+    RunProgramWaiting(dgateExe, CurDir, ['-lmodifier.log', '"--dolua:readdicom('''+Form1.Table1.Fields[0].AsString+':'+Form1.Table4.Fields[0].AsString+''');dofile(''modifier.lua'')"']);
     Log := TStringlist.Create;
     if FileExists('modifier.log') then
     begin

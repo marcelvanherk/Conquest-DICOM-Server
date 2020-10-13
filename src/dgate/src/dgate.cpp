@@ -1149,11 +1149,15 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			Also added critical section for nightly, background and dgate.lua
 20200528        mvh	Version to 1.5.0a; changed truncation of AnyPageExceptions from 255 to 511
                         Use single DB per folder in LoadAndDeleteDir
+20200704        mvh	Added missing command to submit2 importconverter; added command [xxx] to imp/exp
+20200704        mvh	Renamed dogloballua to globallua; added to dgate -?
+20200722        mvh	Version to 1.5.0b
+20201012        mvh	Fixed initialization of HL7 parser, and allow Unix EOL
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0a"
+#define DGATE_VERSION "1.5.0b"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -5957,6 +5961,10 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
           { seriesdesc = p+9; 
             p = strchr(p+9, ' '); 
           }
+          else if (memicmp(p, "command [", 9)==0) // for submit2 only
+          { seriesdesc = p+9; 
+            p = strchr(p+9, ']'); 
+          }
           else if (memicmp(p, "command ", 8)==0) // for submit2 only
           { seriesdesc = p+8; 
             p = strchr(p+8, ' '); 
@@ -10141,6 +10149,14 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
         { seriesdesc = p+9; 
           p = strchr(p+9, ' '); 
         }
+        else if (memicmp(p, "command [", 9)==0) // for submit2 only
+        { seriesdesc = p+9; 
+          p = strchr(p+9, ']'); 
+        }
+        else if (memicmp(p, "command ", 8)==0) // for submit2 only
+        { seriesdesc = p+8; 
+          p = strchr(p+8, ' '); 
+        }
         else if (memicmp(p, "script \"", 8)==0) 
         { if (p[strlen(p)-1]=='"') p[strlen(p)-1]=0;
 	  script = p+8; 			// must be last parameter
@@ -12809,6 +12825,7 @@ PrintOptions ()
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Scripting options:\n");
 	fprintf(stderr, "    --lua:chunk                         Run lua chunk in server, wait to finish\n" );
+	fprintf(stderr, "    --globallua:chunk                   Run lua chunk in main thread in server\n" );
 	fprintf(stderr, "    --luastart:chunk                    Run lua chunk in server, retn immediate\n" );
 	fprintf(stderr, "    --dolua:chunk                       Run lua chunk in this dgate instance\n" );
 	fprintf(stderr, "    --dolua:filename                    Run lua file in this dgate instance\n" );
@@ -20206,11 +20223,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (sd.DDO) delete sd.DDO;
 		}
 
-	if (memcmp(SilentText, "dogloballua:", 12)==0)		////// Note: not used by dgate --dolua: at all, for use in servercommand only
+	if (memcmp(SilentText, "globallua:", 10)==0)		////// Note: not used by dgate --dolua: at all, for use in servercommand only
 		{					// Runs in global context so keeps data over instances
 		EnterCriticalSection(&dolua_critical);
 		struct scriptdata sd = {&globalPDU, &DCO, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, ConnectedIP};
-		p = (char *)do_lua(&(globalPDU.L), SilentText+12, &sd);
+		p = (char *)do_lua(&(globalPDU.L), SilentText+10, &sd);
 		if (p) strcpy(Response, p);
 		LeaveCriticalSection(&dolua_critical);
 		}
@@ -26580,7 +26597,7 @@ static char HL7DateTimeTypes[]=
 
 void parseHL7(char **p, char *data, char *type, char *tmp, char *HL7FieldSep, char *HL7SubFieldSep, char *HL7RepeatSep)
 { int field;
-  char *q;
+  char *q, *r;
   char t[32];
   unsigned int i, dots=0;
 
@@ -26642,6 +26659,11 @@ void parseHL7(char **p, char *data, char *type, char *tmp, char *HL7FieldSep, ch
     if (**p==0x0a) (*p)+=1;
     if (strncmp(*p, "MSH", 3)==0) strcpy(type, "EOM");					// peek ahead for end of message
   }
+  else if (**p==0x0a)
+  { strcpy(type, "EOS"); strcpy(data, ""); (*p)+=1;					// end of segment
+    if (**p==0x0d) (*p)+=1;
+    if (strncmp(*p, "MSH", 3)==0) strcpy(type, "EOM");					// peek ahead for end of message
+  }
   else if (strcmp(type, "EOS")==0 || strcmp(type, "EOM")==0 || strcmp(type, "")==0)	// new segment
   { field = 0;
     if (strncmp(*p, "MSH", 3)==0)
@@ -26678,10 +26700,13 @@ void parseHL7(char **p, char *data, char *type, char *tmp, char *HL7FieldSep, ch
     }
     else
     { q = strchr(*p, 0x0d);								// or 0x0d
-      if (q)
-      { *q = 0;
+      r = strchr(*p, 0x0a);								// or 0x0a
+      if (q || r)
+      { if (q) *q = 0;
+        if (r) *r = 0;
         strncpy(data, *p, 255);
         data[255]=0;
+        if (r>q) q=r;
         *q = 0x0d;
         *p = q;										// process 0x0d again
       }
@@ -26712,10 +26737,10 @@ void ProcessHL7Data(char *data)
     return;
   }
 
-  fields[0]=0;
-  values[0]=0;
-  type[0]=0;	// used for context of parser
-  tmp[0]=0;
+  memset(fields, 0, sizeof(fields));
+  memset(values, 0, sizeof(values));
+  memset(type, 0, sizeof(type));	// used for context of parser
+  memset(tmp, 0, sizeof(type));
 
   while (TRUE)
   { parseHL7(&p, item, type, tmp, &HL7FieldSep, &HL7SubFieldSep, &HL7RepeatSep);

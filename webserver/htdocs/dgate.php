@@ -15,6 +15,7 @@
 // 202001023  mvh  Added SCRIPT_FILENAME variable
 // 202001024  mvh  Working on passing POST (problem: popen does not work in binary mode, now translate to equivalent GET)
 // 202001025  mvh  Make sure variables in called lua code are define local and do not clash with globals
+// 202001025  mvh  Fixed SCRIPT_NAME
 
 $folder = "c:\\dicomserver\\webserver\\cgi-bin\\newweb";
 $exe = "dgate.exe";
@@ -73,7 +74,7 @@ if(!empty($_SERVER["CONTENT_LENGTH"])) {
 }
 
 // pass parameters to cgi application
-putenv("SCRIPT_NAME=".$_SERVER["SCRIPT_FILENAME"]);
+putenv("SCRIPT_NAME=".$_SERVER["SCRIPT_NAME"]);
 putenv("SCRIPT_FILENAME=".$_SERVER["SCRIPT_FILENAME"]);
 putenv("QUERY_STRING=".http_build_query($output));
 

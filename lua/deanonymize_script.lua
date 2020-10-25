@@ -13,6 +13,7 @@
 -- 20200302     mvh     Fix DirSep for linux, add Global.basedir
 -- 20200308     mvh     Used wrong quotes in stage * code; postgresql tripped over it
 --			case of UIDMODS; mariadb tripped over it
+-- 20201003     mvh     Fix crash when trying to deanonymize birthdate, name and sex if not there
 -- =============================================================================
 
 --[[ To test; r-click evaluate in console after project-run:
@@ -83,20 +84,26 @@ end
 
 if true then
   local s= changeuidback(pre..'.bd.'..Data.PatientBirthDate, command_line)
-  Data.PatientBirthDate = string.sub(s, string.find(s, '%.', -10)+1);
-  f:write('Restored patient birthdate to: ', tostring(Data.PatientBirthDate), "\n");
+  if s then
+    Data.PatientBirthDate = string.sub(s, string.find(s, '%.', -10)+1);
+    f:write('Restored patient birthdate to: ', tostring(Data.PatientBirthDate), "\n");
+  end
 end
 
 if Data.PatientName~='' then
   local s = changeuidback(Data.PatientName, command_line)
-  Data.PatientName = s;
-  f:write('DeAnonymized PatientName to: ', Data.PatientName, "\n")
+  if s then 
+    Data.PatientName = s;
+    f:write('DeAnonymized PatientName to: ', Data.PatientName, "\n")
+  end
 end
 
 if (Data.PatientSex=='') then
   local s = changeuidback(pre .. '.ps.' .. Data.PatientSex, command_line)
-  Data.PatientSex = string.sub(s, string.find(s, '%.', -3)+1);
-  f:write('Restored patient sex to: ', tostring(Data.PatientSex), "\n");
+  if s then
+    Data.PatientSex = string.sub(s, string.find(s, '%.', -3)+1);
+    f:write('Restored patient sex to: ', tostring(Data.PatientSex), "\n");
+  end
 end
 
 f:close();

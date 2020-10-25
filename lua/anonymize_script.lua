@@ -20,6 +20,7 @@
 -- 20180917  mvh+aba+gp Take 0x9999,0x1234 as anomymized ID
 -- 20181110     mvh     Change directory separator for Linux to /, apply BaseDir and assert(open)
 -- 20200202     mvh     Allow . in stage
+-- 20201021   mvh+aza   Consider removing 0040,2017 = FillerOrderNumberImagingServiceRequest
 
 -- =============================================================================
 

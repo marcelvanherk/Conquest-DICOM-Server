@@ -6,6 +6,7 @@
 -- 20190112   mvh   Use | to separate items to help with special characters in patientID
 -- 20200127   mvh   List ImageID instead of PatientName; fix sort if no InstanceNumber
 -- 20200307   mvh   Avoid query with '***'
+-- 20201025   mvh   Standardised header
 
 local query_pid = '';
 local query_pna = '';
@@ -206,8 +207,6 @@ table.altrowstable Caption {
     background: green;
 }
 </style>
-</head> 
-<body BGCOLOR='CFDFCF'>
 ]]
 )
 
@@ -274,7 +273,9 @@ function dropdown(i, item)
 ]], i, i, i, i, item, i)
 end
 
-HTML("<H1>Welcome to the Conquest DICOM server - version %s</H1>", version)
+HTML("</head>");
+HTML("<body BGCOLOR='CFDFCF'>");
+HTML("<H1>Welcome to Conquest DICOM server - version %s</H1>", version)
 
 local pats=queryimagem_remote() 
 --table.sort(pats, function(a,b) return a.SOPInstanceUID<b.SOPInstanceUID end)

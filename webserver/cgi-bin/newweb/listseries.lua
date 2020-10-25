@@ -9,6 +9,7 @@
 -- 20181230   mvh   Removed dicomquery, only kept remotequery
 -- 20190112   mvh   Use | to separate items to help with special characters in patientID
 -- 20200307   mvh   Avoid query with '***'
+-- 20201025   mvh   Standardised header
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -223,7 +224,7 @@ function dropdown(i, item)
 ]], i, i, i, i, item, i)
 end
 
-HTML("<H1>Welcome to the Conquest DICOM server - version %s</H1>", version)
+HTML("<H1>Welcome to Conquest DICOM server - version %s</H1>", version)
 
 local pats=queryserie_remote() 
 

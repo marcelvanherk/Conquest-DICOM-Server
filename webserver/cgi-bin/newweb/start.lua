@@ -24,7 +24,17 @@
 -- mvh 20200407: Added images target to updater
 -- mvh 20200505: Added uploadtable command
 -- mvh 20200514: Adjusted uploadtable for linux; backup old versions
+-- mvh 20200914: Added downloadtable, requires JSON and csv
 -- note: first time upload of images gives error in line 188
+-- mvh 20200920: Downloadtable support .csv and .json files
+-- mvh 20200921: Made upload backup switchable; avoid flickering mkdir if possible
+-- mvh 20200922: Added uploadinfo; note uploadtable cannot handle big files
+-- mvh+evo 20200925: Fix updater
+-- mvh 20201003: Added uploadfile, uploads single file and runs any script; removed countcases
+-- mvh 20201004: tidied swupdate; pass inholland always as 'project'
+--               use Script(mkdir to avoid popups); removed use of c:\temp
+-- mvh 20201012: Added zip and zipanonymized to reduce footprint of inholland project
+-- mvh 20201024: Support _passfile_ to enable upload from php script; separate cgi-bin copy for web and dicom server
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -194,11 +204,7 @@ if CGI('parameter')=='test' then
   print(servercommand('get_param:MyACRNema'))
   return
 end
-if CGI('parameter')=='countcases' then
-  HTML('Content-type: application/json\n\n');
-  print(#remotedbquery("DICOMPatients","PatientID","PatientID like '".. CGI('study').."%'"))
-  return
-end
+
 if CGI('parameter')=='dbquery' then
   HTML('Content-type: application/json\n\n')
   local maxresult=tonumber(CGI('maxresults', '9999999'))
@@ -226,7 +232,9 @@ if CGI('parameter')=='dbquerysqldownload' then
     io.write([[insert into ]]..CGI('table')..[[ (]]..CGI('fields')..[[) value (']]..
       table.concat(v,[[',']]).."');\n");
   end
+  return
 end  
+
 if CGI('parameter')=='dicomquery' then
   HTML('Content-type: application/json\n\n')
   local r=remotequery(CGI('AE'),CGI('level'),CGI('query'),true)
@@ -239,112 +247,141 @@ if CGI('parameter')=='dicomqueryluaformat' then
   io.write(r)
   return
 end
+
 if CGI('parameter')=='dicommove' then
   HTML('Content-type: application/json\n\n')
   local r=remotemove(CGI('from'),CGI('to'),CGI('query'),CGI('xtra'))
   io.write('"'..(r or '')..'"')
   return
 end
+
 if CGI('parameter')=='sql' then
   HTML('Content-type: application/json\n\n')
   io.write(remotesql(CGI('query')))
   return
 end
+
 if CGI('parameter')=='servercommand' then
   HTML('Content-type: application/json\n\n')
   if not readOnly then io.write(servercommand(CGI('command'))) end
   return
 end
+
 if CGI('parameter')=='serverpage' then
   if not readOnly then io.write(servercommand(CGI('command'))) end
   return
 end
+
 if CGI('parameter')=='swupdate' then
   HTML('Content-type: application/json\n\n')
-  local fn, n, ds, web, cgi, target = '', '', '/'
-  fn = CGI('filename', 'x.x')
+  local n, ds, web, cgi = '', '/'
+  local fn = CGI('filename', 'x.x')
+  local project = CGI('project', 'inholland')
+  local n = servercommand('lua:return tempfile(".sw")')
+  if CGI('_passfile_', '')~='' then
+    n = CGI('_passfile_', '')
+  else
+    local f=io.open(n, 'wb')
+    f:write(CGI())
+    f:close()
+  end
   if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
-    n='c:\\temp\\'..fn
     ds = '\\'
     web = 'c:\\xampp\\htdocs\\'
     cgi = 'c:\\xampp\\cgi-bin\\'
   else
-    n=gpps('sscscp', 'tempdir', '/home/tmp')..ds..fn
     web = '/var/www/html/'
     cgi = '/usr/lib/cgi-bin/'
   end
-  local f=io.open(n, 'wb')
-  f:write(CGI())
-  f:close()
   local g = servercommand('lua:return Global.basedir')
-  project = CGI('project', 'inholland')
+  local target = ''
   
+  -- update existing files (can be copied to multiple locations, only one reported)
   -- Distribute file to one of these folders:
   -- try htdocs/project
-  -- try htdocs/js/project
+  -- try htdocs/project/js
+  -- try htdocs/project/images
   -- try cgi-bin/project
+  -- try cgi-bin/newweb
   -- try server/lua/project
   -- try server/lua
-  -- try server/src/dgate/src
-  -- remaining lua into server/lua
-  -- remaining wlua into server/lua
-  -- remaining html into htdocs/project
-  -- remaining js into htdocs/project/js
-    
   if fileexists(    g..'webserver'..ds..'htdocs'..ds..project..ds..fn)==true then 
     copyfile(n,     g..'webserver'..ds..'htdocs'..ds..project..ds..fn) 
     copyfile(n,                                  web..project..ds..fn) 
-    target = web..'inholland'..ds..fn
-  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn)==true then 
-    copyfile(n,     g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
-    copyfile(n,                                  web..project..ds..'js'..ds..fn) 
-    target = web..'inholland'..ds..'js'..ds..fn
-  elseif fileexists(g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn)==true then 
-    copyfile(n,     g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn) 
-    copyfile(n,                                  web..project..ds..'images'..ds..fn) 
-    target = web..'inholland'..ds..'images'..ds..fn
-  elseif fileexists(g..'webserver'..ds..'cgi-bin'..ds..project..ds..fn)==true then 
-    copyfile(n,     g..'webserver'..ds..'cgi-bin'..ds..project..ds..fn) 
-    copyfile(n,                                   cgi..project..ds..fn)
-    target = cgi..'newweb'..ds..fn
-  elseif fileexists(g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn)==true then 
-    copyfile(n,     g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn) 
-    copyfile(n,                                   cgi..'newweb'..ds..fn)
-    target = cgi..'newweb'..ds..fn
-  elseif fileexists(g..'lua'..ds..project..ds..fn)==true then 
-    copyfile(n,     g..'lua'..ds..project..ds..fn) 
-    target = g..'lua'..ds..fn
-  elseif fileexists(g..'lua'..ds..fn)==true then 
-    copyfile(n,     g..'lua'..ds..fn) 
-    target = g..'lua'..ds..fn
-  elseif fileexists(g..'src'..ds..'dgate'..ds..'src'..ds..fn)==true then 
-    copyfile(n,     g..'src'..ds..'dgate'..ds..'src'..ds..fn) 
-    target = g..'src'..ds..'dgate'..ds..'src'..ds..fn
-  elseif string.find(fn, '.lua') then 
-    copyfile(n, g..'lua'..ds..fn) 
-    target = g..'lua'..ds..fn
-  elseif string.find(fn, '.wlua') then 
-    copyfile(n, g..'lua'..ds..fn) 
-    target = g..'lua'..ds..fn
-  elseif string.find(fn, '.html') then 
-    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..fn) 
-    copyfile(n,                              web..project..ds..fn) 
-    target = web..'inholland'..ds..fn
-  elseif string.find(fn, '.js') then 
-    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
-    copyfile(n,                              cgi..project..ds..'js'..ds..fn) 
-    target = cgi..'inholland'..ds..'js'..ds..fn
-  elseif string.find(fn, '.css') then 
-    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
-    copyfile(n,                              cgi..project..ds..'js'..ds..fn) 
-    target = cgi..'inholland'..ds..'js'..ds..fn
-  elseif string.find(fn, '.png') then 
-    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn) 
-    copyfile(n,                              cgi..project..ds..'images'..ds..fn) 
-    target = cgi..'inholland'..ds..'images'..ds..fn
-  else
-    target = '** NOT FOUND **'
+    target =                                     web..project..ds..fn
   end
+  if fileexists(g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn)==true then 
+    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
+    copyfile(n,                              web..project..ds..'js'..ds..fn) 
+    target =                                 web..project..ds..'js'..ds..fn
+  end  
+  if fileexists(g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn)==true then 
+    copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn) 
+    copyfile(n,                              web..project..ds..'images'..ds..fn) 
+    target =                                 web..project..ds..'images'..ds..fn
+  end
+  if fileexists(g..'webserver'..ds..'cgi-bin'..ds..project..ds..fn)==true then 
+    copyfile(n, g..'webserver'..ds..'cgi-bin'..ds..project..ds..fn) 
+    target =    g..'webserver'..ds..'cgi-bin'..ds..project..ds..fn
+  end
+  if fileexists(g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn)==true then 
+    copyfile(n, g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn) 
+    target =    g..'webserver'..ds..'cgi-bin'..ds..'newweb'..ds..fn
+  end
+  if fileexists(cgi..project..ds..fn)==true then 
+    copyfile(n, cgi..project..ds..fn)
+    target =    cgi..project..ds..fn
+  end
+  if fileexists(cgi..'newweb'..ds..fn)==true then 
+    copyfile(n, cgi..'newweb'..ds..fn)
+    target =    cgi..'newweb'..ds..fn
+  end
+  if fileexists(g..'lua'..ds..project..ds..fn)==true then 
+    copyfile(n, g..'lua'..ds..project..ds..fn) 
+    target =    g..'lua'..ds..project..ds..fn
+  end
+  if fileexists(g..'lua'..ds..fn)==true then 
+    copyfile(n, g..'lua'..ds..fn) 
+    target =    g..'lua'..ds..fn
+  end
+
+  -- upload new files
+  -- remaining lua into server/lua
+  -- remaining wlua into server/lua
+  -- remaining html into htdocs/project
+  -- remaining css into htdocs/project/js
+  -- remaining js into htdocs/project/js
+  -- remaining jpg into htdocs/project/images
+  -- remaining png into htdocs/project/images
+  if target=='' then
+    if string.find(fn, '.lua') then
+      copyfile(n, g..'lua'..ds..fn) 
+      target =    g..'lua'..ds..fn
+    elseif string.find(fn, '.wlua') then 
+      copyfile(n, g..'lua'..ds..fn) 
+      target =    g..'lua'..ds..fn
+    elseif string.find(fn, '.html') then 
+      copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..fn) 
+      copyfile(n,                              web..project..ds..fn) 
+      target =                                 web..project..ds..fn
+    elseif string.find(fn, '.js') then 
+      copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
+      copyfile(n,                              web..project..ds..'js'..ds..fn) 
+      target =                                 web..project..ds..'js'..ds..fn
+    elseif string.find(fn, '.css') then 
+      copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn) 
+      target =    g..'webserver'..ds..'htdocs'..ds..project..ds..'js'..ds..fn
+    elseif string.find(fn, '.png') then 
+      copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn) 
+      target =    g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn
+    elseif string.find(fn, '.jpg') then 
+      copyfile(n, g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn) 
+      target =    g..'webserver'..ds..'htdocs'..ds..project..ds..'images'..ds..fn
+    else
+      target = '** NOT FOUND **'
+    end
+  end
+
   os.remove(n)
   if fileexists(target) then
     HTML('Update succeeded of\n\n'..fn..'\n\n--->\n\n'..target)
@@ -356,14 +393,20 @@ end
 
 if CGI('parameter')=='uploadsql' then
   local n=0
+  local fn = servercommand('lua:return tempfile(".pdf")')
+  if CGI('_passfile_', '')~='' then
+    fn = CGI('_passfile_', '')
+  else
+    local f=io.open(fn, 'wb')
+    f:write(CGI())
+    f:close()
+  end
   HTML('Content-type: application/json\n\n')
   if CGI('ref')~='' then
     servercommand("lua:sql([[delete from UIDMODS where Stage like '"..CGI('ref').."%']])")
     changeuid('') -- clear UID cache
   end
-  local s=CGI()
-  s = split(s, '\n')
-  for k,v in ipairs(s) do
+  for v in io.lines(fn) do
     n= n+tonumber(servercommand("lua:return sql([["..v.."]])") or 0)
   end
   print(n)
@@ -372,11 +415,7 @@ if CGI('parameter')=='uploadsql' then
   --[[
   local fn = CGI('filename', 'x.x')
   HTML('Content-type: application/json\n\n')
-  if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
-    n='c:\\temp\\'..fn
-  else
-    n=gpps('sscscp', 'tempdir', '/home/tmp')..'/'..fn
-  end
+  local n = servercommand('lua:return tempfile(".sql")')
   local f=io.open(n, 'wb')
   f:write(CGI())
   f:close()
@@ -387,17 +426,53 @@ if CGI('parameter')=='uploadsql' then
   ]]
 end
 
+if CGI('parameter')=='uploadinfo' then
+  local web
+  local ds='/'
+  local fn = servercommand('lua:return tempfile(".pdf")')
+  if CGI('_passfile_', '')~='' then
+    fn = CGI('_passfile_', '')
+  else
+    local f=io.open(fn, 'wb')
+    f:write(CGI())
+    f:close()
+  end
+
+  if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
+    ds = '\\'
+    web = 'c:\\xampp\\htdocs\\'
+  else
+    web = '/var/www/html/'
+  end
+  local project = CGI('project', 'inholland')
+  if not fileexists(web..project..ds.."info"..ds..CGI('filename')) then
+    servercommand("lua:DicomObject:new():Script([[mkdir "..web..project..ds.."info]])")
+  end
+  copyfile(fn, web..project..ds..'info'..ds..CGI('filename')) 
+  HTML('Content-type: application/json\n\n')
+  print(1)
+  return
+end
+
 if CGI('parameter')=='uploadtable' then
   local ds = '/'
   local g = servercommand('lua:return Global.basedir')
-  fn = CGI('filename', 'x.x')
+  local fn = servercommand('lua:return tempfile(".csv")')
+  if CGI('_passfile_', '')~='' then
+    fn = CGI('_passfile_', '')
+  else
+    local f=io.open(fn, 'wb')
+    f:write(CGI())
+    f:close()
+  end
   if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
     ds = '\\'
   end
   HTML('Content-type: application/json\n\n')
-  local s=CGI()
-  servercommand("lua:f=io.popen([[mkdir "..g.."tables]]) f:close()")
-  if fileexists(g.."tables"..ds..CGI('filename')) then
+  if not fileexists(g.."tables"..ds..CGI('filename')) then
+    servercommand("lua:DicomObject:new():Script([[mkdir "..g.."tables]])")
+  end
+  if CGI('backup')~='false' and fileexists(g.."tables"..ds..CGI('filename')) then
     for i=1,1000 do
       if not fileexists(g.."tables"..ds..CGI('filename')..'.'..i) then
         copyfile(g.."tables"..ds..CGI('filename'), g.."tables"..ds..CGI('filename')..'.'..i)
@@ -405,8 +480,78 @@ if CGI('parameter')=='uploadtable' then
       end
     end
   end
-  servercommand('lua:local s=[['..s..']]; f = io.open([['..g..'tables]]..[['..ds..CGI('filename', 'ignore')..']], [[wt]]); f:write(s); f:close()')
+  -- local s=CGI()
+  --servercommand('lua:local s=[['..s..']]; f = io.open([['..g..'tables]]..[['..ds..CGI('filename', 'ignore')..']], [[wt]]); f:write(s); f:close()')
+  copyfile(fn, g.."tables"..ds..CGI('filename')) 
   print(1)
+  return
+end
+
+if CGI('parameter')=='uploadfile' then
+  local fn = servercommand('lua:return tempfile(".tmp")')
+  if CGI('_passfile_', '')~='' then
+    fn = CGI('_passfile_', '')
+  else
+    local f=io.open(fn, 'wb')
+    f:write(CGI())
+    f:close()
+  end
+
+  local script = CGI('script', '')
+  HTML('Content-type: application/json\n\n')
+  print(servercommand('lua:local filename=[['..fn..']]\n'..script))
+  os.remove(fn);
+  print('"OK"')
+
+  return
+end
+
+if CGI('parameter')=='downloadtable' then
+  local JSON = require('json')
+  require('csv')
+  local ds = '/'
+  local g = servercommand('lua:return Global.basedir')
+  local fn = CGI('filename', 'x.x')
+  if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
+    ds = '\\'
+  end
+  HTML('Content-type: application/json\n\n')
+  if fileexists(g..'tables'..ds..fn) then
+    if string.find(fn, '.csv') or string.find(fn, '.CSV') then 
+      list = readCSV(g..'tables'..ds..fn) 
+      
+--      		if (UTF8ToDB && (*sin&128)) 
+--			{ 
+--			*sout++=0xc2+(*sin>0xbf);
+--			*sout++=(*sin&0x3f)+0x80;
+--			}
+
+    elseif string.find(fn, '.json') or string.find(fn, '.JSON') then 
+      local f = io.open(g..'tables'..ds..fn, 'r')
+      local s = f:read('*all')
+      f:close()
+      list = JSON:decode(s)
+    end 
+    print(JSON:encode(list))
+  else
+    print(0)
+  end
+  return
+end
+
+if CGI('parameter', '')=='zip' then
+  local items= split(CGI('item'), '|')
+  local script=string.format('%s,%s,%s,%s,cgi', items[1] or '', items[2] or '', items[3] or '', items[4] or '')
+    servercommand([[export:]]..script, 'cgibinary')
+  return
+end  
+
+if CGI('parameter', '')=='zipanonymized' then
+  local items= split(CGI('item'), '|')
+  local stage=''
+  if CGI('stage')~='' then stage = '|' .. CGI('stage') end
+  local script=string.format('%s,%s,%s,%s,cgi,lua/anonymize_script.lua(%s%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', CGI('newid'), stage)
+  servercommand([[export:]]..script, 'cgibinary')
   return
 end
 

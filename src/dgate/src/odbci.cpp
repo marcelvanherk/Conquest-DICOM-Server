@@ -178,6 +178,7 @@
 20181231   mvh    Reset bind type array when binding 1, avoids write into unbound variables
 20200119   mvh    Hardcode MYSQL_PORT to 3306
 20200314   mvh    Removed UNENCRYPTED clause for postgres
+20201020   mvh    Added SQL server 2627 as exception (duplicate index)
 */
 
 /*
@@ -3782,7 +3783,7 @@ int	Database :: SQLExecDirectWithRetry(SQLHSTMT StatementHandle, SQLCHAR *Statem
 	SQLError (hEnv, hDbc, hStmt, (BYTE*)State, &NativeError,
 		(BYTE*)Msg, 512, &MsgL);
 
-	if (GetNativeError()==2601) 
+	if (GetNativeError()==2601 || GetNativeError()==2627) 
 		 return SQL_SUCCESS_WITH_INFO;		// duplicate index -> ignore
 
 	if ((GetNativeError() != 1205) && (GetNativeError() != -1102))// deadlock -> retry

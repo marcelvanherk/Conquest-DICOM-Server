@@ -16,10 +16,12 @@
 // 202001024  mvh  Working on passing POST (problem: popen does not work in binary mode, now translate to equivalent GET)
 // 202001025  mvh  Make sure variables in called lua code are define local and do not clash with globals
 // 202001025  mvh  Fixed SCRIPT_NAME
+// 202001029  mvh  Added PUT, zip, delete temp file
+// 202001030  mvh  Protect unlink with file_exist
 
 $folder = "c:\\dicomserver\\webserver\\cgi-bin\\newweb";
 $exe = "dgate.exe";
-$userlogin = true;
+$userlogin = false;
 
 chdir($folder); 
 
@@ -42,7 +44,7 @@ if ($userlogin) {
 // redirect page to clear just posted login data (username and password)
 if (!empty($_POST['user_password'])) {
   unset($_POST);
-  header("Location: ".$_SERVER[REQUEST_URI]);
+  header("Location: ".$_SERVER['REQUEST_URI']);
   exit;
 }
 
@@ -52,24 +54,38 @@ if (array_key_exists("query", $t))
 else
   $output = ["mode" => "top"];
 
+
 // translate selected posts into a get (cannot pass binary data to popen)
 if(!empty($_SERVER["CONTENT_LENGTH"])) {
-  $fn = $_FILES['filetoupload']['tmp_name'];
-  if ($fn=='')
-    die("file failed to upload; check size limit 'post_max_size' in php.ini");
-  
-  $output = $_POST;
+
+  if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
+	  $d = file_get_contents("php://input");
+	  $fn = tempnam('', '');
+	  file_put_contents($fn, $d);
+  }
+  else {
+	  $fn = $_FILES['filetoupload']['tmp_name'];
+      if ($fn=='')
+         die("file failed to upload; check size limit 'post_max_size' in php.ini");
+      $ext = pathinfo($_FILES['filetoupload']['name'], PATHINFO_EXTENSION);
+      if ($ext=='zip') {
+	      rename($fn, $fn . '.zip');
+	      $fn = $fn . '.zip';
+      }
+      $output = $_POST;
+  }
+
   $output['_passfile_'] = $fn;
   
   if($output['mode']=='addlocalfile') {
     $output['mode']='start';
     $output['parameter']='uploadfile';
-    $output['script']='print(filename);local x=DicomObject:new();x:Read(filename);x:AddImage()';
+    $output['script']='servercommand([[addlocalfile:]]..filename)';
   }
   else if($output['mode']=='attachfile') {
     $output['mode']='start';
     $output['parameter']='uploadfile';
-    $output['script']='local pscript=[['.$_POST['script'].']];local x=DicomObject:new();x:Read(filename);x:Script(pscript);x:AddImage()';
+    $output['script']='servercommand([[attachfile:]]..filename..[[,'.$_POST['script'].']])';
   }
 }
 
@@ -85,9 +101,12 @@ passthru($exe);
 $var = ob_get_contents();
 ob_end_clean();
 
+if (isset($fn)) unlink($fn);
+
 // Make sure headers are passed allright
 $m = strpos($var, "\n\n");
 $t = explode("\n", substr($var, 0, $m));
+
 foreach ($t as $value)
   header($value);
 echo substr($var, $m+2);

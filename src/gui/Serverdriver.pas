@@ -669,6 +669,7 @@ When            Who     What
 20200704        mvh     Version to 1.5.0a; Fix case of database table names
 20201002        mvh     Version to 1.5.0b; Fix DiskFreeGB()*1024
                         Fix ALTER TABLE UIDMODS syntax; comparison in find local missing was reversed
+20201101        mvh     Added optimisation of UIDMODS index under verify database button
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -705,7 +706,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0b';
-const BUILDDATE = '20201002';
+const BUILDDATE = '20201101';
 const testmode = 0;
 
 {************************************************************************}
@@ -5358,6 +5359,9 @@ begin
   // Update UIDMODS table from 1.4.17 format to 1.4.19 format if needed
   if NewInstallDone then
     ServerTask('', 'lua:local a=dbquery("UIDMODS", "Stage", "Stage=1"); if a==nil then sql("ALTER TABLE UIDMODS ADD Stage varchar(32)"); sql("ALTER TABLE UIDMODS ADD COLUMN Annotation varchar(64)"); print("updated UIDMODS table"); end');
+
+  // Optimise UIDMODS index (fails harmlessly if already exists)
+  ServerTask('', 'lua:sql("CREATE INDEX mods_joint ON UIDMODS (OldUID, Stage)")');
   NewInstall := false;
   TestLocalServer(false, false);
 end;

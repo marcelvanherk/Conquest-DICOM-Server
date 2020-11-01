@@ -237,6 +237,8 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20200311	mvh	Make sure progress logs inactive even in case of error
 20200314	mvh	Calling ChangeUID with "" for OldUID clears the UID cache
 			Added QueriesReturnISO_IR flag
+20201029	mvh	Allow passing db into ChangeUID
+20201031	mvh	Added mods_joint index
 */
 
 #define NCACHE 256
@@ -2067,7 +2069,7 @@ CRITICAL_SECTION ChangeUIDCritical;
 BOOL ChangeUIDCriticalInit=FALSE;
 
 BOOL
-ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
+ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage, Database *db)
 	{
 	char		s[255];
 	char		Values[1024];
@@ -2076,7 +2078,7 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 	int 		len;
 	BOOL 		hasStage = TRUE;
 	int 		r;
-
+	
 	if (OldUID[0]==0) 
 		{
 		UIDCache("", NewUID, "");
@@ -2092,11 +2094,14 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 	  ChangeUIDCriticalInit = TRUE;
 	}
 
-        if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+        if (!db) 
+	{  db = &DB;
+           if (!db->Open ( DataSource, UserName, Password, DataHost ) )
 		{
 		SystemDebug.printf("***Unable to connect to SQL\n");
 		return ( FALSE );
 		}
+	}
 
 	EnterCriticalSection(&ChangeUIDCritical);
 	
@@ -2108,12 +2113,12 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 	len = strlen(s);
 	if (Stage && *Stage) sprintf(s+len, " and Stage = '%s'",   Stage);
 	else                 sprintf(s+len, " and Stage = '(empty)'");
-	if(!DB.Query("UIDMODS", "NewUID", s, NULL))
+	if(!db->Query("UIDMODS", "NewUID", s, NULL))
 		{ 
 		s[len]=0;
 		hasStage = FALSE;
 		Stage = NULL;
-		if(!DB.Query("UIDMODS", "NewUID", s, NULL))
+		if(!db->Query("UIDMODS", "NewUID", s, NULL))
 			{ 
 			SystemDebug.printf("***Unable to query UIDMODS table\n");
 			LeaveCriticalSection(&ChangeUIDCritical);
@@ -2121,14 +2126,14 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 			}
 		}
 
-	if(!DB.BindField (1, SQL_C_CHAR, NewUID, 255, &sdword))
+	if(!db->BindField (1, SQL_C_CHAR, NewUID, 255, &sdword))
 		{
 		SystemDebug.printf("***Unable to bind field of UIDMODS table\n");
 	        LeaveCriticalSection(&ChangeUIDCritical);
 		return ( FALSE );
 		}
 
-	if(!DB.NextRecord())
+	if(!db->NextRecord())
 		{
 		dbGenUID(NewUID);
 		SystemDebug.printf("NewUID for %s = %s\n", Type, NewUID);
@@ -2151,7 +2156,7 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 		}
 		if (hasStage)
 			{ 
-			if(!DB.AddRecord("UIDMODS", "MODTime, OldUID, MODType, NewUID, Stage", Values))
+			if(!db->AddRecord("UIDMODS", "MODTime, OldUID, MODType, NewUID, Stage", Values))
 				{
 				SystemDebug.printf("***Unable to add entry to UIDMODS table\n");
 				LeaveCriticalSection(&ChangeUIDCritical);
@@ -2161,7 +2166,7 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 			}
 		else
 			{ 
-			if(!DB.AddRecord("UIDMODS", "MODTime, OldUID, MODType, NewUID", Values))
+			if(!db->AddRecord("UIDMODS", "MODTime, OldUID, MODType, NewUID", Values))
 				{
 				SystemDebug.printf("***Unable to add entry to UIDMODS table\n");
 				LeaveCriticalSection(&ChangeUIDCritical);
@@ -2186,7 +2191,7 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage)
 // A new request to change the old UID returns the previously changed UID
 
 BOOL
-ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
+ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage, Database *db)
 	{
 	char		s[255];
 	char		Values[1024];
@@ -2195,7 +2200,7 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
 	int 		len;
 	BOOL 		hasStage = TRUE;
 	int		r;
-
+	
 	if (OldUID[0]==0) 
 		{
 		*NewUID = 0;
@@ -2212,12 +2217,16 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
 
 	EnterCriticalSection(&ChangeUIDCritical);
 
-	if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+	if (!db) 
+	{ 
+	  if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
 		{
 		SystemDebug.printf("***Unable to connect to SQL\n");
                 LeaveCriticalSection(&ChangeUIDCritical);
 		return ( FALSE );
 		}
+	  db = &DB;
+	}
 
 	char old[512];
 	strcpy(old, OldUID);
@@ -2227,12 +2236,12 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
 	len = strlen(s);
 	if (Stage && *Stage) sprintf(s+len, " and Stage = '%s'", Stage);
 	else                 sprintf(s+len, " and Stage = '(empty)'");
-	if(!DB.Query("UIDMODS", "NewUID", s, NULL))
+	if(!db->Query("UIDMODS", "NewUID", s, NULL))
 		{
 		s[len]=0;
 		hasStage = FALSE;
 		Stage = NULL;
-		if(!DB.Query("UIDMODS", "NewUID", s, NULL))
+		if(!db->Query("UIDMODS", "NewUID", s, NULL))
 			{ 
 			SystemDebug.printf("***Unable to query UIDMODS table\n");
 			LeaveCriticalSection(&ChangeUIDCritical);
@@ -2240,14 +2249,14 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
 			}
 		}
 
-	if(!DB.BindField (1, SQL_C_CHAR, NewUID, 255, &sdword))
+	if(!db->BindField (1, SQL_C_CHAR, NewUID, 255, &sdword))
 		{
 		SystemDebug.printf("***Unable to bind field of UIDMODS table\n");
                 LeaveCriticalSection(&ChangeUIDCritical);
 		return ( FALSE );
 		}
 
-	if(!DB.NextRecord())
+	if(!db->NextRecord())
 		{
 		if (*NewUID==0)
 			dbGenUID(NewUID);
@@ -2271,7 +2280,7 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
 		}
 		if (hasStage)
 			{
-			if(!DB.AddRecord("UIDMODS", "MODTime, OldUID, MODType, NewUID, Stage", Values))
+			if(!db->AddRecord("UIDMODS", "MODTime, OldUID, MODType, NewUID, Stage", Values))
 				{
 				SystemDebug.printf("***Unable to add entry to UIDMODS table\n");
 				LeaveCriticalSection(&ChangeUIDCritical);
@@ -2280,7 +2289,7 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
 			}
 		else
 			{
-			if(!DB.AddRecord("UIDMODS", "MODTime, OldUID, MODType, NewUID", Values))
+			if(!db->AddRecord("UIDMODS", "MODTime, OldUID, MODType, NewUID", Values))
 				{
 				SystemDebug.printf("***Unable to add entry to UIDMODS table\n");
 				LeaveCriticalSection(&ChangeUIDCritical);
@@ -2303,7 +2312,7 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage)
 
 // Generates an old UID from a new one, from UIDMODs table
 BOOL
-ChangeUIDBack(char *NewUID, char *OldUID, char *Stage, char *Type)
+ChangeUIDBack(char *NewUID, char *OldUID, char *Stage, char *Type, Database *db)
 	{
 	char		s[255];
 //	char		Values[1024];
@@ -2318,35 +2327,38 @@ ChangeUIDBack(char *NewUID, char *OldUID, char *Stage, char *Type)
 		return TRUE;
 		}
 
-	if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+	if (!db)
+	{ if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
 		{
 		SystemDebug.printf("***ChangeUIDBack: Unable to connect to SQL\n");
 		return ( FALSE );
 		}
+	  db = &DB;
+	}
 
 	sprintf(s, "NewUID = '%s'", NewUID);
 	if (Type && *Type)   sprintf(s+strlen(s), " and MODType = '%s'", Type);
 	len = strlen(s);
 	if (Stage && *Stage) sprintf(s+len, " and Stage = '%s'", Stage);
 	else                 sprintf(s+len, " and Stage = '(empty)'");
-	if(!DB.Query("UIDMODS", "OldUID", s, NULL))
+	if(!db->Query("UIDMODS", "OldUID", s, NULL))
 		{
 		s[len]=0;
 		hasStage = FALSE;
-		if(!DB.Query("UIDMODS", "OldUID", s, NULL))
+		if(!db->Query("UIDMODS", "OldUID", s, NULL))
 			{ 
 			SystemDebug.printf("***ChangeUIDBack: Unable to query UIDMODS table\n");
 			return ( FALSE );
 			}
 		}
 
-	if(!DB.BindField (1, SQL_C_CHAR, OldUID, 255, &sdword))
+	if(!db->BindField (1, SQL_C_CHAR, OldUID, 255, &sdword))
 		{
 		SystemDebug.printf("***ChangeUIDBack: Unable to bind field of UIDMODS table\n");
 		return ( FALSE );
 		}
 
-	if(!DB.NextRecord())
+	if(!db->NextRecord())
 		{
 		SystemDebug.printf("***ChangeUIDBack: Unable to locate new UID\n");
 		return ( FALSE );
@@ -3558,6 +3570,7 @@ InitializeTables(int mode)
 		{
 		DB.CreateIndex ( "UIDMODS", "mods_old",   "OldUID");
 		DB.CreateIndex ( "UIDMODS", "mods_stage", "Stage");
+		DB.CreateIndex ( "UIDMODS", "mods_joint", "OldUID,Stage");
 		}
 
 	// Create table to schedule transfers

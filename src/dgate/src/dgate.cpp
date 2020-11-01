@@ -1153,6 +1153,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20200704        mvh	Renamed dogloballua to globallua; added to dgate -?
 20200722        mvh	Version to 1.5.0b
 20201012        mvh	Fixed initialization of HL7 parser, and allow Unix EOL
+20201029	mvh	Pass db into ChangeUID(Back) and New/OldUIDsInDICOMObject
+20201101	mvh	Added 3x5s retry on AttachFile and AddImageFile in LoadAndDeleteDir
 
 ENDOFUPDATEHISTORY
 */
@@ -2841,7 +2843,7 @@ ChangeVRinDDO(DICOMDataObject *pDDO, int group, int element, char *text)
 // UID|UID|UID|g,e|UID|g,e|g,e=PASSUID|
 
 static BOOL
-NewUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, const char *Reason=NULL, char *Stage=NULL)
+NewUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, const char *Reason=NULL, char *Stage=NULL, Database *db=NULL)
 	{
 	DICOMObject	DO2;
 	VR		*vr;
@@ -2852,6 +2854,16 @@ NewUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, const char *Reason
 	char 		s[66], NewUID[255];
 	int 		len;
 	const char	*cp, *Desc;
+	Database        DB;
+
+	if (!db)
+        { if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+		{
+		SystemDebug.printf("***Unable to connect to SQL\n");
+		return ( FALSE );
+		}
+	  db = &DB;
+	}
 
 	while((vr=DO->Pop()))
 		{
@@ -2887,7 +2899,7 @@ NewUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, const char *Reason
 				if (!strstr(Exceptions, name))
 					{
 					s[strlen(s)-1]=0;
-					if (!ChangeUID(s, Desc, NewUID, Stage))
+					if (!ChangeUID(s, Desc, NewUID, Stage, db))
 						OperatorConsole.printf("***[NewUIDsInDICOMObject] FAILED to change %04x,%04x (%s)\n", vr->Group, vr->Element, desc);
 					else
 						{
@@ -2908,7 +2920,7 @@ NewUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, const char *Reason
 			Index = 0;
 			while ( Index < ADDO->GetSize() )
 				{
-				NewUIDsInDICOMObject(ADDO->Get(Index), Exceptions, Reason, Stage);
+				NewUIDsInDICOMObject(ADDO->Get(Index), Exceptions, Reason, Stage, db);
 				++Index;
 				}
 			}
@@ -2928,12 +2940,12 @@ NewUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, const char *Reason
 
 // From dbsql.cpp
 
-BOOL ChangeUIDBack(char *NewUID, char *OldUID, char *Stage, char *Type);
-BOOL ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage);
+BOOL ChangeUIDBack(char *NewUID, char *OldUID, char *Stage, char *Type, Database *db);
+BOOL ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage, Database *db);
 void KodakFixer(DICOMDataObject	*DDOPtr, BOOL tokodak);
 
 static BOOL
-OldUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, char *Stage)
+OldUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, char *Stage, Database *db)
 	{
 	DICOMObject	DO2;
 	VR		*vr;
@@ -2944,6 +2956,16 @@ OldUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, char *Stage)
 	char 		s[66], NewUID[255];
 	int 		len;
 	const char	*cp, *Desc;
+	Database        DB;
+
+	if (!db)
+        { if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+		{
+		SystemDebug.printf("***Unable to connect to SQL\n");
+		return ( FALSE );
+		}
+	  db = &DB;
+	}
 
 	while((vr=DO->Pop()))
 		{
@@ -2975,7 +2997,7 @@ OldUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, char *Stage)
 				if (!strstr(Exceptions, name))
 					{
 					s[strlen(s)-1]=0;
-					if (!ChangeUIDBack(s, NewUID, Stage, NULL))
+					if (!ChangeUIDBack(s, NewUID, Stage, NULL, db))
 						OperatorConsole.printf("***[OldUIDsInDICOMObject] FAILED to change %04x,%04x (%s)\n", vr->Group, vr->Element, desc);
 					else
 						{
@@ -2996,7 +3018,7 @@ OldUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, char *Stage)
 			Index = 0;
 			while ( Index < ADDO->GetSize() )
 				{
-				OldUIDsInDICOMObject(ADDO->Get(Index), Exceptions, Stage);
+				OldUIDsInDICOMObject(ADDO->Get(Index), Exceptions, Stage, db);
 				++Index;
 				}
 			}
@@ -3061,7 +3083,7 @@ ModifyPATIDofDDO(DICOMDataObject *pDDO, char *NewPATID, char *Reason=NULL)
 	ok &= ChangeUIDinDDO(pDDO, 0x0008, 0x0018, "SOPInstanceUID");
 */
 	// let off of the transfer syntax
-	ok = NewUIDsInDICOMObject(pDDO, "0002,0010|", Reason);
+	ok = NewUIDsInDICOMObject(pDDO, "0002,0010|", Reason, NULL, &DB);
 
 	if (!ok)
 		{
@@ -3228,13 +3250,32 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 					if (script)
 						{
 						char dum[1024];
-						AttachFile(TempPath, script, dum, PDU);
+						if (!AttachFile(TempPath, script, dum, PDU))
+							for (int i=0; i<3; i++)
+								{ 
+								Sleep(5000);
+								if (AttachFile(TempPath, script, dum, PDU)) 
+									break;
+								}
 						}
 					else if (!AddImageFile (TempPath, NewPatid, PDU, &DB))
 						{
-						DICOMDataObject	DDO;
-						lua_setvar(PDU, "Filename", TempPath);
-						int rc = CallImportConverterN(NULL, &DDO, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+						BOOL success = FALSE;
+						for (int i=0; i<3; i++)
+							{ 
+							Sleep(5000);
+							if (AddImageFile (TempPath, NewPatid, PDU, &DB)) 
+								{ 
+								success = TRUE;
+								break;
+								}
+							}
+						if (!success)
+							{
+							DICOMDataObject	DDO;
+							lua_setvar(PDU, "Filename", TempPath);
+							int rc = CallImportConverterN(NULL, &DDO, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
+							}
 						}
 					unlink(TempPath);
 					if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, 100, count++);
@@ -5103,7 +5144,7 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
 		        char result2[256], result3[256];
                         if (!DDO) DDO = PDU2.LoadDICOMDataObject(pszFileName);
 			i += SearchDICOMObject(DDO, szExecName+i+2, result2);
-			ChangeUID(result2, "percente", result3, NULL);
+			ChangeUID(result2, "percente", result3, NULL, NULL);
                         strcat(line, result3);
                         break;
 			}
@@ -5111,7 +5152,7 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
 		        char result2[256], result3[256];
                         if (!DDO) DDO = PDU2.LoadDICOMDataObject(pszFileName);
 			i += SearchDICOMObject(DDO, szExecName+i+2, result2);
-			ChangeUIDBack(result2, result3, NULL, NULL);
+			ChangeUIDBack(result2, result3, NULL, NULL, NULL);
                         strcat(line, result3);
                         break;
 			}
@@ -6352,7 +6393,7 @@ int console;
   { if (lua_gettop(L)==1)
     { char from[256], to [256];
       strcpy(from, lua_tostring(L, 1));
-      if (ChangeUID(from, "lua", to, NULL))
+      if (ChangeUID(from, "lua", to, NULL, NULL))
       { lua_pushstring(L, to);
         return 1;
       }
@@ -6361,7 +6402,7 @@ int console;
     { char from[256], to[256], result[256];
       strcpy(from, lua_tostring(L, 1));
       strcpy(to, lua_tostring(L, 2));
-      if (ChangeUIDTo(from, "lua", to, NULL))
+      if (ChangeUIDTo(from, "lua", to, NULL, NULL))
       { lua_pushstring(L, to);
         return 1;
       }
@@ -6374,7 +6415,7 @@ int console;
       strcpy(type, "lua");
       if (lua_gettop(L)>=4)
         strcpy(type, lua_tostring(L, 4));
-      if (ChangeUIDTo(from, type, to, stage))
+      if (ChangeUIDTo(from, type, to, stage, NULL))
       { lua_pushstring(L, to);
         return 1;
       }
@@ -6386,7 +6427,7 @@ int console;
   { if (lua_gettop(L)==1)
     { char from[256], to [256];
       strcpy(from, lua_tostring(L, 1));
-      if (ChangeUIDBack(from, to, NULL, NULL))
+      if (ChangeUIDBack(from, to, NULL, NULL, NULL))
       { lua_pushstring(L, to);
         return 1;
       }
@@ -6395,7 +6436,7 @@ int console;
     { char from[256], to [256], stage[256];
       strcpy(from, lua_tostring(L, 1));
       strcpy(stage, lua_tostring(L, 2));
-      if (ChangeUIDBack(from, to, stage, NULL))
+      if (ChangeUIDBack(from, to, stage, NULL, NULL))
       { lua_pushstring(L, to);
         return 1;
       }
@@ -6405,7 +6446,7 @@ int console;
       strcpy(from, lua_tostring(L, 1));
       strcpy(stage, lua_tostring(L, 2));
       strcpy(type, lua_tostring(L, 3));
-      if (ChangeUIDBack(from, to, stage, type))
+      if (ChangeUIDBack(from, to, stage, type, NULL))
       { lua_pushstring(L, to);
         return 1;
       }
@@ -8929,7 +8970,7 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
 	  case 'e': {				// %Exxxx,yyyy= changed UID for any UID
 		    char result2[256], result3[256];
 		    i += SearchDICOMObject(DDO, szExecName+i+2, result2);
-		    ChangeUID(result2, "percente", result3, NULL);
+		    ChangeUID(result2, "percente", result3, NULL, NULL);
                     strcat(line, result3);
                     break;
 		    }
@@ -8937,7 +8978,7 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
 	  case 'r': {				// %Rxxxx,yyyy= old UID for any changed UID
 		    char result2[256], result3[256];
 		    i += SearchDICOMObject(DDO, szExecName+i+2, result2);
-		    ChangeUIDBack(result2, result3, NULL, NULL);
+		    ChangeUIDBack(result2, result3, NULL, NULL, NULL);
                     strcat(line, result3);
                     break;
 		    }
@@ -9699,17 +9740,17 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
     { char tmp[1024];
       strcpy(tmp, line+15);
       strcat(tmp, "|");
-      NewUIDsInDICOMObject(DDO, tmp);
+      NewUIDsInDICOMObject(DDO, tmp, NULL, NULL, NULL);
       if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     else if (memicmp(line, "newuids stage ", 14)==0)
-    { NewUIDsInDICOMObject(DDO, "", NULL, line+14);
+    { NewUIDsInDICOMObject(DDO, "", NULL, line+14, NULL);
       if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     else if (memicmp(line, "newuids", 7)==0)
-    { NewUIDsInDICOMObject(DDO, "");
+    { NewUIDsInDICOMObject(DDO, "", NULL, NULL, NULL);
       if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
@@ -9719,17 +9760,17 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
     { char tmp[1024];
       strcpy(tmp, line+15);
       strcat(tmp, "|");
-      OldUIDsInDICOMObject(DDO, tmp, NULL);
+      OldUIDsInDICOMObject(DDO, tmp, NULL, NULL);
       if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     else if (memicmp(line, "olduids stage ", 14)==0)
-    { OldUIDsInDICOMObject(DDO, "", line+14);
+    { OldUIDsInDICOMObject(DDO, "", line+14, NULL);
       if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
     else if (memicmp(line, "olduids", 7)==0)
-    { OldUIDsInDICOMObject(DDO, "", NULL);
+    { OldUIDsInDICOMObject(DDO, "", NULL, NULL);
       if (N >= -1) OperatorConsole.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
     }
 
@@ -11959,7 +12000,7 @@ struct conquest_queue *new_prefetcherqueue(void)
 
 static int prefetchermode=0;
 
-BOOL prefetcher(struct DICOMDataObject *DDO, BOOL move)
+BOOL prefetcher(DICOMDataObject *DDO, BOOL move)
 { VR *pVR = NULL;
   char id[66];
   int len;
@@ -22460,13 +22501,13 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 	else if (memcmp(SilentText, "changeuid:", 10)==0)
 		{
 		char uid[70];
-		ChangeUID(SilentText+10, "--changeuid", uid, NULL);
+		ChangeUID(SilentText+10, "--changeuid", uid, NULL, NULL);
 		sprintf(Response, "%s", uid);
 		}
 	else if (memcmp(SilentText, "changeuidback:", 14)==0)
 		{
 		char uid[70];
-		ChangeUIDBack(SilentText+14, uid, NULL, NULL);
+		ChangeUIDBack(SilentText+14, uid, NULL, NULL, NULL);
 		sprintf(Response, "%s", uid);
 		}
 

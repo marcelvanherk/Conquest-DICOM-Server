@@ -25,6 +25,8 @@
 20170827 mvh No longer use IU type for transfer syntax must be UI
 20181123 mvh Changed TransferSyntaxUID back to IU (is in preamble)
 20200314 mvh Added JPEGIGNORELOSSLESSJFIFCOLORSPACE flag, ignores color space in JFIF header for lossless
+20200722 mvh Note: lossless JPEG compression converts color space to YBR_FULL which is incorrect
+20200722 mvh Note: lossless JPEG decompression ignores YBR_FULL which leads to old conquest color images to show green
 */
 
 #define guard 265536
@@ -658,7 +660,7 @@ BOOL DecompressJPEGL(DICOMDataObject* pDDO)
     JDIMENSION                      num_scanlines, row, rowWidth, pixcnt;
     struct jpeg_decompress_struct   cinfo;
     struct jerror_mgr               jerr;
-	
+
     // If debug > 0, get start time.
     if (DebugLevel > 0)starttime = clock();
     if (DebugLevel > 1) SystemDebug.printf("JPEG decompress started.\n");
@@ -729,10 +731,22 @@ BOOL DecompressJPEGL(DICOMDataObject* pDDO)
         return (FALSE);
     }
 
-// 20140209: lossless color jpeg must be RGB
+// 20200722 Check Conquest lossless jpeg used YBR_FULL (which is wrong, but set the PhotoMetricInterpretation according)
+    VR* pVR = pDDO->GetVR(0x0028,0x0004);		// PhotometricInterpretation
+    BOOL    isYBR_FULL=false;
+    if (pVR)
+    { if (pVR->Length==8)
+      { if (strncmp((char*)pVR->Data, "YBR_FULL", 8) == 0)
+        isYBR_FULL=true;
+      }
+    }
+	
+// 20140209: lossless color jpeg should be RGB, but is not in Conquest implementation
     if (cinfo.process == JPROC_LOSSLESS &&
-        cinfo.jpeg_color_space != JCS_RGB &&
         cinfo.out_color_components == 3 &&
+
+	cinfo.jpeg_color_space != JCS_RGB &&
+	!isYBR_FULL &&		 // added 20200722: Conquest does not adhere to the standard! Uses YBR and sets PhotoMetricInterpretation so
 #ifdef JPEGIGNORELOSSLESSJFIFCOLORSPACE
 	true)
 #else	

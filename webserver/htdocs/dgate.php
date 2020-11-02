@@ -12,12 +12,14 @@
 //
 // Make sure post_max_size=0 or a reasonable limit in php.ini
 //
-// 202001023  mvh  Added SCRIPT_FILENAME variable
-// 202001024  mvh  Working on passing POST (problem: popen does not work in binary mode, now translate to equivalent GET)
-// 202001025  mvh  Make sure variables in called lua code are define local and do not clash with globals
-// 202001025  mvh  Fixed SCRIPT_NAME
-// 202001029  mvh  Added PUT, zip, delete temp file
-// 202001030  mvh  Protect unlink with file_exist
+// 20201023  mvh  Added SCRIPT_FILENAME variable
+// 20201024  mvh  Working on passing POST (problem: popen does not work in binary mode, now translate to equivalent GET)
+// 20201025  mvh  Make sure variables in called lua code are define local and do not clash with globals
+// 20201025  mvh  Fixed SCRIPT_NAME
+// 20201029  mvh  Added PUT, zip, delete temp file
+// 20201030  mvh  Protect unlink with file_exist
+// 20201102  mvh  Copy paste error, date formats; note use ./dgate for linux
+//                Note uploading does not work under Linux because /tmp is not global....
 
 $folder = "c:\\dicomserver\\webserver\\cgi-bin\\newweb";
 $exe = "dgate.exe";
@@ -101,7 +103,9 @@ passthru($exe);
 $var = ob_get_contents();
 ob_end_clean();
 
-if (isset($fn)) unlink($fn);
+if (isset($fn)) 
+	if (file_exists($fn)) 
+		unlink($fn);
 
 // Make sure headers are passed allright
 $m = strpos($var, "\n\n");

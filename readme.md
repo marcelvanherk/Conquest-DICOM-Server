@@ -4,6 +4,6 @@ This is the new **conquest DICOM server** source code repository, it is the firs
 
 [Forum] (https://forum.image-systems.biz/forum/index.php?board/33-conquest-users/)
 
-[Download current stable release 1.5.0] (http://ingenium.home.xs4all.nl/dicomserver/dicomserver150.zip)
+[Download current stable release 1.5.0b] (http://ingenium.home.xs4all.nl/dicomserver/dicomserver150b.zip)
 
-The commit corresponding to 1.5.0 is here: https://github.com/marcelvanherk/Conquest-DICOM-Server/commit/d963df1b66270f89e86b28be121f7c0913479ec4
+The commit corresponding to 1.5.0b is here: https://github.com/marcelvanherk/Conquest-DICOM-Server/commit/81b480c0b176f7036be0966e948118d32f4edae1

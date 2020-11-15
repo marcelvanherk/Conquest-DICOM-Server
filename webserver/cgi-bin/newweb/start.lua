@@ -35,6 +35,7 @@
 --               use Script(mkdir to avoid popups); removed use of c:\temp
 -- mvh 20201012: Added zip and zipanonymized to reduce footprint of inholland project
 -- mvh 20201024: Support _passfile_ to enable upload from php script; separate cgi-bin copy for web and dicom server
+-- mvh 20201109: Use single command for uploadsql
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -406,24 +407,19 @@ if CGI('parameter')=='uploadsql' then
     servercommand("lua:sql([[delete from UIDMODS where Stage like '"..CGI('ref').."%']])")
     changeuid('') -- clear UID cache
   end
-  for v in io.lines(fn) do
-    n= n+tonumber(servercommand("lua:return sql([["..v.."]])") or 0)
-  end
-  print(n)
-  return
-
-  --[[
-  local fn = CGI('filename', 'x.x')
-  HTML('Content-type: application/json\n\n')
-  local n = servercommand('lua:return tempfile(".sql")')
-  local f=io.open(n, 'wb')
-  f:write(CGI())
-  f:close()
-  local g = servercommand('lua:h=io.open([_['..n..']_], "r") t=h:read([_[*all]_]) h:close() return sql(t)')
+  
+  --for v in io.lines(fn) do
+  --  n= n+tonumber(servercommand("lua:return sql([["..v.."]])") or 0)
+  --end
+  --print(n)
+  
+  -- this is more efficient and does not run out of resources
+  -- but requires passing 65536 to mysql_real_connect in odbci.cpp
+  -- and setting max_allowed_packet=16M in my.ini
+  local g = servercommand('lua:h=io.open([['..fn..']], "r") t=h:read([[*all]]) h:close() return sql(t)')
   print(g)
-  os.remove(n)
+  
   return
-  ]]
 end
 
 if CGI('parameter')=='uploadinfo' then

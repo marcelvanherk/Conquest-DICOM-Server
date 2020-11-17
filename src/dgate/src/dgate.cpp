@@ -1155,6 +1155,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20201012        mvh	Fixed initialization of HL7 parser, and allow Unix EOL
 20201029	mvh	Pass db into ChangeUID(Back) and New/OldUIDsInDICOMObject
 20201101	mvh	Added 3x5s retry on AttachFile and AddImageFile in LoadAndDeleteDir
+20201116	mvh	Added global_query_string and -y option
 
 ENDOFUPDATEHISTORY
 */
@@ -12701,6 +12702,7 @@ PrintOptions ()
 	fprintf(stderr, "          [-f?file|-fu|-c#]   get UID of file|Make new UID|UID helper(0..99)\n");
 	fprintf(stderr, "          [-ff#]              Delete old patients until #MB free\n");
 	fprintf(stderr, "          [-gSERVER,DATE]     grab images from SERVER of date not on here\n");
+	fprintf(stderr, "          [-yQUERY_STRING]    run as cgi client avoiding environment\n");
 	fprintf(stderr, "                              Otherwise: run as threaded server, port=1111\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "(2) DGATE FileMapping         Run server child; shared memory has socket#\n");
@@ -23510,7 +23512,8 @@ void ConfigDgate(void)
 	}
 
 // main as console app or child process
-static void DgateCgi(char *query_string, char *ext, char *argv0); // forward reference
+static void DgateCgi(char *ext, char *argv0); // forward reference
+static char global_query_string[2048];
 
 int
 main ( int	argc, char	*argv[] )
@@ -23536,27 +23539,35 @@ main ( int	argc, char	*argv[] )
 
 	InitializeCriticalSection(&dolua_critical);
 
-	char	*query_string = getenv( "CONTENT_LENGTH" );
-	if (query_string && *query_string && argc==1) 
-		{
 #ifdef UNIX
-		char *ext="";
+	char *ext="";
 #else
-		char *ext=strrchr(argv[0], '.');
+	char *ext=strrchr(argv[0], '.');
 #endif
-		DgateCgi(query_string, ext, argv[0]);
+	global_query_string[sizeof(global_query_string)-1]=0;
+
+	if (argc==2 && argv[1][0]=='-' && argv[1][1]=='y')
+		{
+		strncpy(global_query_string, argv[1]+2, sizeof(global_query_string)-1);
+		DgateCgi(ext, argv[0]);
+		exit(0);
+		}
+		
+	char *cl = getenv( "CONTENT_LENGTH" );
+	char *query_string = getenv( "QUERY_STRING" );
+
+	if (cl && *cl && argc==1) 
+		{
+		if (query_string) 
+			strncpy(global_query_string, query_string, sizeof(global_query_string)-1); 
+		DgateCgi(ext, argv[0]);
 		exit(0);
 		}
 
-	query_string = getenv( "QUERY_STRING" );
 	if (query_string && argc==1) 
 		{
-#ifdef UNIX
-		char *ext="";
-#else
-		char *ext=strrchr(argv[0], '.');
-#endif
-		DgateCgi(query_string, ext, argv[0]);
+		strncpy(global_query_string, query_string, sizeof(global_query_string)-1); 
+		DgateCgi(ext, argv[0]);
 		exit(0);
 		}
 		
@@ -24410,7 +24421,7 @@ static void HTML(const char *string, ...)
 }
 
 static int CGI(char *out, const char *name, const char *def)
-{ char *p = getenv( "QUERY_STRING" );
+{ char *p = global_query_string; // getenv( "QUERY_STRING" );
   char *q = getenv( "CONTENT_LENGTH" );
   char *r = getenv( "REQUEST_METHOD" );
   char tmp[512];
@@ -24503,7 +24514,7 @@ static int CGI(char *out, const char *name, const char *def)
       FILE *g = fopen(uploadedfile, "wb");
       fwrite(p, post_len, 1, g);
       fclose(g);
-      p = getenv( "QUERY_STRING" );
+      p = global_query_string; //getenv( "QUERY_STRING" );
     }
     else if (*uploadedfile==0 && post_len>0)      		// any other type
     { NewTempFile(uploadedfile, ".dat");
@@ -24511,10 +24522,10 @@ static int CGI(char *out, const char *name, const char *def)
       FILE *g = fopen(uploadedfile, "wb");
       fwrite(p, post_len, 1, g);
       fclose(g);
-      p = getenv( "QUERY_STRING" );
+      p = global_query_string; //getenv( "QUERY_STRING" );
     }
     else
-      p = getenv( "QUERY_STRING" );
+      p = global_query_string; //getenv( "QUERY_STRING" );
   }
 
 
@@ -24592,9 +24603,9 @@ static void replace(char *string, const char *key, const char *value)
   strcpy(q, temp);
 }
 
-static BOOL DgateWADO(char *query_string, char *ext);
+static BOOL DgateWADO(void);
 
-static void DgateCgi(char *query_string, char *ext, char *argv0)
+static void DgateCgi(char *ext, char *argv0)
 { char mode[512], command[8192], size[32], dsize[32], iconsize[32], slice[512], slice2[512], query[512], buf[512], 
        patientidmatch[512], patientnamematch[512], studydatematch[512], startdatematch[512], 
        db[256], series[512], study[512], compress[64], WebScriptAddress[256], WebMAG0Address[256], 
@@ -24616,13 +24627,11 @@ static void DgateCgi(char *query_string, char *ext, char *argv0)
   }
   
   *uploadedfile=0;
-  if (DgateWADO(query_string, ext)) return;
+  if (DgateWADO()) return;
 
   BOOL ReadOnly=FALSE;
   BOOL WebPush=TRUE;
 	
-  UNUSED_ARGUMENT(query_string);
-
   console = fileno(stdout);
 #ifdef WIN32
   strcpy(ex, ".exe");
@@ -26276,7 +26285,7 @@ windowname = AiViewer V1.00
       strcat(script, "')");
       OperatorConsole.On();
 
-      lua_setvar(&globalPDU, "query_string",    getenv( "QUERY_STRING"));      
+      lua_setvar(&globalPDU, "query_string",    global_query_string); //getenv( "QUERY_STRING"));      
       lua_setvar(&globalPDU, "server_name",     getenv( "SERVER_NAME" ));
       lua_setvar(&globalPDU, "script_name",     getenv( "SCRIPT_NAME" ));
       lua_setvar(&globalPDU, "path_translated", getenv( "PATH_TRANSLATED" ));
@@ -26352,7 +26361,7 @@ windowname = AiViewer V1.00
 	  inlua=0;
           struct scriptdata sd1 = {&globalPDU, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
 
-          lua_setvar(&globalPDU, "query_string",    getenv( "QUERY_STRING"));      
+          lua_setvar(&globalPDU, "query_string",    global_query_string); //getenv( "QUERY_STRING"));      
           lua_setvar(&globalPDU, "server_name",     getenv( "SERVER_NAME" ));
           lua_setvar(&globalPDU, "script_name",     getenv( "SCRIPT_NAME" ));
           lua_setvar(&globalPDU, "path_translated", getenv( "PATH_TRANSLATED" ));
@@ -26401,7 +26410,7 @@ windowname = AiViewer V1.00
 
       /* fill in predefined scripting variables */
 
-      replace(string, "%query_string%",    getenv( "QUERY_STRING" ));
+      replace(string, "%query_string%",    global_query_string); //getenv( "QUERY_STRING" ));
       replace(string, "%server_name%",     getenv( "SERVER_NAME" ));
       replace(string, "%script_name%",     getenv( "SCRIPT_NAME" ));
       replace(string, "%path_translated%", getenv( "PATH_TRANSLATED" ));
@@ -26516,11 +26525,8 @@ control 	<- 	webserver <- dicomserver	dicom data
 
 */
 
-static BOOL DgateWADO(char *query_string, char *ext)
-{ UNUSED_ARGUMENT(query_string);
-  UNUSED_ARGUMENT(ext);
-
-  char requestType[256];
+static BOOL DgateWADO()
+{ char requestType[256];
   CGI(requestType,   "requestType",    "");		// is this a WADO request?
   if (strcmp(requestType, "WADO")!=0) return FALSE;
 

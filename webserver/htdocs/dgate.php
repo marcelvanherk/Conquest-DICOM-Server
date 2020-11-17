@@ -20,10 +20,14 @@
 // 20201030  mvh  Protect unlink with file_exist
 // 20201102  mvh  Copy paste error, date formats; note use ./dgate for linux
 //                Note uploading does not work under Linux because /tmp is not global....
+// 20201116  mvh  Disable redirect when not using userlogin
+// 20201116  mvh  Note: putenv not thread safe - requests are mixed; propose to create dgate -xquerystring
+// 20201116  mvh  Added newcgi flag; if set use -y mode to pass QUERY_STRING (1.5.0c up)
 
 $folder = "c:\\dicomserver\\webserver\\cgi-bin\\newweb";
 $exe = "dgate.exe";
 $userlogin = false;
+$newcgi = true;
 
 chdir($folder); 
 
@@ -41,13 +45,13 @@ if ($userlogin) {
   include('singlefilelogin.php');
   if (!$application->getUserLoginStatus())
     die();
-}
 
-// redirect page to clear just posted login data (username and password)
-if (!empty($_POST['user_password'])) {
-  unset($_POST);
-  header("Location: ".$_SERVER['REQUEST_URI']);
-  exit;
+  // redirect page to clear just posted login data (username and password)
+  if (!empty($_POST['user_password'])) {
+    unset($_POST);
+    header("Location: ".$_SERVER['REQUEST_URI']);
+    exit;
+  }
 }
 
 $t = parse_url($_SERVER["REQUEST_URI"]);
@@ -94,12 +98,17 @@ if(!empty($_SERVER["CONTENT_LENGTH"])) {
 // pass parameters to cgi application
 putenv("SCRIPT_NAME=".$_SERVER["SCRIPT_NAME"]);
 putenv("SCRIPT_FILENAME=".$_SERVER["SCRIPT_FILENAME"]);
-putenv("QUERY_STRING=".http_build_query($output));
+if ($newcgi==false)
+   putenv("QUERY_STRING=".http_build_query($output));
 
 // Run the cgi executable
 header_remove();
 ob_start();
-passthru($exe);
+if ($newcgi==false)
+  passthru($exe)
+else
+  passthru($exe . ' "-y' . http_build_query($output) . '"');
+
 $var = ob_get_contents();
 ob_end_clean();
 

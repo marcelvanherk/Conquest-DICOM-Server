@@ -179,6 +179,7 @@
 20200119   mvh    Hardcode MYSQL_PORT to 3306
 20200314   mvh    Removed UNENCRYPTED clause for postgres
 20201020   mvh    Added SQL server 2627 as exception (duplicate index)
+20201107   mvh    Allow multiple statements for MySQL (flag 65536)
 */
 
 /*
@@ -3295,7 +3296,7 @@ BOOL	Database :: Open (
 			return (TRUE);
 		}
 #ifndef DARWIN
-		if (!((mydata = mysql_init((MYSQL*)NULL)) && mysql_real_connect(mydata,host,User,lPassword,NULL,port,NULL,0)))
+		if (!((mydata = mysql_init((MYSQL*)NULL)) && mysql_real_connect(mydata,host,User,lPassword,NULL,port,NULL,65536)))
 		{
 			OperatorConsole.printf("***Cannot connect to MySQL on port %d\n", port);
 			OperatorConsole.printf("***MySQL Error message: %s\n", mysql_error(mydata));
@@ -3304,7 +3305,7 @@ BOOL	Database :: Open (
 			return (FALSE);
 		}
 #else //DARWIN has mysql built in, lets try and start it.
-		if (!((mydata = mysql_init((MYSQL*)NULL)) && mysql_real_connect(mydata,host,User,lPassword,NULL,port,NULL,0)))
+		if (!((mydata = mysql_init((MYSQL*)NULL)) && mysql_real_connect(mydata,host,User,lPassword,NULL,port,NULL,65536)))
 		{
 			mysql_close(mydata);
 			mydata = NULL;
@@ -3319,7 +3320,7 @@ BOOL	Database :: Open (
 				sleep(4); //Wait for it to start, it's slow.
 			}
 			//Try again, if not, report & bail
-			if (!((mydata = mysql_init((MYSQL*)NULL)) && mysql_real_connect(mydata,host,User,lPassword,NULL,port,NULL,0)))
+			if (!((mydata = mysql_init((MYSQL*)NULL)) && mysql_real_connect(mydata,host,User,lPassword,NULL,port,NULL,65536)))
 			{
 				OperatorConsole.printf("***Cannot connect to MySQL on port %d\n", port);
 				OperatorConsole.printf("***MySQL Error message: %s\n", mysql_error(mydata));

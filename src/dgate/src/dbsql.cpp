@@ -239,6 +239,7 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 			Added QueriesReturnISO_IR flag
 20201029	mvh	Allow passing db into ChangeUID
 20201031	mvh	Added mods_joint index
+20201110	mvh	Also added mods_back index for de-anonymise
 */
 
 #define NCACHE 256
@@ -3571,6 +3572,7 @@ InitializeTables(int mode)
 		DB.CreateIndex ( "UIDMODS", "mods_old",   "OldUID");
 		DB.CreateIndex ( "UIDMODS", "mods_stage", "Stage");
 		DB.CreateIndex ( "UIDMODS", "mods_joint", "OldUID,Stage");
+		DB.CreateIndex ( "UIDMODS", "mods_back",  "NewUID,Stage");
 		}
 
 	// Create table to schedule transfers

@@ -27,6 +27,7 @@
 20200314 mvh Added JPEGIGNORELOSSLESSJFIFCOLORSPACE flag, ignores color space in JFIF header for lossless
 20200722 mvh Note: lossless JPEG compression converts color space to YBR_FULL which is incorrect
 20200722 mvh Note: lossless JPEG decompression ignores YBR_FULL which leads to old conquest color images to show green
+20201224 mvh Added StopOnJPEGWarnings configuration to fail decompress on corrupted images
 */
 
 #define guard 265536
@@ -556,6 +557,22 @@ BOOL CompressJPEGL(DICOMDataObject* pDDO, int comp, int jpegQuality)
         if(imageData.precision_allocated > 8)SwapEndian((unsigned char *)imageData.imageVR->Data, imageData.imageVR->Length);// Byte swap time
 #endif //Big Endian
     }//End of while(TRUE), go back for the next frame.
+
+    // report failure on warnings
+    if (jerr.pub.num_warnings)
+        {
+        char szRootSC[64], buffer[64];
+	if (MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile))
+		{
+		MyGetPrivateProfileString(szRootSC, "StopOnJPEGWarnings", "0", buffer, 64, ConfigFile);
+		if (atoi(buffer))          
+                        {
+                        jpeg_destroy_compress(&cinfo);
+                        return (FALSE);
+                        }
+                }
+        }
+
 //All frames compressed, done with cinfo.
     jpeg_destroy_compress(&cinfo);
 //Should we kill it and keep the uncompressed data?
@@ -848,6 +865,22 @@ BOOL DecompressJPEGL(DICOMDataObject* pDDO)
     //The default is 8 bits, set it back to the image size.
         cinfo.data_precision_other = cinfo.data_precision;
     }//Loop back to jpeg_start_decompress (while(TRUE)).
+
+    // report failure on warnings
+    if (jerr.pub.num_warnings)
+        {
+        char szRootSC[64], buffer[64];
+	if (MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile))
+		{
+		MyGetPrivateProfileString(szRootSC, "StopOnJPEGWarnings", "0", buffer, 64, ConfigFile);
+		if (atoi(buffer))          
+                        {
+                        jpeg_destroy_decompress(&cinfo);
+                        return (FALSE);
+                        }
+                }
+        }
+
 //Should we kill it and keep the uncompressed data?
     imageData.CheckEnoughFrames();
 //Should have image(s) here, time to save it.
@@ -863,6 +896,7 @@ BOOL DecompressJPEGL(DICOMDataObject* pDDO)
         pDDO->ChangeVR( 0x0002, 0x0010, "1.2.840.10008.1.2.1\0", 'IU');
 // If debug > 0, print decompress time.
     if (DebugLevel > 0) SystemDebug.printf("JPEG decompress time %u milliseconds.\n",clock() - starttime);
+    
     // Done!
     return(TRUE);
 }

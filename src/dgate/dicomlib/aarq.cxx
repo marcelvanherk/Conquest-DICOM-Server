@@ -14,6 +14,7 @@ mvh 20150730: Reapplied change and fixed UserInfoBaggage calculation for ignored
 mvh 20150908: Added HasImpVersion to UserInformation; needed for VITREA which does not send it
               Set count to 0 after skipping unknown element
 mvh 20181113: replace min() by MIN() for Ubuntu 18 compile
+mvh 20201224: Added error handling
 */
 
 /****************************************************************************
@@ -102,8 +103,8 @@ BOOL	ApplicationContext	::	Write(Buffer	&Link)
 	Link << Reserved1;	//Link.Write((BYTE *) &Reserved1, sizeof(BYTE));
 	Link << Length;		//Link.Write((BYTE *) &Length, sizeof(UINT16));
 	Link.Write((BYTE *) ApplicationContextName.GetBuffer(Length), Length);
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	//return ( TRUE );
 	}
 
 BOOL	ApplicationContext	::	Read(Buffer	&Link)
@@ -180,8 +181,8 @@ BOOL	AbstractSyntax	::	Write(Buffer	&Link)
 	Link << Reserved1;	//Link.Write((BYTE *) &Reserved1, sizeof(BYTE));
 	Link << Length;		//Link.Write((BYTE *) &Length, sizeof(UINT16));
 	Link.Write((BYTE *) AbstractSyntaxName.GetBuffer(Length), Length);
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	//return ( TRUE );
 	}
 
 BOOL	AbstractSyntax	::	Read(Buffer	&Link)
@@ -265,8 +266,8 @@ BOOL	TransferSyntax	::	Write(Buffer	&Link)
 	Link << Reserved1;	//Link.Write((BYTE *) &Reserved1, sizeof(BYTE));
 	Link << Length;		//Link.Write((BYTE *) &Length, sizeof(UINT16));
 	Link.Write((BYTE *) TransferSyntaxName.GetBuffer(Length), Length);
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	// return ( TRUE );
 	}
 
 BOOL	TransferSyntax	::	Read(Buffer	&Link)
@@ -349,8 +350,8 @@ BOOL	ImplementationClass	::	Write(Buffer	&Link)
 	Link << Reserved1;	//Link.Write((BYTE *) &Reserved1, sizeof(BYTE));
 	Link << Length;		//Link.Write((BYTE *) &Length, sizeof(UINT16));
 	Link.Write((BYTE *) ImplementationName.GetBuffer(Length), Length);
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	// return ( TRUE );
 	}
 
 BOOL	ImplementationClass	::	Read(Buffer	&Link)
@@ -428,8 +429,8 @@ BOOL	ImplementationVersion	::	Write(Buffer	&Link)
 	Link << Reserved1;	//Link.Write((BYTE *) &Reserved1, sizeof(BYTE));
 	Link << Length;		//Link.Write((BYTE *) &Length, sizeof(UINT16));
 	Link.Write((BYTE *) Version.GetBuffer(Length), Length);
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	// return ( TRUE );
 	}
 
 BOOL	ImplementationVersion	::	Read(Buffer	&Link)
@@ -519,7 +520,7 @@ BOOL	PresentationContext	::	Write ( Buffer	&Link )
 	Link.Write((BYTE *) &Reserved3, sizeof(BYTE));
 	Link.Write((BYTE *) &Reserved4, sizeof(BYTE));
 	AbsSyntax.Write(Link);
-	Link.Flush();
+	if (!Link.Flush()) return FALSE;
 	Index = 0;
 	while ( Index < TrnSyntax.GetSize() )
 		{
@@ -621,8 +622,8 @@ BOOL	MaximumSubLength	::	Write(Buffer	&Link)
 	Link.Write((BYTE *) &Reserved1, sizeof(BYTE));
 	Link << Length;	//Link.Write((BYTE *) &Length, sizeof(UINT16));
 	Link << MaximumLength; //Link.Write((BYTE *) &MaximumLength, sizeof(UINT32));
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	// return ( TRUE );
 	}
 
 BOOL	MaximumSubLength	::	Read(Buffer	&Link)
@@ -679,8 +680,8 @@ BOOL	SCPSCURoleSelect	::	Write(Buffer	&Link)
 	Link.Write((BYTE *) uid.GetBuffer(1), TL);
 	Link << SCURole;
 	Link << SCPRole;
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	// return ( TRUE );
 	}
 
 BOOL	SCPSCURoleSelect	::	Read(Buffer	&Link)
@@ -747,7 +748,7 @@ BOOL	UserInformation	::	Write(Buffer	&Link)
  	Link << ItemType;	//Link.Write((BYTE *) &ItemType, sizeof(BYTE));
 	Link << Reserved1;	//Link.Write((BYTE *) &Reserved1, sizeof(BYTE));
 	Link << Length;		//Link.Write((BYTE *) &Length, sizeof(UINT16));
-	Link.Flush();
+	if (!Link.Flush()) return FALSE;
 	MaxSubLength.Write(Link);
 	ImpClass.Write(Link);
 	ImpVersion.Write(Link);
@@ -938,7 +939,7 @@ BOOL	AAssociateRQ	::	Write(Buffer	&Link)
 	Link.Write((BYTE *) CalledApTitle, 16);
 	Link.Write((BYTE *) CallingApTitle, 16);
 	Link.Write((BYTE *) Reserved3, 32);
-	Link.Flush();
+	if (!Link.Flush()) return FALSE;
 	AppContext.Write(Link);
 	Index = 0;
 	while(Index < PresContexts.GetSize())

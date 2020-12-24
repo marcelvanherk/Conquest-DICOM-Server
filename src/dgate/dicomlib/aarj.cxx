@@ -33,6 +33,7 @@
    mvh 20140309: Default AAbort source to 0 (service-user initiated abort)
    lsp 20140528: Kept member initialization only in constructors: not GNUC specific
    mvh 20160221: Imported bcb change 20131129
+   mvh 20201224: Added error handling
 */
 
 #	include	"dicom.hpp"
@@ -78,8 +79,8 @@ BOOL	AAssociateRJ	::	Write(Buffer	&Link)
 	Link << Result;
 	Link << Source;
 	Link << Reason;
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	//return ( TRUE );
 	}
 
 BOOL	AAssociateRJ	::	Read(Buffer	&Link)
@@ -132,8 +133,8 @@ BOOL	AReleaseRQ	::	Write(Buffer	&Link)
 	Link.Write((BYTE *) &Reserved1, sizeof(BYTE));
 	Link << Length;	//Link.Write((BYTE *) &Length, sizeof(UINT32));
 	Link << Reserved2;			//Link.Write((BYTE *) &Reserved2, sizeof(UINT16));
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	// return ( TRUE );
 	}
 
 BOOL	AReleaseRQ	::	Read(Buffer	&Link)
@@ -181,8 +182,8 @@ BOOL	AReleaseRP	::	Write(Buffer	&Link)
 	Link.Write((BYTE *) &Reserved1, sizeof(BYTE));
 	Link << Length;	//Link.Write((BYTE *) &Length, sizeof(UINT32));
 	Link << Reserved2;			//Link.Write((BYTE *) &Reserved2, sizeof(UINT16));
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	// return ( TRUE );
 	}
 
 BOOL	AReleaseRP	::	Read(Buffer	&Link)
@@ -246,8 +247,8 @@ BOOL	AAbortRQ	::	Write(Buffer	&Link)
 	Link << Reserved3;
 	Link << Source;
 	Link << Reason;
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	// return ( TRUE );
 	}
 
 BOOL	AAbortRQ	::	Read(Buffer	&Link)

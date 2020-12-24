@@ -12,6 +12,7 @@ Spectra-0019:	Thu, 6 Mar 2014 17:02:42 -0300: Fix mismatched new/delete in buffe
 20160221    mvh  Clear data if buffer read fails; avoids infinite loop if connection is broken
 20180316    mvh  Implemented buffer size changes proposed by lsp
 20190318    mvh  DEFAULT_BREAK_SIZE back to 8192 for linux
+20201224    mvh  Added error handling
 */
 
 /****************************************************************************
@@ -340,7 +341,7 @@ BOOL	Buffer	::	Flush()
 		{
 		BS = Outgoing.Get ( 0 );
 		if(BS->Index)
-			SendBinary(BS->Data, BS->Index);
+			if (!SendBinary(BS->Data, BS->Index)) return FALSE;
 		
 		delete Outgoing.Get(0);
 		Outgoing.RemoveAt ( 0 );
@@ -374,7 +375,7 @@ BOOL	Buffer	::	Flush(UINT	Bytes)
 		BS = Outgoing.Get( 0 );
 		if(BS->Index > Bytes)
 			{
-			SendBinary(BS->Data, Bytes);
+			if (!SendBinary(BS->Data, Bytes)) return FALSE;
 			memcpy(BS->Data, &BS->Data[Bytes], BS->Index - Bytes);
 			BS->Index = BS->Index - Bytes;
 			Bytes = 0;
@@ -384,7 +385,7 @@ BOOL	Buffer	::	Flush(UINT	Bytes)
 			{
 			if(BS->Index)
 				{
-				SendBinary(BS->Data, BS->Index);
+				if (!SendBinary(BS->Data, BS->Index)) return FALSE;
 				Bytes -= BS->Index;
 				delete Outgoing.Get(0);
 				Outgoing.RemoveAt ( 0 );

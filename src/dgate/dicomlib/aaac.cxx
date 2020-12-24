@@ -12,6 +12,7 @@ lsp 20140528: Kept member initialization only in constructors: not GNUC specific
 mvh 20140910: Added hasTrn flag to fix issue in communication with Aria
 mvh 20150908: Set count to 0 after skipping unknown element
 mvh 20181113: replace min() by MIN() for Ubuntu 18 compile
+mvh 20201224: Added error handling
 */
 
 /****************************************************************************
@@ -109,8 +110,8 @@ BOOL	PresentationContextAccept	::	Write ( Buffer	&Link )
 //	fprintf(stderr, "ABS: %d TRN: %d\n", AbsSyntax.Size(), TrnSyntax.Size());
 
 
-	Link.Flush();
-	return ( TRUE );
+	return Link.Flush();
+	// return ( TRUE );
 	}
 
 BOOL	PresentationContextAccept	::	Read (Buffer	&Link)
@@ -248,7 +249,7 @@ BOOL	AAssociateAC	::	Write(Buffer	&Link)
 	Link.Write((BYTE *) CalledApTitle, 16);
 	Link.Write((BYTE *) CallingApTitle, 16);
 	Link.Write((BYTE *) Reserved3, 32);
-	Link.Flush();
+	if (!Link.Flush()) return FALSE;
 //	fprintf(stderr, "AAssociateAC (writting App/Pre Contexts)\n");
 	AppContext.Write(Link);
 	Index = 0;

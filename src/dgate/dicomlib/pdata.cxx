@@ -43,6 +43,7 @@
 //20190109   mvh    Made MaxSubLen configurable from outside
 //20190117   mvh    Default MaxSubLen to 4096 for if not set
 //20190126   mvh    Reduced blocksize by 6; now DCMGETSCU etc work
+//20201224   mvh    Added error handling
 
 #	include	"dicom.hpp"
 
@@ -114,8 +115,7 @@ INT		LinkedBuffer	::	ReadBinary(BYTE	*Data, UINT	Count)
 BOOL	LinkedBuffer	::	SendBinary(BYTE	*Data, UINT	Count)
 	{
 	LinkedTo->Write(Data, Count);
-	LinkedTo->Flush();
-	return ( TRUE );
+	return (LinkedTo->Flush());
 	}
 
 UINT	LinkedBuffer	::	GetOutgoingSize()

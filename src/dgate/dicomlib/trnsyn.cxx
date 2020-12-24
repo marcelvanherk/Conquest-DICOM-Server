@@ -74,6 +74,7 @@
 20160229   mvh   Removed #ifdefs for CharLS and J2k
 20170827   mvh   Do not insert TransferSyntax into sequences, use UI instead of IU
 20181124   mvh   Back to IU is in preamble
+20201223   mvh   check length of VR < lVRBuffer.GetIncomingSize() to avoid crash on corrupted files
 */
 
 /*
@@ -202,8 +203,14 @@ PDU_Service	::	ParseImagePixelDataRawToDCM(
 		lVRBuffer >> vr->Group;
 		lVRBuffer >> vr->Element;
 		lVRBuffer >> vr->Length;
+
+		if (vr->Length>lVRBuffer.GetIncomingSize())
+			{
+			DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length);
+			return ( FALSE );
+			}
 	
-if ( (vr->Group == 0xfffe) &&
+		if ( (vr->Group == 0xfffe) &&
 			 (vr->Element == 0xe0dd))
 			{
 			delete vr;
@@ -563,7 +570,13 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 					DicomError(DCM_ERROR_PARSE, "Group Length = %u\n", CurrentGroupLength);
 				if (b && vr->Length > 0xffff && CurrentGroupLength!=0) return FALSE; // pass if not dangerous
 				DicomError(DCM_ERROR_PARSE, "Continuing parsing", 0);
-				}			
+				}
+
+			if (vr->Length>lVRBuffer.GetIncomingSize())
+				{
+				DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length);
+				return ( FALSE );
+				}
 
 			// Ok, an explicit length.. sequence item begin?
 			if ( vr->Element == 0xe000 )
@@ -647,6 +660,12 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			}
 
 		// Explicit Length ( normal)
+		if (vr->Length > lVRBuffer.GetIncomingSize())
+			{
+			DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length);
+			return ( FALSE );
+			}
+
 		if ( vr->Length )
 			{
 			if (vr->Length>CurrentGroupLength || (vr->Length&1))
@@ -957,6 +976,12 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 				DicomError(DCM_ERROR_PARSE, "Continuing parsing", 0);
 				}			
 
+			if (vr->Length>lVRBuffer.GetIncomingSize())
+				{
+				DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length);
+				return ( FALSE );
+				}
+
 			// Ok, an explicit length.. sequence item begin?
 			if ( vr->Element == 0xe000 )
 				{
@@ -1050,6 +1075,12 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 				return ( FALSE );
 				}
 			continue;			
+			}
+
+		if (vr->Length>lVRBuffer.GetIncomingSize())
+			{
+			DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length);
+			return ( FALSE );
 			}
 
 		// Explicit Length ( normal)
@@ -1511,6 +1542,11 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 				DicomError(DCM_ERROR_PARSE, "Continuing parsing", 0);
 				}			
 
+			if (vr->Length>lVRBuffer.GetIncomingSize())
+				{
+				DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length);
+				return ( FALSE );
+				}
 
 			// Ok, an explicit length.. sequence item begin?
 			if ( vr->Element == 0xe000 )
@@ -1691,6 +1727,12 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 				DicomError(DCM_ERROR_PARSE, "Group Length = %u\n", CurrentGroupLength);
 			if (b && vr->Length > 0xffff && CurrentGroupLength!=0) return FALSE; // pass if not dangerous
 			DicomError(DCM_ERROR_PARSE, "Continuing parsing", 0);
+			}
+
+		if (vr->Length>lVRBuffer.GetIncomingSize())
+			{
+			DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length);
+			return ( FALSE );
 			}
 
 		if ( vr->TypeCode == 'SQ' )

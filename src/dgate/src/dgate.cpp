@@ -1156,6 +1156,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20201029	mvh	Pass db into ChangeUID(Back) and New/OldUIDsInDICOMObject
 20201101	mvh	Added 3x5s retry on AttachFile and AddImageFile in LoadAndDeleteDir
 20201116	mvh	Added global_query_string and -y option
+20201224	mvh	Added regen and regenFail converter; luacompress returns nil on failure
 
 ENDOFUPDATEHISTORY
 */
@@ -7239,9 +7240,16 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 
       if (O)
       { DICOMDataObject *pDDO = MakeCopy(O);
-        char cmd[512];
-	sprintf(cmd, "compression %s", name);
-        CallImportConverterN(NULL, pDDO, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
+
+        //char cmd[512];
+	//sprintf(cmd, "compression %s", name);
+        //CallImportConverterN(NULL, pDDO, -2, sd->pszModality, sd->pszStationName, sd->pszSop, sd->patid, sd->PDU, sd->Storage, cmd);
+
+        if (!recompress(&pDDO, name, "", name[0]=='n' || name[0]=='N', sd->PDU))
+        { delete pDDO; 
+          return 0;
+        }
+      
 	//BOOL StripGroup2 = memicmp(name, "as", 2)!=0 && memicmp(name, "is", 2)!=0;
 	//recompress(&pDDO, name, "", StripGroup2, sd->PDU);
         luaCreateObject(L, pDDO, NULL, TRUE);
@@ -8705,6 +8713,8 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
   else if (N==2200) strcpy(ininame, "RejectedImageWorkList");
   else if (N==2300) strcpy(ininame, "VirtualServerQuery");
   else if (N==2400) strcpy(ininame, "VirtualServerQueryResult");
+  else if (N==2500) strcpy(ininame, "Regen");
+  else if (N==2600) strcpy(ininame, "RegenFail");
   else if ((N/100)==14) strcpy(ininame, "Compression");	// 1400-1499
   else              strcpy(ininame, "Import");
 

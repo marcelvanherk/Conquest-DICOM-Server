@@ -53,6 +53,7 @@ bcb 20070308: Ignore .DS_Store for DARWIN
 bcb 20091231: Changed char* to const char* for gcc4.2 warnings
 mvh 20100111: Merged; fixed WIN32 changes
 mvh 20120630: Regen now allows files without 3 letter extension
+mvh 20201224: Added regen and regenFail converter
 */
 
 // #define MULTITHREAD
@@ -98,12 +99,14 @@ BOOL IsDirectory(char *path)
 
 // This routine checks the file extension and only accepts v2=raw, dcm/img=chapter 10 (or other)
 
+extern "C" void lua_setvar(ExtendedPDU_Service *pdu, char *name, char *value);
+
 BOOL
 RegenToDatabase(Database *DB, char *basename, char *filename, const char *device)
 	{
 	DICOMDataObject*	pDDO;
 	int			len;
-	PDU_Service		PDU;
+	ExtendedPDU_Service     PDU;
 	
 	PDU.AttachRTC(&VRType);
 
@@ -131,11 +134,18 @@ RegenToDatabase(Database *DB, char *basename, char *filename, const char *device
 		if(!pDDO)
 			{
 			OperatorConsole.printf("***[Regen] %s -FAILED: Error on Load\n", filename);
+			DICOMDataObject	DDO;
+			lua_setvar(&PDU, "Filename", filename);
+			int rc = CallImportConverterN(NULL, &DDO, 2600, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
 			return ( FALSE );
 			}
 		}
 	else
 		return FALSE;
+
+	lua_setvar(&PDU, "Filename", filename);
+	int rc = CallImportConverterN(NULL, pDDO, 2500, NULL, NULL, NULL, NULL, &PDU, NULL, NULL);
+        if (rc==2) return ( FALSE );
 
 	if(!SaveToDataBase(*DB, pDDO, basename, device, FALSE))
 		{

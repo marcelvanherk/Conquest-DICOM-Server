@@ -266,6 +266,7 @@
 20201025	mvh	Print reduced number of images actually sent
 20200202	mvh	Fix intermittent failure of atof(pVR->Data) when Data is e.g. " 1", it reads beyond the array
 20200528        mvh     Fixed Pivoglot reported use of GetAtoi instead of GetUINT16 to read bitsperpixel
+20210114        mvh     Enable compression selection for C-GET (do not force "UN") as tested by Chris
 */
 
 //#define bool BOOL
@@ -708,8 +709,9 @@ BOOL	StandardRetrieveNKI	::	Read (
 			}
 		else
 			{
-			if (!cget) AcceptedCompress = UsedPDU->GetAcceptedCompressionType(iUID);
-			else AcceptedCompress = "un";
+			// if (!cget) 
+			AcceptedCompress = UsedPDU->GetAcceptedCompressionType(iUID);
+			// else AcceptedCompress = "un";
 
 			StripGroup2 = memicmp(AcceptedCompress, "as", 2)!=0 && memicmp(AcceptedCompress, "is", 2)!=0;
 

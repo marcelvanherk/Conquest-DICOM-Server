@@ -670,6 +670,13 @@ When            Who     What
 20201002        mvh     Version to 1.5.0b; Fix DiskFreeGB()*1024
                         Fix ALTER TABLE UIDMODS syntax; comparison in find local missing was reversed
 20201101        mvh     Added optimisation of UIDMODS index under verify database button
+20210203        mvh     Reduce updates of serverstatus using stringList and writeMemoSl
+20210204        mvh     Make sure stringlist exist; consistently base all files on curdir
+20210206        mvh     Verify database makes joint DICOMTables indices, fix UIDmods check for sql server
+                        Small change in logic of updateTime; also call .Update on Memo
+                        Fix setting of debuglevel; onClick comes before change; also print value in log
+20210208        mvh     Keep lastUpdate and lastWrite time to make it work
+20210210        mvh     Blocked out debug update source display, fixed race condition in timer
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -705,8 +712,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0b';
-const BUILDDATE = '20201101';
+const VERSION = '1.5.0c';
+const BUILDDATE = '20210208';
 const testmode = 0;
 
 {************************************************************************}
@@ -1282,6 +1289,9 @@ var
     Mailer: TSyncSmtpCli;
     TrayIcon1: TTrayIcon;
 
+var
+  ServerStatusStringList: TStringList;
+
 dgateExe: string        = 'dgate.exe';
 
 procedure FillAELists;
@@ -1496,7 +1506,8 @@ begin
   ZeroMemory(@sinfo, sizeof(TStartupInfo));
   ZeroMemory(@pinfo, sizeof(TProcessInformation));
   sinfo.cb      := sizeof(TStartupInfo);
-  p := ExtractFileDir(ParamStr(0)) + '\' + dgateExe;
+  p := //ExtractFileDir(ParamStr(0))
+    CurDir + '\' + dgateExe;
   s := '"' + p + '"' + ' ' + args;
   ChDir(curdir);
   if not CreateProcess(Pchar(p), Pchar(s), nil, nil, true,
@@ -1539,8 +1550,10 @@ begin
   // write text to file
   if Length(name)<>0 then
   begin
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\' + name + '.log');
-    if FileExists(ExtractFileDir(ParamStr(0)) + '\' + name + '.log') then
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir + '\' + name + '.log');
+    if FileExists(//ExtractFileDir(ParamStr(0))
+      Curdir + '\' + name + '.log') then
       Append(f)
     else
       Rewrite(f);
@@ -1570,6 +1583,62 @@ begin
   end;
 end;
 
+var lastUpdate: double = 0.0;
+var lastWrite: double = 0.0;
+
+// write text to memo, file and mail problems
+procedure WriteMemoSl(Memo: TMemo; s:string; maxlines: integer; minlines: integer; name: string; adddate : boolean = true; sl: TStringList = nil);
+var f: TextFile;
+begin
+  // display text in memo
+  sl.Add(s);
+
+  // write text to file
+  if Length(name)<>0 then
+  begin
+    AssignFile(f, // ExtractFileDir(ParamStr(0))
+      CurDir + '\' + name + '.log');
+    if FileExists(//ExtractFileDir(ParamStr(0))
+      CurDir + '\' + name + '.log') then
+      Append(f)
+    else
+      Rewrite(f);
+
+    if adddate then
+      writeln(f, DateToStr(Date) + ' ' + TimeToStr(Time) + ' ' + s)
+    else
+      writeln(f, s);
+
+    CloseFile(f);
+  end;
+
+  // mail all server fail messages using weekly check mail config
+  if ((Pos('fail', LowerCase(s))<>0) or (Pos('***', s)<>0)) and (Length(mailer.FromName)<>0) then
+    MailMessage('DICOM problem: ' + s);
+
+  lastWrite := Time;
+
+  // keep memo contents small
+  if (sl.count > maxlines) then
+  begin
+    while sl.count > minlines do
+    begin
+      sl.Delete(0);
+    end;
+    //Application.MainForm.Caption := 'Scrollupdate :' + FloatToStr(lastUpdate);
+    Memo.Text := Sl.Text;
+    Memo.Perform(EM_LineScroll, 0, Memo.Lines.Count); {move to bottom}
+    lastUpdate := Time;
+  end
+  else if lastWrite-lastUpdate > 0.1/(24*3600) then
+  begin
+    //Application.MainForm.Caption := 'Socketupdate :' + FloatToStr(lastUpdate);
+    Memo.Text := Sl.Text;
+    Memo.Perform(EM_LineScroll, 0, Memo.Lines.Count); {move to bottom}
+    lastUpdate := Time;
+  end;
+end;
+
 procedure ServerTask(text, args: string);
 var i: integer;
     s: array[1..20] of string;
@@ -1594,11 +1663,13 @@ begin
       if form1.Table3.active then form1.Image1.Canvas.TextOut(0, 60, form1.Table3.FieldByName('SERIESINST' ).AsString);
       if form1.Table4.active then form1.Image1.Canvas.TextOut(0, 80, form1.Table4.FieldByName('SOPINSTANC' ).AsString);
 
-      WriteMemo(form1.ServerStatusMemo, 'TestMode: ' + text, 100, 200, 'serverstatus');
-      WriteMemo(form1.ServerStatusMemo, 'TestMode: ' + args, 100, 200, 'serverstatus');
+      WriteMemoSl(form1.ServerStatusMemo, 'TestMode: ' + text, 1100, 1000, 'serverstatus', true, ServerStatusStringList);
+      WriteMemoSl(form1.ServerStatusMemo, 'TestMode: ' + args, 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
-      AssignFile(f, ExtractFileDir(ParamStr(0)) + '\testmode.txt');
-      if FileExists(ExtractFileDir(ParamStr(0)) + '\testmode.txt') then
+      AssignFile(f, //ExtractFileDir(ParamStr(0))
+        CurDir + '\testmode.txt');
+      if FileExists(//(ParamStr(0))
+        CurDir  + '\testmode.txt') then
         Append(f)
       else
         Rewrite(f);
@@ -1710,8 +1781,10 @@ end;
 procedure WriteLog(s: string; name: string = 'conquestdicomserver'; adddate: boolean = true);
 var f: TextFile;
 begin
-  AssignFile(f, ExtractFileDir(ParamStr(0)) + '\' + name + '.log');
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\' + name + '.log') then
+  AssignFile(f, //ExtractFileDir(ParamStr(0))
+    CurDir + '\' + name + '.log');
+  if FileExists(// ExtractFileDir(ParamStr(0))
+    CurDir + '\' + name + '.log') then
     Append(f)
   else
     Rewrite(f);
@@ -2263,6 +2336,12 @@ procedure TForm1.FormCreate(Sender: TObject);
       RegFunc: TDllRegisterServer;
       InstallDir: string;
 begin
+  // Set default configuration parameters
+  try
+    GetDir(0, CurDir);
+  except
+  end;
+
   InstallationSocket := TWSocket.Create(form1);
     InstallationSocket.LineMode := False;
     InstallationSocket.LineEnd := #13#10;
@@ -2435,6 +2514,9 @@ begin
 
   Timer4.enabled := false;
 
+  if not assigned(ServerStatusStringList) then
+    ServerStatusStringList := TStringList.Create;
+
   if ParamCount>0 then
   begin
     for i:=1 to ParamCount do
@@ -2467,12 +2549,6 @@ begin
 
   NewInstall := False;
   NewInstallDone := True;
-
-  // Set default configuration parameters
-  try
-    GetDir(0, CurDir);
-  except
-  end;
 
   if not FileExists(Curdir+'\dgate.exe') and not FileExists(Curdir+'\dgate64.exe') then
   begin
@@ -2583,11 +2659,12 @@ begin
 
   // make sure a dgatesop.lst exists. Default support JPEG if OFFIS tools are there
   if not FileExists(curdir + '\dgatesop.lst') then
-    CreateDGATESOP_LST(FileExists(ExtractFileDir(ParamStr(0)) + '\dcmdjpeg.exe'));
+    CreateDGATESOP_LST(FileExists(//ExtractFileDir(ParamStr(0))
+      CurDir + '\dcmdjpeg.exe'));
 
   // Check dgatesop.lst to see if JPEG support is enabled
   JPEGSupport := true;
-  AssignFile(f, ExtractFileDir(ParamStr(0)) + '\dgatesop.lst');
+  AssignFile(f, Curdir + '\dgatesop.lst');
   Reset(f);
   while not Eof(f) do
   begin
@@ -2699,7 +2776,8 @@ begin
   if Registry.OpenKeyReadOnly('SYSTEM\CurrentControlSet\services\' + Trim(ServerName.text)) then
     text := Registry.ReadString('ImagePath');
   Registry.CloseKey;
-  if text<>'' then WriteMemo(ServerStatusMemo, 'Server has service: ' + text, 100, 200, 'serverstatus');
+  if text<>'' then
+    WriteMemoSl(ServerStatusMemo, s, 1100, 1000, 'serverstatus', true, ServerStatusStringList);
   Registry.Free;
 
   i := pos('!', text);
@@ -2730,7 +2808,8 @@ begin
     ListenSocket.Listen;
   except
     // the port is occupied: is there a server running - ping it?
-    AssignFile(f, ExtractFileDir(ParamStr(0))+'\ConquestDICOMServer.Ping');
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir +'\ConquestDICOMServer.Ping');
     Rewrite(f);
     Writeln(f, trim(TCPIPport.text));
     CloseFile(f);
@@ -2738,10 +2817,13 @@ begin
     Sleep(2000);
 
     // the file ping was taken: another server is up
-    if not FileExists(ExtractFileDir(ParamStr(0))+'\ConquestDICOMServer.Ping') then
+    if not FileExists(// ExtractFileDir(ParamStr(0))
+      CurDir +'\ConquestDICOMServer.Ping') then
     begin
-      if FileExists(ExtractFileDir(ParamStr(0))+'\ConquestDICOMServer.Response') then
-        DeleteFile(ExtractFileDir(ParamStr(0))+'\ConquestDICOMServer.Response');
+      if FileExists(// ExtractFileDir(ParamStr(0))
+        CurDir +'\ConquestDICOMServer.Response') then
+        DeleteFile(// ExtractFileDir(ParamStr(0))
+        CurDir +'\ConquestDICOMServer.Response');
       ShowMessage('A server GUI seems already to be running for port: '+ trim(TCPIPport.text) + #13 + 'Only one may run at a time; please close it first.');
       Application.Terminate;
       exit;
@@ -3127,7 +3209,7 @@ begin
   if FileExists(curdir + '\USESQLSERVER') then
   begin
     if not TestLocalServer(false, true) then
-      WriteMemo(ServerStatusMemo, 'The server is not running properly - maybe the SQL server is not (yet) up', 100, 200, 'serverstatus');
+      WriteMemoSl(ServerStatusMemo, 'The server is not running properly - maybe the SQL server is not (yet) up', 1100, 1000, 'serverstatus', true, ServerStatusStringList);
   end
   else
     TestLocalServer(false, false);
@@ -3193,14 +3275,16 @@ begin
   end;
 
   // Read the dicom.ini file with server configuration
-  if not FileExists(ExtractFileDir(ParamStr(0)) + '\dicom.ini') then exit;
+  if not FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\dicom.ini') then exit;
 
   // some defaults
   Runexternalviewer1.visible := false;
   Timer4.Enabled := false;
   ZipTime := '05:';
 
-  AssignFile(f, ExtractFileDir(ParamStr(0)) + '\dicom.ini');
+  AssignFile(f, //ExtractFileDir(ParamStr(0))
+    CurDir + '\dicom.ini');
   Reset(f);
 
   FileCompressMode := -1;       // not-set
@@ -3702,12 +3786,14 @@ begin
   TabSheet8.TabVisible := false;
   ArchiveStatus := 'Archiving page disabled';
 
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\jukebox.ini') then
+  if FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\jukebox.ini') then
   begin
     TabSheet8.TabVisible := true;
     ArchiveStatus := 'Inactive';
 
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\jukebox.ini');
+    AssignFile(f, // ExtractFileDir(ParamStr(0))
+      CurDir + '\jukebox.ini');
     Reset(f);
 
     while not Eof(f) do
@@ -3826,12 +3912,14 @@ begin
 
   TapeBackupPage.TabVisible := false;
   TapebackupStatus := 'Tape backup page disabled';
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\tapebackup.ini') then
+  if FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\tapebackup.ini') then
   begin
     TapeBackupPage.TabVisible := true;
     TapebackupStatus := 'Inactive';
 
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\tapebackup.ini');
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir + '\tapebackup.ini');
     Reset(f);
 
     while not Eof(f) do
@@ -3878,11 +3966,13 @@ begin
   CheckReading := true;
 
   WeeklyChecksPage.TabVisible := false;
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\weeklychecks.ini') then
+  if FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\weeklychecks.ini') then
   begin
     WeeklyChecksPage.TabVisible := true;
 
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\weeklychecks.ini');
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir + '\weeklychecks.ini');
     Reset(f);
 
     while not Eof(f) do
@@ -3988,9 +4078,11 @@ begin
 
   // Read the submit checks configuration in submitchecks.ini
 
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\submitchecks.ini') then
+  if FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\submitchecks.ini') then
   begin
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\submitchecks.ini');
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir + '\submitchecks.ini');
     Reset(f);
 
     while not Eof(f) do
@@ -4148,7 +4240,8 @@ begin
   UseDBFWithoutODBC := false;
   if FileExists(curdir + '\USEDBASEIIIWITHOUTODBC') then UseDBFWithoutODBC := true;
 
-  changepage := not FileExists(ExtractFileDir(ParamStr(0)) + '\dicom.ini');
+  changepage := not FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\dicom.ini');
   Screen.Cursor := crHourGlass;
 
   if MagDeviceList[0][1]<>'\' then
@@ -4182,7 +4275,8 @@ begin
     if not DirectoryExists(DataSource) then
       DataSource := DataDir + '\dbase\';
 
-  AssignFile(f, ExtractFileDir(ParamStr(0)) + '\dicom.ini');
+  AssignFile(f, //ExtractFileDir(ParamStr(0))
+    CurDir + '\dicom.ini');
   Rewrite(f);
 
   writeln(f, '# This file contains configuration information for the DICOM server');
@@ -4682,9 +4776,11 @@ begin
 //    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
   end;
 
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\jukebox.ini') then
+  if FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\jukebox.ini') then
   begin
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\jukebox.ini');
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir + '\jukebox.ini');
     Rewrite(f);
 
     writeln(f, '# This file contains configuration information for auto archival for the DICOM server');
@@ -4716,9 +4812,11 @@ begin
     CloseFile(f);
   end;
 
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\tapebackup.ini') then
+  if FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\tapebackup.ini') then
   begin
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\tapebackup.ini');
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir + '\tapebackup.ini');
     Rewrite(f);
 
     writeln(f, '# This file contains configuration information for tape backup for the DICOM server');
@@ -4732,9 +4830,11 @@ begin
     CloseFile(f);
   end;
 
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\weeklychecks.ini') then
+  if FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\weeklychecks.ini') then
   begin
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\weeklychecks.ini');
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir + '\weeklychecks.ini');
     Rewrite(f);
 
     writeln(f, '# This file contains configuration information for weekly checks for the DICOM server');
@@ -4764,9 +4864,11 @@ begin
     CloseFile(f);
   end;
 
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\submitchecks.ini') then
+  if FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\submitchecks.ini') then
   begin
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\submitchecks.ini');
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir + '\submitchecks.ini');
     Rewrite(f);
 
     writeln(f, '# This file contains configuration information for submit checks for the DICOM server');
@@ -5358,10 +5460,17 @@ begin
 
   // Update UIDMODS table from 1.4.17 format to 1.4.19 format if needed
   if NewInstallDone then
-    ServerTask('', 'lua:local a=dbquery("UIDMODS", "Stage", "Stage=1"); if a==nil then sql("ALTER TABLE UIDMODS ADD Stage varchar(32)"); sql("ALTER TABLE UIDMODS ADD COLUMN Annotation varchar(64)"); print("updated UIDMODS table"); end');
+    ServerTask('', 'lua:local a=dbquery("UIDMODS", "Stage", "Stage=''1''");if a==nil then sql("ALTER TABLE UIDMODS ADD Stage varchar(32)"); sql("ALTER TABLE UIDMODS ADD COLUMN Annotation varchar(64)"); print("updated UIDMODS table"); end');
 
   // Optimise UIDMODS index (fails harmlessly if already exists)
   ServerTask('', 'lua:sql("CREATE INDEX mods_joint ON UIDMODS (OldUID, Stage)")');
+
+  // Optimise joint dicom table indices (fails harmlessly if already exists)
+  ServerTask('', 'lua:sql("CREATE INDEX idx_patientid             ON DICOMStudies(PatientID             );")');
+  ServerTask('', 'lua:sql("CREATE INDEX idx_patientid_studyinsta  ON DICOMStudies(PatientID,  StudyInsta);")');
+  ServerTask('', 'lua:sql("CREATE INDEX idx_studyinsta_seriesinst ON DICOMSeries (StudyInsta, SeriesInst);")');
+  ServerTask('', 'lua:sql("CREATE INDEX idx_seriesinst_sopinstanc ON DICOMImages (SeriesInst, SOPInstanc);")');
+
   NewInstall := false;
   TestLocalServer(false, false);
 end;
@@ -7036,7 +7145,9 @@ begin
   // s := copy(s, 0, length(s)-1);
   for i:=1 to length(s) do if s[i]<' ' then s[i]:=' ';
 
-  WriteMemo(ServerStatusMemo, s, 2000, 1000, 'serverstatus');
+  if not assigned(ServerStatusStringList) then
+    ServerStatusStringList := TStringList.Create;
+  WriteMemoSl(ServerStatusMemo, s, 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
   // duplicate serious server problems in conquestdicomserver.log
   if Pos('***', s) > 0 then WriteLog(s);
@@ -7459,9 +7570,24 @@ var LastFile, tmp: string;
     scale: single;
     var top, height: integer;
 begin
-  if not assigned(PrinterQueue) then exit;
   if InTimer then exit;
   InTimer := true;
+
+  if assigned(ServerstatusMemo) and
+    (Time-lastWrite > 0.1/(24*3600))
+    then
+  begin
+    //Application.MainForm.Caption := 'Timerupdate: ' + FloatToStr(lastUpdate);
+    ServerstatusMemo.Text := ServerStatusStringList.Text;
+    ServerstatusMemo.Perform(EM_LineScroll, 0, ServerstatusMemo.Lines.Count); {move to bottom}
+    lastWrite := 1e38;
+  end;
+
+  if not assigned(PrinterQueue) then
+  begin
+    InTimer := false;
+    exit;
+  end;
 
   rows := 0;
   cols := 0;
@@ -7848,35 +7974,35 @@ var g: file of byte;
 begin
   ZipFileName := curdir + '\bugreport_' + FormatDateTime('yyyymmdd', date) + '.zip';	// zip for this day
 
-  WriteMemo(ServerStatusMemo, '-----------------------------------------------------', 200, 100, 'serverstatus');
-  WriteMemo(ServerStatusMemo, 'Creating bug report zip file for server version '+VERSION, 200, 100, 'serverstatus');
+  WriteMemoSl(ServerStatusMemo, '-----------------------------------------------------', 1100, 1000, 'serverstatus', true, ServerStatusStringList);
+  WriteMemoSl(ServerStatusMemo, 'Creating bug report zip file for server version '+VERSION, 200, 100, 'serverstatus', true, ServerStatusStringList);
 
   if FileExists(curdir + '\' + dgateExe) then
-    WriteMemo(ServerStatusMemo, 'File date for dgate.exe:               '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\' + dgateExe))), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'File date for dgate.exe:               '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\' + dgateExe))), 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
   if FileExists(curdir + '\lua5.1.dll') then
-    WriteMemo(ServerStatusMemo, 'File date for lua5.1.dll:              '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\lua5.1.dll'))), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'File date for lua5.1.dll:              '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\lua5.1.dll'))), 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
     if FileExists(curdir + '\dgateserv.exe') then
-    WriteMemo(ServerStatusMemo, 'File date for dgateserv.exe:           '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\dgateserv.exe'))), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'File date for dgateserv.exe:           '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\dgateserv.exe'))), 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
   if FileExists(curdir + '\dgate.dic') then
-    WriteMemo(ServerStatusMemo, 'File date for dgate.dic:               '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\dgate.dic'))), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'File date for dgate.dic:               '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\dgate.dic'))), 21100, 1000, 'serverstatus', true, ServerStatusStringList);
 
   if FileExists(curdir + '\ConquestDICOMServer.exe') then
-    WriteMemo(ServerStatusMemo, 'File date for ConquestDICOMServer.exe: '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\ConquestDICOMServer.exe'))), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'File date for ConquestDICOMServer.exe: '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\ConquestDICOMServer.exe'))), 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
   if FileExists(curdir + '\ConquestPacs.doc') then
-    WriteMemo(ServerStatusMemo, 'File date for ConquestPacs.doc:        '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\ConquestPacs.doc'))), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'File date for ConquestPacs.doc:        '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\ConquestPacs.doc'))), 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
   if FileExists(curdir + '\cqdicom.dll') then
-    WriteMemo(ServerStatusMemo, 'File date for cqdicom.dll:             '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\cqdicom.dll'))), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'File date for cqdicom.dll:             '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\cqdicom.dll'))), 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
   if FileExists(curdir + '\Dcmcjpeg.exe') then
-    WriteMemo(ServerStatusMemo, 'File date for Dcmcjpeg.exe:            '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\Dcmcjpeg.exe'))), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'File date for Dcmcjpeg.exe:            '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\Dcmcjpeg.exe'))), 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
   if FileExists(curdir + '\Dcmdjpeg.exe') then
-    WriteMemo(ServerStatusMemo, 'File date for Dcmdjpeg.exe:            '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\Dcmdjpeg.exe'))), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'File date for Dcmdjpeg.exe:            '+ FormatDateTime('yyyymmdd hh:mm:ss', FileDateToDateTime(FileAge(curdir + '\Dcmdjpeg.exe'))), 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
   RunProgramBlocking(curdir + '\7za.exe', curdir, ['-tzip', '-mx=9', 'a', ZipFileName, '*.log *.ini *.sql *.map *.lst USE*']);
 
@@ -7887,20 +8013,20 @@ begin
   if size > 1024000 then
   begin
     ShowMessage('Please shorten log files using a text editor and then create the bugreport file again');
-    WriteMemo(ServerStatusMemo, 'No bug report file has been created.', 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'No bug report file has been created.', 1100, 1000, 'serverstatus', true, ServerStatusStringList);
     DeleteFile(ZipFileName);
   end
   else
   begin
-    WriteMemo(ServerStatusMemo, 'Created bug report file as: ' + ZipFileName, 200, 100, 'serverstatus');
-    WriteMemo(ServerStatusMemo, 'Mail this file to: vanherkmarcel@gmail.com, with a short description of the problem', 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, 'Created bug report file as: ' + ZipFileName, 1100, 1000, 'serverstatus', true, ServerStatusStringList);
+    WriteMemoSl(ServerStatusMemo, 'Mail this file to: vanherkmarcel@gmail.com, with a short description of the problem', 1100, 1000, 'serverstatus', true, ServerStatusStringList);
   end;
-  WriteMemo(ServerStatusMemo, '-----------------------------------------------------', 200, 100, 'serverstatus');
+  WriteMemoSl(ServerStatusMemo, '-----------------------------------------------------', 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 end;
 
 procedure TForm1.CheckBoxDebugLogClick(Sender: TObject);
 begin
-  ServerTask('set debug level from GUI', 'debuglevel:'+IntToStr(UpDownDebugLevel.Position));
+  ServerTask('set debug level ' + IntToStr(UpDownDebugLevel.Position) + ' from GUI', 'debuglevel:'+IntToStr(UpDownDebugLevel.Position));
   CheckBoxOnlyLogToFileClick(self);
 end;
 
@@ -7924,9 +8050,14 @@ end;
 
 procedure TForm1.UpDownDebugLevelClick(Sender: TObject;
   Button: TUDBtnType);
+  var c, level: Integer;
 begin
-  UpDownDebugLevel.Hint := 'Currently selected debug level = ' + IntToStr(UpDownDebugLevel.Position);
-  ServerTask('set debug level from GUI', 'debuglevel:'+IntToStr(UpDownDebugLevel.Position));
+  if Button=btNext then c := 1
+  else c := -1;
+  level := UpDownDebugLevel.Position+c;
+
+  UpDownDebugLevel.Hint := 'Currently selected debug level = ' + IntToStr(level);
+  ServerTask('set debug level ' + IntToStr(level) + ' from GUI', 'debuglevel:'+IntToStr(level));
 end;
 
 procedure TForm1.CheckBoxSmallFontsClick(Sender: TObject);
@@ -7969,7 +8100,7 @@ begin
 
   if resp<>0 then
   begin
-    WriteMemo(ServerStatusMemo, ' *** Restarted dead server after error ' + IntToStr(resp), 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, ' *** Restarted dead server after error ' + IntToStr(resp), 1100, 1000, 'serverstatus', true, ServerStatusStringList);
     WriteLog('Restarted dead failed server after error ' + IntToStr(resp));
     KillAndRestartTheServerClick(nil);
   end;
@@ -9849,7 +9980,8 @@ procedure IncrementCDNumber;
 var f: TextFile;
     i: integer;
 begin
-  AssignFile(f, ExtractFileDir(ParamStr(0)) + '\jukebox.ini');
+  AssignFile(f, //ExtractFileDir(ParamStr(0))
+    CurDir + '\jukebox.ini');
   Rewrite(f);
 
   inc(NextCDToBurn);
@@ -9997,10 +10129,13 @@ begin
 
   // allow external program to query status of archive operation
   try
-    if FileExists(ExtractFileDir(ParamStr(0))+'\ConquestDICOMServer.Ping') then
+    if FileExists(//ExtractFileDir(ParamStr(0))
+      CurDir +'\ConquestDICOMServer.Ping') then
     begin
-      DeleteFile(ExtractFileDir(ParamStr(0))+'\ConquestDICOMServer.Ping');
-      AssignFile(f, ExtractFileDir(ParamStr(0))+'\ConquestDICOMServer.Response');
+      DeleteFile(//ExtractFileDir(ParamStr(0))
+        CurDir +'\ConquestDICOMServer.Ping');
+      AssignFile(f, //ExtractFileDir(ParamStr(0))
+        CurDir +'\ConquestDICOMServer.Response');
       Rewrite(f);
       Writeln(f, status);
       CloseFile(f);
@@ -10495,9 +10630,11 @@ var f: textfile;
 begin
   Form1.UsedTapeMBLabel.Caption := 'UsedTapeMB = ' + IntToStr(UsedTapeMB);
 
-  if FileExists(ExtractFileDir(ParamStr(0)) + '\tapebackup.ini') then
+  if FileExists(//ExtractFileDir(ParamStr(0))
+    CurDir + '\tapebackup.ini') then
   begin
-    AssignFile(f, ExtractFileDir(ParamStr(0)) + '\tapebackup.ini');
+    AssignFile(f, //ExtractFileDir(ParamStr(0))
+      CurDir + '\tapebackup.ini');
     Rewrite(f);
 
     writeln(f, '# This file contains configuration information for tape backup for the DICOM server');
@@ -10811,7 +10948,7 @@ procedure Tform1.WMDropFiles(var Message: TWMDropFiles);
   procedure DropDirectory(root, newpatid: string);
   var sr: TSearchRec;
   begin
-    WriteMemo(ServerStatusMemo, '---- Processing directory: '+root, 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, '---- Processing directory: '+root, 1100, 1000, 'serverstatus', true, ServerStatusStringList);
     if FindFirst(root + '\*.*', faAnyFile, sr) = 0 then
     begin
       if (sr.Attr and faDirectory)<>0 then
@@ -10873,7 +11010,7 @@ begin
       PageControl1Change(self);
     end;
 
-    WriteMemo(ServerStatusMemo, '------------ Adding image files to server -----------', 200, 100, 'serverstatus');
+    WriteMemoSl(ServerStatusMemo, '------------ Adding image files to server -----------', 1100, 1000, 'serverstatus', true, ServerStatusStringList);
 
     for i:=0 to num-1 do
     begin
@@ -10890,7 +11027,7 @@ begin
     end;
   end;
 
-  WriteMemo(ServerStatusMemo, '-----------------------------------------------------', 200, 100, 'serverstatus');
+  WriteMemoSl(ServerStatusMemo, '-----------------------------------------------------', 1100, 1000, 'serverstatus', true, ServerStatusStringList);
   DragFinish(Message.Drop);
 end;
 

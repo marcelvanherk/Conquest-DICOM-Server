@@ -14,6 +14,8 @@
 -- 20200308     mvh     Used wrong quotes in stage * code; postgresql tripped over it
 --			case of UIDMODS; mariadb tripped over it
 -- 20201003     mvh     Fix crash when trying to deanonymize birthdate, name and sex if not there
+-- 20210209     mvh     Also store name in 9999,9001
+-- 20210218     mvh     Accept StudyInstanceUID as secondary source for stage *
 -- =============================================================================
 
 --[[ To test; r-click evaluate in console after project-run:
@@ -25,7 +27,7 @@ dofile('lua/deanonymize_script.lua')
 Data.Dump('c:\\data\\image_restored.txt')
 ]]
 
-local scriptversion = "1.3; date 20200127"
+local scriptversion = "1.4; date 20210218"
 local DirSep      = '/'
 if string.find(Global.BaseDir, '\\') then DirSep = '\\' end
 
@@ -40,12 +42,16 @@ if Data.PatientID~='' then
       return
     end
     if r[1]==null then 
-      print('** patient '..pre..' was not anonymized on this system stage(*) **')
-      reject()
-      return
+      r=dbquery("UIDMODS","distinct stage","newUID='"..Data.StudyInstanceUID.."'")
+      if r[1]==null then 
+        print('** patient '..pre..' was not anonymized on this system stage(*) **')
+        reject()
+        return
+      end
     end
     command_line=r[1][1]
     Data["9999,9000"]=Data.PatientID
+    Data["9999,9001"]=Data.PatientName
   end
   pid = changeuidback(pre, command_line)
   if pid==nil then

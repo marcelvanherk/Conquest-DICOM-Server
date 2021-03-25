@@ -21,10 +21,16 @@
 -- 20181110     mvh     Change directory separator for Linux to /, apply BaseDir and assert(open)
 -- 20200202     mvh     Allow . in stage
 -- 20201021   mvh+aza   Consider removing 0040,2017 = FillerOrderNumberImagingServiceRequest
+-- 20210118     mvh     Added newname option for inholland system; remove FillerOrderNumberImagingServiceRequest
+-- 20210204     mvh     Small fix in that
+-- 20210208     mvh     Fix 3 parameter mode; newname overrules patientname anonymisation
+-- 20210209     mvh     Use newname parameter before anonymisation
+-- 20210211     mvh     If using single parameter, make sure patid and patname are different
+-- 20210211   mvh+evo   Make sure patid and patname are different before anonymisation
 
 -- =============================================================================
 
-local scriptversion = "1.11; date 20200202"
+local scriptversion = "1.12; date 20210211"
 
 ---------------------------------- configuration -----------------------------
 -- entries that show up in log but are NOT modified (except implicitly the UIDs)
@@ -49,7 +55,7 @@ local TagsToRemove = {
 "PatientInsurancePlanCodeSequence", "PatientBirthName", "PatientAddress", "InsurancePlanIdentification",
 "PatientMotherBirthName", "MilitaryRank", "BranchOfService", "RegionOfResidence",
 "PatientTelephoneNumbers", "PatientComments", "StudyComments", "ScheduledPerformingPhysicianName",
-"PerformingPhysicianIdentificationSequence", "OtherPatientIDsSequence" }
+"PerformingPhysicianIdentificationSequence", "OtherPatientIDsSequence", "FillerOrderNumberImagingServiceRequest" }
 
 local DirSep      = '/'
 if string.find(Global.BaseDir, '\\') then DirSep = '\\' end
@@ -73,7 +79,11 @@ local pid = string.gsub(Data.PatientID or 'unknown', '[\\/:*?"<>|]', '_')
 
 -- get stage for staged operation
 local stage = ''
-if string.find(command_line or '', "([%w_]+)|([%w_]+)") then
+local newname = ''
+if string.find(command_line or '', "([%w_%.]+)|([%w_%.]+)|([%w_%.]+)") then
+  local dum
+  dum, dum, command_line, stage, newname = string.find(command_line, "([%w_%.]+)|([%w_%.]+)|([%w_%.]+)")
+elseif string.find(command_line or '', "([%w_%.]+)|([%w_%.]+)") then
   local dum
   dum, dum, command_line, stage = string.find(command_line, "([%w_%.]+)|([%w_%.]+)")
 end
@@ -130,16 +140,10 @@ end
 
 -- but the command_line always overrules any patient ID generated
 if version and command_line and command_line~='' then pre=command_line end
-if version and command_line and command_line~='' then pne=command_line end
+if version and command_line and command_line~='' then pne='PAT_'..command_line end
+if Data.PatientID == Data.PatientName then Data.PatientName = "PAT_" .. Data.PatientName end
+if newname~='' then pne = newname end
 
-if Data.PatientName~='' then
-  if reversible==true then
-    Data.PatientName = changeuid(Data.PatientName, pne, stage, 'PatientName')
-  else
-    Data.PatientName = pne;
-  end
-  f:write('Anonymized PatientName to: ', Data.PatientName, "\n");
-end
 if Data.PatientID~='' then
   if reversible==true then
     Data.PatientID = changeuid(Data.PatientID, pre, stage, 'PatientID')
@@ -147,6 +151,14 @@ if Data.PatientID~='' then
     Data.PatientID = pre;
   end
   f:write('Anonymized PatientID to: ', Data.PatientID, "\n");
+end
+if Data.PatientName~='' then
+  if reversible==true then
+    Data.PatientName = changeuid(Data.PatientName, pne, stage, 'PatientName')
+  else
+    Data.PatientName = pne;
+  end
+  f:write('Anonymized PatientName to: ', Data.PatientName, "\n");
 end
 if Data.PatientBirthDate and Data.PatientBirthDate~='' then
   local org = Data.PatientBirthDate;

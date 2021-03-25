@@ -23,6 +23,7 @@
 // 20201116  mvh  Disable redirect when not using userlogin
 // 20201116  mvh  Note: putenv not thread safe - requests are mixed; propose to create dgate -xquerystring
 // 20201116  mvh  Added newcgi flag; if set use -y mode to pass QUERY_STRING (1.5.0c up)
+// 20210117  mvh  Added missing ; on newcgi if
 
 $folder = "c:\\dicomserver\\webserver\\cgi-bin\\newweb";
 $exe = "dgate.exe";
@@ -105,7 +106,7 @@ if ($newcgi==false)
 header_remove();
 ob_start();
 if ($newcgi==false)
-  passthru($exe)
+  passthru($exe);
 else
   passthru($exe . ' "-y' . http_build_query($output) . '"');
 

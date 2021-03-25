@@ -36,6 +36,8 @@
 -- mvh 20201012: Added zip and zipanonymized to reduce footprint of inholland project
 -- mvh 20201024: Support _passfile_ to enable upload from php script; separate cgi-bin copy for web and dicom server
 -- mvh 20201109: Use single command for uploadsql
+-- mvh 20210204: Pass CGI('newname') to anonymize_script in zipanonymized
+-- mvh 20210208: Fixed that
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -545,7 +547,8 @@ end
 if CGI('parameter', '')=='zipanonymized' then
   local items= split(CGI('item'), '|')
   local stage=''
-  if CGI('stage')~='' then stage = '|' .. CGI('stage') end
+  if CGI('stage')~='' then stage = stage .. '|' .. CGI('stage') end
+  if CGI('newname')~='' then stage = stage .. '|' .. CGI('newname') end
   local script=string.format('%s,%s,%s,%s,cgi,lua/anonymize_script.lua(%s%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', CGI('newid'), stage)
   servercommand([[export:]]..script, 'cgibinary')
   return

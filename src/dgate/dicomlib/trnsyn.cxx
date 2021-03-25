@@ -76,6 +76,7 @@
 20181124   mvh   Back to IU is in preamble
 20201223   mvh   check length of VR < lVRBuffer.GetIncomingSize() to avoid crash on corrupted files
 20210110   mvh   Lenght error conditional, returns possibly truncated object if NoDicomCheck=1
+20210113   mvh   Added new types UR, UC, OD and OV with 32 bits VR length; added swapping of OD and OV
 */
 
 /*
@@ -1025,6 +1026,10 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			(vr->TypeCode=='UN')||
 			(vr->TypeCode=='UT')||
 			(vr->TypeCode=='OF')||
+			(vr->TypeCode=='OD')||
+			(vr->TypeCode=='OV')||
+			(vr->TypeCode=='UR')||
+			(vr->TypeCode=='UC')||
 			(vr->TypeCode=='SQ'))
 			{
 			lVRBuffer >> Length16;	// Toss away 16 bits
@@ -1185,6 +1190,10 @@ BOOL	PDU_Service	::	Explicit_ParseDCMIntoRawVR (
 			(vr->TypeCode=='UN')||
 			(vr->TypeCode=='UT')||
 			(vr->TypeCode=='OF')||
+			(vr->TypeCode=='OD')||
+			(vr->TypeCode=='OV')||
+			(vr->TypeCode=='UR')||
+			(vr->TypeCode=='UC')||
 			(vr->TypeCode=='SQ')))
 			vr->TypeCode = 'UN';
 
@@ -1206,6 +1215,10 @@ BOOL	PDU_Service	::	Explicit_ParseDCMIntoRawVR (
 			(vr->TypeCode=='UN')||
 			(vr->TypeCode=='UT')||
 			(vr->TypeCode=='OF')||
+			(vr->TypeCode=='OD')||
+			(vr->TypeCode=='OV')||
+			(vr->TypeCode=='UR')||
+			(vr->TypeCode=='UC')||
 			(vr->TypeCode=='SQ'))
 			{
 			Length16 = 0;
@@ -1337,6 +1350,8 @@ void SwapBigEndianData(VR* pVR)
     break;
 
     case 'FD':	// double
+    case 'OD':	// double array
+    case 'OV':	// very long array
     pcData = (char*)pVR->Data;
     iNbValues = pVR->Length / 8;
     for (i=0; i<iNbValues; i++)
@@ -1645,6 +1660,10 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 				(vr->TypeCode=='UN')||
 				(vr->TypeCode=='UT')||
 				(vr->TypeCode=='OF')||
+				(vr->TypeCode=='OD')||
+				(vr->TypeCode=='OV')||
+				(vr->TypeCode=='UR')||
+				(vr->TypeCode=='UC')||
 				(vr->TypeCode=='SQ'))
 				{
 				lVRBuffer >> Length16;	// Toss away 16 bits
@@ -1936,6 +1955,10 @@ BOOL	PDU_Service	::	Dynamic_ParseDCMIntoRawVR(
 				(vr->TypeCode=='UN')||
 				(vr->TypeCode=='UT')||
 				(vr->TypeCode=='OF')||
+				(vr->TypeCode=='OD')||
+				(vr->TypeCode=='OV')||
+				(vr->TypeCode=='UR')||
+				(vr->TypeCode=='UC')||
 				(vr->TypeCode=='SQ')))
 				vr->TypeCode = 'UN';
 
@@ -1950,6 +1973,10 @@ BOOL	PDU_Service	::	Dynamic_ParseDCMIntoRawVR(
 				(vr->TypeCode=='UN')||
 				(vr->TypeCode=='UT')||
 				(vr->TypeCode=='OF')||
+				(vr->TypeCode=='OD')||
+				(vr->TypeCode=='OV')||
+				(vr->TypeCode=='UR')||
+				(vr->TypeCode=='UC')||
 				(vr->TypeCode=='SQ'))
 				{
 				Length16 = 0;

@@ -267,6 +267,8 @@
 20200202	mvh	Fix intermittent failure of atof(pVR->Data) when Data is e.g. " 1", it reads beyond the array
 20200528        mvh     Fixed Pivoglot reported use of GetAtoi instead of GetUINT16 to read bitsperpixel
 20210114        mvh     Enable compression selection for C-GET (do not force "UN") as tested by Chris
+20210323        mvh     Fix leak after Host '' will not accept image 
+20210325        mvh     Outgoing compression with ! e.g. JK! will not propose uncompressed
 */
 
 //#define bool BOOL
@@ -443,6 +445,9 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
 StandardRetrieveNKI::StandardRetrieveNKI()
 {
 }
+
+void
+IARQ (AAssociateRQ	&ARQ, BOOL showall);
 
 BOOL	StandardRetrieveNKI	::	Read (
 	ExtendedPDU_Service		*PDU,
@@ -666,6 +671,8 @@ BOOL	StandardRetrieveNKI	::	Read (
 				}
 			return ( TRUE );
 			}
+		
+		IARQ ( NewPDU, TRUE );
 		}
 
 	Index = 0;
@@ -706,6 +713,10 @@ BOOL	StandardRetrieveNKI	::	Read (
 			++Failed;
 			OperatorConsole.printf("Host '%s' will not accept image\n", ACRNema);
 			// Remote end did not accept this UID
+
+			// retrieve object from readahead to be able to free it to avoid big leak!!!
+			RetrieveOn (ADDO.Get(Index), &iDDO, &SStorage, DCO, &ADDO, ExtraBytes);
+			delete iDDO;
 			}
 		else
 			{
@@ -5036,9 +5047,11 @@ ExtendedPDU_Service	::	AddTransferSyntaxs(PresentationContext &PresContext)
 		}
 #endif
 
-	uid.Set("1.2.840.10008.1.2");		// ImplicitLittleEndian
-	TrnSyntax.Set(uid);
-	PresContext.AddTransferSyntax(TrnSyntax);
+        if (strchr(RequestedCompressionType, '!')==NULL)
+        { uid.Set("1.2.840.10008.1.2");		// ImplicitLittleEndian
+	  TrnSyntax.Set(uid);
+	  PresContext.AddTransferSyntax(TrnSyntax);
+        }
 
 	return ( TRUE );
 	}
@@ -5072,6 +5085,7 @@ ExtendedPDU_Service	::	GetAcceptedCompressionType(UID uid)
 		}
 
 	p = (char *)TrnSyntaxUID.GetBuffer(1);
+
 	     if (strcmp(p, "1.2.840.10008.1.2.4.70")==0) strcpy(AcceptedCompressionType, "j1");
 	else if (strcmp(p, "1.2.840.10008.1.2.4.57")==0) strcpy(AcceptedCompressionType, "j2");
 	else if (strcmp(p, "1.2.840.10008.1.2.4.50")==0) strcpy(AcceptedCompressionType, "j3");

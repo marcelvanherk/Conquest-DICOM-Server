@@ -21,14 +21,14 @@ object Form1: TForm1
   OnCloseQuery = FormCloseQuery
   OnCreate = FormCreate
   OnKeyDown = FormKeyDown
-  PixelsPerInch = 96
+  PixelsPerInch = 120
   TextHeight = 13
   object PageControl1: TPageControl
     Left = 0
     Top = 0
     Width = 818
     Height = 554
-    ActivePage = TabSheet6
+    ActivePage = TabSheet3
     Align = alClient
     ParentShowHint = False
     ShowHint = False
@@ -714,7 +714,7 @@ object Form1: TForm1
       end
       object ShowDeviceButton: TButton
         Left = 624
-        Top = 64
+        Top = 57
         Width = 153
         Height = 25
         Hint = 'Show free space on used disk device(s)'
@@ -727,7 +727,7 @@ object Form1: TForm1
       end
       object ListDICOMprovidersButton: TButton
         Left = 624
-        Top = 112
+        Top = 98
         Width = 153
         Height = 25
         Hint = 
@@ -742,7 +742,7 @@ object Form1: TForm1
       end
       object ListDatabaseLayioutButton: TButton
         Left = 624
-        Top = 160
+        Top = 139
         Width = 153
         Height = 25
         Hint = 'Shows internal layout of the DICOM database'
@@ -755,7 +755,7 @@ object Form1: TForm1
       end
       object ButtonPackDatabase: TButton
         Left = 624
-        Top = 208
+        Top = 180
         Width = 153
         Height = 25
         Hint = 
@@ -770,7 +770,7 @@ object Form1: TForm1
       end
       object ButtonClearDatabase: TButton
         Left = 624
-        Top = 256
+        Top = 221
         Width = 153
         Height = 25
         Hint = 'Make the database empty - afterwards use '#39'Regen single device'#39
@@ -783,7 +783,7 @@ object Form1: TForm1
       end
       object RegenSelectedButton: TButton
         Left = 624
-        Top = 304
+        Top = 262
         Width = 153
         Height = 25
         Hint = 'Refresh or regenerate the database for selected disk'
@@ -861,6 +861,21 @@ object Form1: TForm1
           TabOrder = 0
           WordWrap = False
         end
+      end
+      object ButtonRegenFolder: TButton
+        Left = 624
+        Top = 304
+        Width = 153
+        Height = 25
+        Hint = 
+          'Refresh or regenerate the database for selected device and folde' +
+          'r'
+        Anchors = [akTop, akRight]
+        Caption = 'Regen single folder'
+        ParentShowHint = False
+        ShowHint = True
+        TabOrder = 11
+        OnClick = ButtonRegenFolderClick
       end
     end
     object TabSheet4: TTabSheet

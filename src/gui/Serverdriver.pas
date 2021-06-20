@@ -677,6 +677,8 @@ When            Who     What
                         Fix setting of debuglevel; onClick comes before change; also print value in log
 20210208        mvh     Keep lastUpdate and lastWrite time to make it work
 20210210        mvh     Blocked out debug update source display, fixed race condition in timer
+20210510        mvh     Remove sequence query results prior to display 
+20210620        mvh     Added regen folder button, moved done message of regen device to correct page
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -713,7 +715,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0c';
-const BUILDDATE = '20210208';
+const BUILDDATE = '20210620';
 const testmode = 0;
 
 {************************************************************************}
@@ -1103,6 +1105,7 @@ type
     MenuMergeStudies: TMenuItem;
     ProgressBar3: TProgressBar;
     CheckBoxWebServer: TCheckBox;
+    ButtonRegenFolder: TButton;
     procedure FormCreate(Sender: TObject);
     procedure RestoreconfigButtonClick(Sender: TObject);
     procedure SaveConfigButtonClick(Sender: TObject);
@@ -1257,6 +1260,7 @@ type
     procedure CheckBoxWebServerClick(Sender: TObject);
     procedure CheckBoxWebServerMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
+    procedure ButtonRegenFolderClick(Sender: TObject);
   private
     procedure WMDropFiles(var Message: TWMDropFiles); message WM_DROPFILES;
     procedure WMQueryEndSession(var Message: TWMQueryEndSession); message WM_QUERYENDSESSION;
@@ -5712,7 +5716,7 @@ begin
       PageControl1.ActivePage := TabSheet3;
     end;
 
-    WriteMemo(InstallationMemo, '------------------- Finished Regen device --------------------', 200, 100, 'maintenance');
+    WriteMemo(MaintenanceMemo, '------------------- Finished Regen device --------------------', 200, 100, 'maintenance');
   end;
 end;
 
@@ -5720,6 +5724,37 @@ end;
 // Known DICOM providers page
 
 // Save ACRNEMA.MAP
+
+procedure TForm1.ButtonRegenFolderClick(Sender: TObject);
+var s, t, u: string;
+begin
+  s := 'MAG0';
+  if InputQuery('Select device to regenerate (e.g., MAG0)', 'Device', s) then
+  begin
+    if InputQuery('Select folder(s) to regenerate (e.g., 0009703828 or 123,456)', 'Folder', t) then
+    begin
+      s := UpperCase(s);
+
+      repeat
+        u := t;
+
+        if pos(',', t)>1 then
+        begin
+          u := copy(t, 1, pos(',', t)-1);
+          t := copy(t, pos(',', t)+1, 9999);
+        end
+        else
+          t := '';
+
+        WriteMemo(MaintenanceMemo, '', 200, 100, 'maintenance');
+        WriteMemo(MaintenanceMemo, '------------------- Regen folder ' + s + '/' + u + ' --------------------', 200, 100, 'maintenance');
+        WriteLog('Regen device ' + s);
+        RunDgate('-u'+MaintenanceSocket.Port+' -fr' + s + ',' + u, false); // regen single folder on device
+        WriteMemo(MaintenanceMemo, '------------------- Finished Regen folder --------------------', 200, 100, 'maintenance');
+      until length(t)=0;
+    end;
+  end;
+end;
 
 procedure TForm1.Button1Click(Sender: TObject);
 begin
@@ -8571,7 +8606,7 @@ begin
     'if r2==nil then f:write("no connection with "..ae.."\n") returnfile=s f:close() return end; ' +
     'local r = loadstring("return "..r2:Serialize())();' +
     'r[1].QueryRetrieveLevel=nil; r[1].TransferSyntaxUID=nil; '+
-    'local keys={} for k,v in pairs(r[1]) do keys[#keys+1]=k end; '+
+    'local keys={} for k,v in pairs(r[1]) do if type(v)~="table" then keys[#keys+1]=k end end; '+
     'table.sort(keys, function(a, b) return string.sub(a, 1, 7)<string.sub(b, 1, 7) end); ' +
     'if first then for k,v in ipairs(keys) do f:write(v.."    ") end f:write("\n") end '+
     'if first then f:write("---------------------------------------------------------------------------------------------------------------------------------------------------------------\n") end '+

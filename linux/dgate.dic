@@ -24,6 +24,7 @@
 # 20121016	mvh	Added conquest private commands
 # 20160425	mvh	Fix PixelPaddingValue
 # 20200125      mvh     Added ConquestSplit, ConquestImageQueryOrder, ConquestMoveOriginator
+# 20210620      mvh     Made 2005,1084; 2005,140F; 2005,1580 sequence to support modern Philips MR
 
 (0000,0000) VERS="3"	VR="UL"   VM="1"	Keyword="GroupLength"				Name="Group Length"
 (0000,0001) VERS="2"	VR="UL"   VM="1"	Keyword="CommandLengthToEnd"			Name="Command Length to End"
@@ -3024,7 +3025,7 @@
 (2005,106F) VERS="3"	VR="CS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,1080) VERS="3"	VR="CS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,1083) VERS="3"	VR="SQ"   VM="1"	Keyword="TemporarySQ1"				Name="Temporary SQ 1"
-(2005,1084) VERS="3"	VR="CS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
+(2005,1084) VERS="3"	VR="SQ"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,1085) VERS="3"	VR="CS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,1086) VERS="3"	VR="US"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,109E) VERS="3"	VR="CS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
@@ -3102,7 +3103,7 @@
 (2005,140A) VERS="3"	VR="DS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,140B) VERS="3"	VR="CS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,140E) VERS="3"	VR="CS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
-(2005,140F) VERS="3"	VR="OB"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
+(2005,140F) VERS="3"	VR="SQ"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,1412) VERS="3"	VR="IS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,1413) VERS="3"	VR="IS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,1414) VERS="3"	VR="UL"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
@@ -3138,6 +3139,7 @@
 (2005,144E) VERS="3"	VR="CS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,144F) VERS="3"	VR="CS"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2005,1450) VERS="3"	VR="US"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
+(2005,1580) VERS="3"	VR="SQ"   VM="1"	Keyword="Unknown"				Name="Unknown tag"
 (2010,0000) VERS="3"	VR="UL"   VM="1"	Keyword="FilmBoxGroupLength"			Name="Film Box Group Length"
 (2010,0010) VERS="4"	VR="ST"   VM="1"	Keyword="ImageDisplayFormat"			Name="Image Display Format"
 (2010,0030) VERS="4"	VR="CS"   VM="1"	Keyword="AnnotationDisplayFormatID"			Name="Annotation Display Format ID"

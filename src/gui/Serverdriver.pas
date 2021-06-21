@@ -679,6 +679,7 @@ When            Who     What
 20210210        mvh     Blocked out debug update source display, fixed race condition in timer
 20210510        mvh     Remove sequence query results prior to display 
 20210620        mvh     Added regen folder button, moved done message of regen device to correct page
+20210621        mvh     Alt-regen folder load text file with one folder name per line; push again to stop
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -715,7 +716,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0c';
-const BUILDDATE = '20210620';
+const BUILDDATE = '20210621';
 const testmode = 0;
 
 {************************************************************************}
@@ -1106,6 +1107,7 @@ type
     ProgressBar3: TProgressBar;
     CheckBoxWebServer: TCheckBox;
     ButtonRegenFolder: TButton;
+    OpenDialog1: TOpenDialog;
     procedure FormCreate(Sender: TObject);
     procedure RestoreconfigButtonClick(Sender: TObject);
     procedure SaveConfigButtonClick(Sender: TObject);
@@ -1261,6 +1263,8 @@ type
     procedure CheckBoxWebServerMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure ButtonRegenFolderClick(Sender: TObject);
+    procedure ButtonRegenFolderMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
   private
     procedure WMDropFiles(var Message: TWMDropFiles); message WM_DROPFILES;
     procedure WMQueryEndSession(var Message: TWMQueryEndSession); message WM_QUERYENDSESSION;
@@ -5723,16 +5727,23 @@ end;
 {************************************************************************}
 // Known DICOM providers page
 
-// Save ACRNEMA.MAP
+var RegenFolderRunning:Boolean=false;
 
 procedure TForm1.ButtonRegenFolderClick(Sender: TObject);
 var s, t, u: string;
 begin
+  if RegenFolderRunning then
+  begin
+    RegenFolderRunning := false;
+    ShowMessage('Stopped regenerate folder');
+    exit;
+  end;
   s := 'MAG0';
   if InputQuery('Select device to regenerate (e.g., MAG0)', 'Device', s) then
   begin
     if InputQuery('Select folder(s) to regenerate (e.g., 0009703828 or 123,456)', 'Folder', t) then
     begin
+      RegenFolderRunning := true;
       s := UpperCase(s);
 
       repeat
@@ -5751,10 +5762,58 @@ begin
         WriteLog('Regen device ' + s);
         RunDgate('-u'+MaintenanceSocket.Port+' -fr' + s + ',' + u, false); // regen single folder on device
         WriteMemo(MaintenanceMemo, '------------------- Finished Regen folder --------------------', 200, 100, 'maintenance');
-      until length(t)=0;
+        Application.ProcessMessages();
+      until (length(t)=0) or (not RegenFolderRunning);
+      RegenFolderRunning := false;
     end;
   end;
 end;
+
+procedure TForm1.ButtonRegenFolderMouseDown(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+  var s, t: string;
+      f : textfile;
+begin
+  if not (ssAlt in Shift) then exit;
+  if RegenFolderRunning then
+  begin
+    RegenFolderRunning := false;
+    ShowMessage('Stopped regenerate folder');
+    exit;
+  end;
+  s := 'MAG0';
+  if InputQuery('Select device to regenerate (e.g., MAG0)', 'Device', s) then
+  begin
+    OpenDialog1.Title       := 'Select indirect file with one line per folder';
+    OpenDialog1.Filename    := '*.*';
+    OpenDialog1.Filter      := '*.*';
+    OpenDialog1.FilterIndex := 1;
+    OpenDialog1.Options    := [];
+    if OpenDialog1.Execute then
+    begin
+      RegenFolderRunning := true;
+      AssignFile(f, OpenDialog1.FileName);
+      Reset(f);
+      while (not eof(f)) and RegenFolderRunning do
+      begin
+        Readln(f, t);
+        if trim(t)<>'' then
+        begin
+          WriteMemo(MaintenanceMemo, '', 200, 100, 'maintenance');
+          WriteMemo(MaintenanceMemo, '------------------- Regen folders ' + s + '/' + t + ' --------------------', 200, 100, 'maintenance');
+          WriteLog('Regen device ' + s);
+          RunDgate('-u'+MaintenanceSocket.Port+' -fr' + s + ',' + t, false); // regen single folder on device
+          WriteMemo(MaintenanceMemo, '------------------- Finished Regen folder --------------------', 200, 100, 'maintenance');
+          Application.ProcessMessages();
+        end;
+      end;
+      CloseFile(f);
+      RegenFolderRunning := false;
+    end;
+  end;
+end;
+
+// Save ACRNEMA.MAP
 
 procedure TForm1.Button1Click(Sender: TObject);
 begin

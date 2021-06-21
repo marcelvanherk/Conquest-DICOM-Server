@@ -869,13 +869,14 @@ object Form1: TForm1
         Height = 25
         Hint = 
           'Refresh or regenerate the database for selected device and folde' +
-          'r'
+          'r (alt-click to use indirect file)'
         Anchors = [akTop, akRight]
         Caption = 'Regen single folder'
         ParentShowHint = False
         ShowHint = True
         TabOrder = 11
         OnClick = ButtonRegenFolderClick
+        OnMouseDown = ButtonRegenFolderMouseDown
       end
     end
     object TabSheet4: TTabSheet
@@ -4375,5 +4376,9 @@ object Form1: TForm1
     OnTimer = PrinterTimerTimer
     Left = 140
     Top = 168
+  end
+  object OpenDialog1: TOpenDialog
+    Left = 740
+    Top = 384
   end
 end

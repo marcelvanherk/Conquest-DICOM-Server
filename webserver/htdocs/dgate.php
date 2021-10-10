@@ -2,12 +2,12 @@
 
 ///////////////////////////////////////////////////////////////////////////
 // mvh 20201021: emulated dgate CGI application with example login system
-// starts with user admin only, admin_password and admin_email taken 
+// singlefilelogin - starts with user admin only, admin_password and admin_email taken 
 // from dicom.ini; user admin is allowed to register other users
 //
 // This PHP script calls dgate to emulate a CGI interface
 // place anywhere in a web server to create web interface
-// To configure, modify the next 3 lines for your newweb location; this can
+// To configure, modify the next 5 lines for your newweb location; this can
 // be in the dicomserver itself e.g c:\dicomserver\webserver\cgi-bin\newweb
 //
 // Make sure post_max_size=0 or a reasonable limit in php.ini
@@ -24,11 +24,21 @@
 // 20201116  mvh  Note: putenv not thread safe - requests are mixed; propose to create dgate -xquerystring
 // 20201116  mvh  Added newcgi flag; if set use -y mode to pass QUERY_STRING (1.5.0c up)
 // 20210117  mvh  Added missing ; on newcgi if
+// 20210516  mvh  Use smaller substring for header handling; note use PHP7 for fast passthru
+// 20210913  mvh  Put wordpress login test here as option
 
-$folder = "c:\\dicomserver\\webserver\\cgi-bin\\newweb";
-$exe = "dgate.exe";
-$userlogin = false;
-$newcgi = true;
+$folder    = "c:\\dicomserver\\webserver\\cgi-bin\\newweb";	// point to servers newweb folder
+$exe       = "dgate.exe";					// use "dgate" for linux
+$userlogin = false;						// uses single file login system
+$wplogin   = false;						// uses wordpress login system
+$newcgi    = true;						// for conquest 1.5.0b up
+
+if ($wplogin) {
+  if (!defined("DISABLE_WP_CRON")) define( 'DISABLE_WP_CRON', true );
+  if (!defined("WP_PLUGIN_DIR"))   define( 'WP_PLUGIN_DIR', 'xxx' );
+  require_once('./wp-blog-header.php');
+  if ( !is_user_logged_in() ) return;
+}
 
 chdir($folder); 
 
@@ -114,12 +124,13 @@ $var = ob_get_contents();
 ob_end_clean();
 
 if (isset($fn)) 
-	if (file_exists($fn)) 
-		unlink($fn);
+  if (file_exists($fn)) 
+    unlink($fn);
 
 // Make sure headers are passed allright
-$m = strpos($var, "\n\n");
-$t = explode("\n", substr($var, 0, $m));
+$s = substr($var, 0, 1000);
+$m = strpos($s, "\n\n");
+$t = explode("\n", substr($s, 0, $m));
 
 foreach ($t as $value)
   header($value);

@@ -54,6 +54,13 @@ mkdir iup
 wget -O iuplibs.tar.gz https://sourceforge.net/projects/iup/files/3.19.1/Linux%20Libraries/iup-3.19.1_Linux44_64_lib.tar.gz
 wget -O iuplualibs.tar.gz https://sourceforge.net/projects/iup/files/3.19.1/Linux%20Libraries/Lua51/iup-3.19.1-Lua51_Linux44_64_lib.tar.gz
 
+And to add the other libraries:
+
+https://sourceforge.net/projects/imtoolkit/files/3.14/Linux%20Libraries/im-3.14_Linux44_64_lib.tar.gz/download
+https://sourceforge.net/projects/imtoolkit/files/3.14/Linux%20Libraries/Lua51/im-3.14-Lua51_Linux44_64_lib.tar.gz/download
+https://sourceforge.net/projects/canvasdraw/files/5.14/Linux%20Libraries/cd-5.14_Linux44_64_lib.tar.gz/download
+https://sourceforge.net/projects/canvasdraw/files/5.14/Linux%20Libraries/Lua51/cd-5.14-Lua51_Linux44_64_lib.tar.gz/download
+
 cd iup
 tar xvf ../iuplibs.tar.gz
 tar xvf ../iuplualibs.tar.gz

@@ -180,6 +180,7 @@
 20200314   mvh    Removed UNENCRYPTED clause for postgres
 20201020   mvh    Added SQL server 2627 as exception (duplicate index)
 20201107   mvh    Allow multiple statements for MySQL (flag 65536)
+20210509   mvh    Reduce ODBC retries to 6 times
 */
 
 /*
@@ -3790,15 +3791,15 @@ int	Database :: SQLExecDirectWithRetry(SQLHSTMT StatementHandle, SQLCHAR *Statem
 	if ((GetNativeError() != 1205) && (GetNativeError() != -1102))// deadlock -> retry
 		return ( RetCode );
 
-	for(i=0; i<60; i++)
+	for(i=0; i<6; i++)
 		{
 		Sleep(100 + rand_r(&seedp)%2000);
 		RetCode = SQLExecDirect ( StatementHandle, StatementText, TextLength );
 		if ( (RetCode == SQL_SUCCESS) ||
 			 (RetCode == SQL_SUCCESS_WITH_INFO) )
 			return ( RetCode );
-
-		if (i==59)
+			
+		if (i==5)
 			SQLError (hEnv, hDbc, hStmt, (BYTE*)State, &NativeError,
 				(BYTE*)Msg, 512, &MsgL);
 		}

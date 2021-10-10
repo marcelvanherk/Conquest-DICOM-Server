@@ -2,6 +2,7 @@
 // mvh 20050108 Fixed for linux compile
 // mvh 20070314	Allow send of 0000,1030 (MoveOriginatorAE) and 0000,1031 (MoveOriginatorMessageID) in StandardStorage : write
 // mvh 20200121	Added DCO to CheckObject
+// mvh 20210425 Allow own DCOR to be passed on StandardStorage::Write
 
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -53,6 +54,7 @@ class	StandardStorage	:
 						DICOMCommandObject *, 
 						DICOMDataObject * );
 		BOOL	Write (	PDU_Service	*, DICOMDataObject	*, VR *MoveMessageID = NULL, unsigned char *CallingAE = NULL );
+		BOOL	Write (	PDU_Service	*, DICOMDataObject	*, VR *MoveMessageID, unsigned char *CallingAE, DICOMCommandObject *);
 	};
 
 class	UnknownStorage	:

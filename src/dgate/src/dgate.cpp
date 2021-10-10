@@ -1158,6 +1158,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20201116	mvh	Added global_query_string and -y option
 20201224	mvh	Added regen and regenFail converter; luacompress returns nil on failure
 20210325	mvh	Version 1.5.0c
+20210415	mvh	luadicomstore returns an dicomarray of results
+20210501	mvh	Allow use of 0x0008,0x3001 sequence to return servercommand result
+20210509	mvh	Added UT in header dump; simplified overflow check in luaserialize, upped limit
 
 ENDOFUPDATEHISTORY
 */
@@ -1904,6 +1907,7 @@ BOOL	PrintUDATA(UINT	Size, void *data, UINT16 TypeCode, char *dest)
 			case	'ST':
 			case	'TM':
 			case	'UI':
+			case	'UT':
 				if(Size > 256) Size = 256;
 				TranslateText((char*)data, Str, Size);
 				sprintf(dest, "\"%s\" ", Str);
@@ -4424,6 +4428,8 @@ class	RunTimeClassStorage	:
 			{ return ( StandardStorage :: Read ( PDU, DCO, DDO ) ); };
 		inline	BOOL Write ( PDU_Service *PDU, DICOMDataObject *DDO)
 			{ return ( StandardStorage :: Write ( PDU, DDO ) ); };
+		inline	BOOL Write ( PDU_Service *PDU, DICOMDataObject *DDO, DICOMCommandObject *DCO)
+			{ return ( StandardStorage :: Write ( PDU, DDO, NULL, NULL, DCO) ); };
 		BOOL	GetUID(UID	&);
 		BOOL	SetUID(UID	&);
 		BOOL	SetUID(VR	*);
@@ -7342,7 +7348,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
   }
 
   // serialize dicom object; does not do pixel data, truncates large elements
-  #define MAXLEN 5000000 // total length, one element is max 1/10 of that
+  #define MAXLEN 200000000 // total length, one element is max 1/2 of that
 
   static int luaserialize(lua_State *L)
   { struct scriptdata *sd = getsd(L);
@@ -7389,9 +7395,9 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	{ char s[128];
           UINT16 c2 = VRType.RunTimeClass(vr->Group, vr->Element, s);
 	  if (c2==0) nUN++;
-	  if (Index>=MAXLEN*9/10) truncated=TRUE;
+	  if (Index>=MAXLEN/2) truncated=TRUE;
 	  
-	  if (vr->Element!=0 && *s!=0 && c2!=0 && Index<MAXLEN*9/10)
+	  if (vr->Element!=0 && *s!=0 && c2!=0 && Index<MAXLEN/2)
 	  { char *name=s;
             char tmp[128];
             if (json) 
@@ -7403,10 +7409,10 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	    }
 	    else if (c2=='UL' && vr->Length>4)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
-              for (i=0; (i<vr->Length/4) && (i<MAXLEN/130); i++)
+              for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", (int)((UINT32 *)(vr->Data))[i]);
 	      Index--;
-	      if ((vr->Length/4) >= (MAXLEN/130) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='US' && vr->Length==2)
@@ -7414,10 +7420,10 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	    }
 	    else if (c2=='US' && vr->Length>2)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
-              for (i=0; (i<vr->Length/2) && (i<MAXLEN/60); i++)
+              for (i=0; (i<vr->Length/2) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", ((UINT16 *)(vr->Data))[i]);
 	      Index--;
-	      if ((vr->Length/5) >= (MAXLEN/60) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='SL' && vr->Length==4)
@@ -7425,10 +7431,10 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	    }
 	    else if (c2=='SL' && vr->Length>4)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
-              for (i=0; (i<vr->Length/4) && (i<MAXLEN/130); i++)
+              for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", (int)((INT32 *)(vr->Data))[i]);
 	      Index--;
-	      if ((vr->Length/4) >= (MAXLEN/130) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='SS' && vr->Length==2)
@@ -7436,10 +7442,10 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	    }
 	    else if (c2=='SS' && vr->Length>2)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
-              for (i=0; (i<vr->Length/2) && (i<MAXLEN/60); i++)
+              for (i=0; (i<vr->Length/2) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", ((INT16 *)(vr->Data))[i]);
 	      Index--;
-	      if ((vr->Length/2) >= (MAXLEN/60) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='FD' && vr->Length==8)
@@ -7447,10 +7453,10 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	    }
 	    else if (c2=='FD' && vr->Length>8)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
-              for (i=0; (i<vr->Length/8) && (i<MAXLEN/400); i++)
+              for (i=0; (i<vr->Length/8) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%f,", ((double *)(vr->Data))[i]);
 	      Index--;
-	      if ((vr->Length/8) >= (MAXLEN/400) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
 	    else if (c2=='FL' && vr->Length==4)
@@ -7458,10 +7464,10 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	    }
 	    else if (c2=='FL' && vr->Length>4)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
-              for (i=0; (i<vr->Length/4) && (i<MAXLEN/200); i++)
+              for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%f,", ((float *)(vr->Data))[i]);
 	      Index--;
-	      if ((vr->Length/4) >= (MAXLEN/200) && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c,", br2);
 	    }
   	    else if (c2 == 'OF' && !json)
@@ -7476,7 +7482,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	        luaCreateObject(L, NULL, (Array < DICOMDataObject * > *)vr->SQObjectArray, FALSE);
 		lua_pushboolean(L, json);
                 lua_call(L, 2, 1);
-		if (lua_strlen(L, -1)>=MAXLEN/10)
+		if (lua_strlen(L, -1)>=MAXLEN/2)
                 { Index+=sprintf(result+Index, "%s%cnil", name, eq);
 	          if (!json) Index+=sprintf(result+Index, "--[[long SQ not serialized]]");
 	          Index+=sprintf(result+Index, ",");
@@ -7498,9 +7504,10 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
               else if (c2 == 'DA' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
               else if (c2 == 'PN' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
               else if (c2 == 'LT' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
+              else if (c2 == 'UT' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
 
-	      if (len>MAXLEN/10) 
-	      { len = MAXLEN/10; // keep to safe limit
+	      if (len>MAXLEN/2) 
+	      { len = MAXLEN/2; // keep to safe limit
       	        Index+=sprintf(result+Index, " --[[truncated]] ");
 	      }
 
@@ -23096,6 +23103,7 @@ BOOL StorageApp	::	ServerChild (int theArg )
 				ServerTask(SilentText, PDU, DCO, Response, ConnectedIP, tempfile, ThreadNum);
 			
   		        VR *vr2 = DCO.GetVR(0x9999, 0x0403);
+			if (vr2==NULL) vr2=DCO.GetVR(0x0008,0x3001);
 
 		        if (tempfile[0])
 				{
@@ -23140,10 +23148,26 @@ BOOL StorageApp	::	ServerChild (int theArg )
 				}
 			else if (vr2)	
 				{
-				void *p=malloc(vr2->Length);
-				memcpy(p, vr2->Data, vr2->Length);
-				VR *vr3 = new VR(0x9999, 0x0401, vr2->Length, p, TRUE);
-				SOPVerification.WriteResponse(&PDU, &DCO, vr3);
+				if (vr2->SQObjectArray)
+					{
+					VR *newVR = new VR(0x0008, 0x3001, 0, (void *) NULL, FALSE);
+					Array < DICOMDataObject * > *ADDO = (Array<DICOMDataObject*>*) vr2->SQObjectArray;
+					Array < DICOMDataObject * > *SQE  = new Array <DICOMDataObject *>;
+					for (int j=0; j<ADDO->GetSize(); j++)
+						{ 
+						DICOMDataObject *dd = MakeCopy(ADDO->Get(j)); 
+						SQE->Add(dd);
+						}
+					newVR->SQObjectArray = (void*) SQE;
+					SOPVerification.WriteResponse(&PDU, &DCO, newVR);
+					}
+				else
+					{
+					void *p=malloc(vr2->Length);
+					memcpy(p, vr2->Data, vr2->Length);
+					VR *vr3 = new VR(0x9999, 0x0401, vr2->Length, p, TRUE);
+					SOPVerification.WriteResponse(&PDU, &DCO, vr3);
+					}
 				}
 			else	
 				SOPVerification.WriteResponse(&PDU, &DCO, NULL);
@@ -27906,12 +27930,18 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
           return 1;
         }
 
+        Array < DICOMCommandObject * > *Rsp = new Array < DICOMCommandObject * >;
+	
         for (int i=0; i<A->GetSize(); i++)
-        { vr = A -> Get(i) -> GetVR(0x0008, 0x0016);
+        { DICOMCommandObject *DCO = new DICOMCommandObject;
+          Rsp->Add(DCO);
+
+          vr = A -> Get(i) -> GetVR(0x0008, 0x0016);
           if (!vr) continue;
           SetUID ( uid, vr );
           if (!PDU.IsAbstractSyntaxAccepted(uid)) 
-	  { nfail++;
+	  { OperatorConsole.printf("*** dicomstore: object not accepted\n");
+            nfail++;
 	    continue;
 	  }
 
@@ -27923,7 +27953,7 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 
           RTCStorage.SetUID(uid);
 
-          if (!RTCStorage.Write(&PDU, DDO))
+          if (!RTCStorage.Write(&PDU, DDO, DCO))
           { OperatorConsole.printf("*** dicomstore: failed to send DICOM image to %s\n", ae);
             nfail++;
 	  }
@@ -27931,10 +27961,12 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	}
 	
 	if (flag) delete A;
-        if (nfail)
-        { lua_pushstring(L, "Failed to send DICOM image(s) to host");
-          return 1;
-        }
+        //if (nfail)
+        //{ lua_pushstring(L, "Failed to send DICOM image(s) to host");
+        //  return 1;
+        //}
+        luaCreateObject(L, NULL, (Array < DICOMDataObject * > *)Rsp, TRUE); 
+	return 1;
       }
     
       return 0;

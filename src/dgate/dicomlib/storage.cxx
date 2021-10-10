@@ -8,7 +8,7 @@
 // mvh 20100717 Merged
 // 20140607     mvh	Make sure CStoreRSP::Write uses same Presentation context as CStoreRQ
 // mvh 20200121	Added DCO to CheckObject
-
+// mvh 20210425 Allow own DCOR to be passed on StandardStorage::Write
 
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -120,6 +120,43 @@ BOOL	StandardStorage :: Write (
 
 	// mvh added 20020429
 	if (DCO.GetUINT16(0x0000, 0x0900))
+		{
+		//printf("Retrieve: error status %d\n", DCO.GetUINT16(0x0000, 0x0900));
+		return FALSE;
+		}
+
+	return ( TRUE );
+	}
+
+BOOL	StandardStorage :: Write (
+	PDU_Service *PDU,
+	DICOMDataObject *DDO, VR *MoveMessageID, unsigned char *CallingAE, DICOMCommandObject *DCO)
+	{
+	if ( ! PDU )
+		return ( FALSE );
+
+	if ( ! CStoreRQ :: Write ( PDU, DDO, MoveMessageID, CallingAE ) )
+		{
+		//printf("Retrieve: failed writing image\n");
+		return ( FALSE );
+		}
+
+//	delete	DDO;
+
+	if(!PDU->Read ( DCO ))
+		{
+		//printf("Retrieve: no response\n");
+		return (FALSE);
+		}
+
+	if ( ! CStoreRSP :: Read ( DCO ) )
+		{
+		//printf("Retrieve: incorrect response\n");
+		return ( FALSE );
+		}
+
+	// mvh added 20020429
+	if (DCO->GetUINT16(0x0000, 0x0900))
 		{
 		//printf("Retrieve: error status %d\n", DCO.GetUINT16(0x0000, 0x0900));
 		return FALSE;

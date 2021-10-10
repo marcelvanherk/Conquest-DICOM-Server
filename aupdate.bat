@@ -8,6 +8,9 @@ copy ..\doc\DicomConformance_FilesLST_Changes.pdf .
 copy ..\doc\linuxmanual.pdf .
 
 copy dgate.dic .\linux
+
+rem need using server somewhere to compile dictionary to binary
+copy dgate.dic c:\dicom150beta
 c:\dicom150beta\dgate64 --mk_binary_dic:t.dic
 copy c:\dicom150beta\t.dic .\webserver\cgi-bin\dgate.dic
 copy c:\dicom150beta\t.dic .\webserver\cgi-bin\newweb\dgate.dic

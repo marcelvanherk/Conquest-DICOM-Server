@@ -680,6 +680,8 @@ When            Who     What
 20210510        mvh     Remove sequence query results prior to display 
 20210620        mvh     Added regen folder button, moved done message of regen device to correct page
 20210621        mvh     Alt-regen folder load text file with one folder name per line; push again to stop
+20210630        mvh     No missing \ alert on linux, GetTempDir adjusted for linux (wip)
+20211003        mvh     Added GuiToServerFilename to enable mix OS running (wip)
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -1492,6 +1494,8 @@ function MyAlloc(size: integer): Pointer; stdcall;
 begin
   GetMem(result, size);
 end;
+
+var DirSep : string = '\';
 
 function GetTempDir: String;
 var
@@ -3607,7 +3611,7 @@ begin
       begin
         MagDeviceList[i] := GetData(s);
         if MagDeviceList[i]<>'' then
-          if MagDeviceList[i][Length(MagDeviceList[i])]<>'\' then
+          if (MagDeviceList[i][Length(MagDeviceList[i])]<>'\') and (pos('/', MagDeviceList[i])=0) then
           begin
             MagDeviceList[i] := MagDeviceList[i] + '\';
             ShowMessage('Added missing \ to MagDevice'+IntToStr(i)+' - please fix dicom.ini');
@@ -3617,7 +3621,7 @@ begin
       begin
         CacheDeviceList[i] := GetData(s);
         if CacheDeviceList[i]<>'' then
-          if CacheDeviceList[i][Length(CacheDeviceList[i])]<>'\' then
+          if (CacheDeviceList[i][Length(CacheDeviceList[i])]<>'\') and (pos('/', CacheDeviceList[i])=0) then
           begin
             CacheDeviceList[i] := CacheDeviceList[i] + '\';
             ShowMessage('Added missing \ to CacheDevice'+IntToStr(i)+' - please fix dicom.ini');
@@ -3627,7 +3631,7 @@ begin
       begin
         JukeBoxDeviceList[i] := GetData(s);
         if JukeBoxDeviceList[i]<>'' then
-          if JukeBoxDeviceList[i][Length(JukeBoxDeviceList[i])]<>'\' then
+          if (JukeBoxDeviceList[i][Length(JukeBoxDeviceList[i])]<>'\') and (pos('/', JukeBoxDeviceList[i])=0) then
           begin
             JukeBoxDeviceList[i] := JukeBoxDeviceList[i] + '\';
             ShowMessage('Added missing \ to JukeBoxDevice'+IntToStr(i)+' - please fix dicom.ini');
@@ -3637,7 +3641,7 @@ begin
       begin
         MirrorDeviceList[i] := GetData(s);
         if MirrorDeviceList[i]<>'' then
-          if MirrorDeviceList[i][Length(MirrorDeviceList[i])]<>'\' then
+          if (MirrorDeviceList[i][Length(MirrorDeviceList[i])]<>'\') and (pos('/', MirrorDeviceList[i])=0) then
           begin
             MirrorDeviceList[i] := MirrorDeviceList[i] + '\';
             ShowMessage('Added missing \ to MirrorDevice'+IntToStr(i)+' - please fix dicom.ini');
@@ -4144,6 +4148,17 @@ begin
   ExportAnonymousZIPImage.Enabled := Table4.Active;
 end;
 
+function GuiToServerFilename(s: string): string;
+begin
+  result := s;
+  if (pos('/', MagDeviceList[0])>=1) then
+  begin
+    s := StringReplace(Result, 'C:\', 'Z:\home\marcel\.wine\drive_c\', []);
+    result := StringReplace(copy(s, 3, 999), '\', '/', [rfReplaceAll]);
+    Application.MainForm.Caption := result;
+  end;
+end;
+
 procedure TForm1.ExportAnonymousZIPPatientClick(Sender: TObject);
 var script, NewID, typ: string;
 begin
@@ -4183,7 +4198,7 @@ begin
 
     if SaveDialog1.Execute then
     begin
-      script := script +SaveDialog1.Filename+',';
+      script := script + GuiToServerFilename(SaveDialog1.Filename) + ',';
       script := script + 'compression UN;lua/anonymize_script.lua('+NewID+')';
       ServerTask('anonymizing and zipping data from GUI', 'luastart:servercommand[[export:'+script+']]');
     end;
@@ -6076,7 +6091,7 @@ procedure TForm1.Timer1Timer(Sender: TObject);
 var dbdir: string;
 begin
   if not assigned(Table1) then exit;
-  dbdir := GetTempDir + 'conquest_browser';
+  dbdir := GetTempDir + 'conquest_browser' + DirSep;
 
   if ComboBox1.Text<>'' then
   begin
@@ -6084,12 +6099,12 @@ begin
 
     if FileExists(curdir + '\USEDBASEIIIWITHOUTODBC') then
       ServerTask('',
-      'todbf:'+dbdir+'\|DICOMPatients|PatientID LIKE '+'''%'+ComboBox1.Text+'%''|'+PatSort)
+      'todbf:'+GuiToServerFilename(dbdir)+'|DICOMPatients|PatientID LIKE '+'''%'+ComboBox1.Text+'%''|'+PatSort)
     else
       ServerTask('',
-      'todbf:'+dbdir+'\|DICOMPatients|PatientID LIKE '+'''%'+ComboBox1.Text+'%'' OR PatientNam LIKE '+'''%'+ComboBox1.Text+'%''|'+PatSort);
+      'todbf:'+GuiToServerFilename(dbdir)+'|DICOMPatients|PatientID LIKE '+'''%'+ComboBox1.Text+'%'' OR PatientNam LIKE '+'''%'+ComboBox1.Text+'%''|'+PatSort);
 
-    MDBFTable1.FileName := dbdir+'\DICOMPatients.DBF';
+    MDBFTable1.FileName := dbdir+'DICOMPatients.DBF';
     WaitForFile(MDBFTable1.FileName, 1);
     if FileExists(MDBFTable1.FileName) then
     begin
@@ -6104,8 +6119,8 @@ begin
     Table1.Close;
 
     ServerTask('',
-      'todbf:'+dbdir+'\|DICOMPatients||'+PatSort+'|10000');
-    MDBFTable1.FileName := dbdir+'\DICOMPatients.DBF';
+      'todbf:'+GuiToServerFilename(dbdir)+'|DICOMPatients||'+PatSort+'|10000');
+    MDBFTable1.FileName := dbdir+'DICOMPatients.DBF';
     WaitForFile(MDBFTable1.FileName, 1);
     if FileExists(MDBFTable1.FileName) then
     begin
@@ -6317,9 +6332,9 @@ begin
       tmp := GetTempDir + 'dcmsrv$$.bmp';
       try
 	if fileexists('browserdisplay.lua') then
-          ServerTask('', 'lua:x=DicomObject:new();x:Read[['+s+']];outfile=[['+tmp+']];frame='+IntToStr(SpinEdit1.Value-1)+';dofile("browserdisplay.lua")')
+          ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(s)+']];outfile=[['+GuiToServerFilename(tmp)+']];frame='+IntToStr(SpinEdit1.Value-1)+';dofile("browserdisplay.lua")')
 	 else
-          ServerTask('', 'convert_to_bmp:'+s+',1600,'+tmp+',//'+IntToStr(SpinEdit1.Value-1));
+          ServerTask('', 'convert_to_bmp:'+GuiToServerFilename(s)+',1600,'+GuiToServerFilename(tmp)+',//'+IntToStr(SpinEdit1.Value-1));
       except
       end;
       if FileExists(tmp) then
@@ -6343,7 +6358,7 @@ begin
         Image1.Canvas.FillRect(Rect(0,0,512,512));
         LabelLister.Transparent := false;
         tmp := GetTempDir + 'dcmsrv$$.txt';
-        ServerTask('', 'lua:x=DicomObject:new();x:Read[['+s+']];x:Dump[['+tmp+']]');
+        ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(s)+']];x:Dump[['+GuiToServerFilename(tmp)+']]');
 
         text := '';
 
@@ -6373,7 +6388,7 @@ begin
     begin
       text := '';
       tmp := GetTempDir + 'dcmsrv$$.txt';
-      ServerTask('', 'lua:x=DicomObject:new();x:Read[['+s+']];x:Dump[['+tmp+']]');
+      ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(s)+']];x:Dump[['+GuiToServerFilename(tmp)+']]');
       Form3.Caption := 'Header dump of DICOM object: ' + s;
 
       AssignFile(f, tmp);
@@ -6448,7 +6463,7 @@ procedure TForm1.DBGrid1DblClick(Sender: TObject);
 var p, q:string;
     dbdir: string;
 begin
-  dbdir := GetTempDir + 'conquest_browser';
+  dbdir := GetTempDir + 'conquest_browser' + DirSep;
   Form1.LabelLister.Visible := false;
   Label25.Caption := ' ** working ** ';
   Label25.Visible := true;
@@ -6457,8 +6472,8 @@ begin
   p := Table1.FieldByName('PATIENTID').AsString;
   q := Table3.FieldByName('SERIESINST').AsString;
   ServerTask('',
-  'todbf:'+dbdir+'\|DICOMImages|ImagePat = ''' + processfilter(p) + ''' and SeriesInst = ''' + processfilter(q) + '''|'+ImageSort);
-  MDBFTable4.FileName := dbdir+'\DICOMImages.DBF';
+  'todbf:'+GuiToServerFilename(dbdir)+'|DICOMImages|ImagePat = ''' + processfilter(p) + ''' and SeriesInst = ''' + processfilter(q) + '''|'+ImageSort);
+  MDBFTable4.FileName := dbdir+'DICOMImages.DBF';
   WaitForFile(MDBFTable4.FileName, 1);
   if FileExists(MDBFTable4.FileName) then
   begin
@@ -6497,14 +6512,14 @@ procedure TForm1.DBGrid2DblClick(Sender: TObject);
 var p:string;
     dbdir: string;
 begin
-  dbdir := GetTempDir + 'conquest_browser';
+  dbdir := GetTempDir + 'conquest_browser' + DirSep;
   Table2.Close;
   Table3.Close;
   Table4.Close;
   p := Table1.FieldByName('PATIENTID').AsString;
   ServerTask('',
-  'todbf:'+dbdir+'\|DICOMStudies|PatientID = ''' + processfilter(p) + '''|'+StudySort);
-  MDBFTable2.FileName := dbdir+'\DICOMStudies.DBF';
+  'todbf:'+GuiToServerFilename(dbdir)+'|DICOMStudies|PatientID = ''' + processfilter(p) + '''|'+StudySort);
+  MDBFTable2.FileName := dbdir+'DICOMStudies.DBF';
   WaitForFile(MDBFTable2.FileName, 1);
   if FileExists(MDBFTable2.FileName) then
   begin
@@ -6571,14 +6586,14 @@ procedure TForm1.DBText1DblClick(Sender: TObject);
 var p, q:string;
     dbdir: string;
 begin
-  dbdir := GetTempDir + 'conquest_browser';
+  dbdir := GetTempDir + 'conquest_browser' + DirSep;
   Table3.Close;
   Table4.Close;
   p := Table1.FieldByName('PATIENTID').AsString;
   q := Table2.FieldByName('STUDYINSTA').AsString;
   ServerTask('',
-  'todbf:'+dbdir+'\|DICOMSeries|SeriesPat = ''' + processfilter(p) + '''  and StudyInsta = ''' + processfilter(q) + '''|'+SeriesSort);
-  MDBFTable3.FileName := dbdir+'\DICOMSeries.DBF';
+  'todbf:'+GuiToServerFilename(dbdir)+'|DICOMSeries|SeriesPat = ''' + processfilter(p) + '''  and StudyInsta = ''' + processfilter(q) + '''|'+SeriesSort);
+  MDBFTable3.FileName := dbdir+'DICOMSeries.DBF';
   WaitForFile(MDBFTable3.FileName, 1);
   if FileExists(MDBFTable3.FileName) then
   begin
@@ -6620,16 +6635,16 @@ begin
       if (ExtractFileExt(t)='.bmp') or (ExtractFileExt(t)='.BMP') then
       begin
         if fileexists('browserdisplay.lua') then
-          ServerTask('', 'lua:x=DicomObject:new();x:Read[['+s+']];outfile=[['+t+']];frame='+IntToStr(SpinEdit1.Value-1)+';dofile("browserdisplay.lua")')
+          ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(s)+']];outfile=[['+GuiToServerFilename(t)+']];frame='+IntToStr(SpinEdit1.Value-1)+';dofile(Global.Basedir.."browserdisplay.lua")')
         else
-          ServerTask('', 'convert_to_bmp:'+s+',9600,'+t+',//'+IntToStr(SpinEdit1.Value-1));
+          ServerTask('', 'convert_to_bmp:'+(s)+',9600,'+GuiToServerFilename(t)+',//'+IntToStr(SpinEdit1.Value-1));
       end
       else
       begin
-        if ExtractFileExt(t)='.jpg' then ServerTask('', 'convert_to_jpg:'+s+',9600,'+t+',//'+IntToStr(SpinEdit1.Value-1));
-        if ExtractFileExt(t)='.JPG' then ServerTask('', 'convert_to_jpg:'+s+',9600,'+t+',//'+IntToStr(SpinEdit1.Value-1));
-        if ExtractFileExt(t)='.gif' then ServerTask('', 'convert_to_gif:'+s+',9600,'+t+',//10005'); // animated 5fps
-        if ExtractFileExt(t)='.GIF' then ServerTask('', 'convert_to_gif:'+s+',9600,'+t+',//10005');
+        if ExtractFileExt(t)='.jpg' then ServerTask('', 'convert_to_jpg:'+GuiToServerFilename(s)+',9600,'+GuiToServerFilename(t)+',//'+IntToStr(SpinEdit1.Value-1));
+        if ExtractFileExt(t)='.JPG' then ServerTask('', 'convert_to_jpg:'+GuiToServerFilename(s)+',9600,'+GuiToServerFilename(t)+',//'+IntToStr(SpinEdit1.Value-1));
+        if ExtractFileExt(t)='.gif' then ServerTask('', 'convert_to_gif:'+GuiToServerFilename(s)+',9600,'+GuiToServerFilename(t)+',//10005'); // animated 5fps
+        if ExtractFileExt(t)='.GIF' then ServerTask('', 'convert_to_gif:'+GuiToServerFilename(s)+',9600,'+GuiToServerFilename(t)+',//10005');
       end;
       Screen.Cursor := crDefault;
     end;
@@ -6649,7 +6664,7 @@ begin
   if FileExists(s) and (PageControl1.ActivePage=TabSheet5) and not Form3.Visible then
   begin
     tmp := GetTempDir + 'dcmsrv$$.txt';
-    ServerTask('', 'lua:x=DicomObject:new();x:Read[['+s+']];x:Dump[['+tmp+']]');
+    ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(s)+']];x:Dump[['+GuiToServerFilename(tmp)+']]');
 
     Form3.Memo1.Lines.Clear;
     Form3.Caption := 'Header dump of DICOM object: ' + s;
@@ -6696,7 +6711,7 @@ begin
 {$ELSE}
   webaddress := 'http://127.0.0.1:'+LadlePort+'/dgate.exe?mode=wadoseriesviewer&series=' +
                  Table1.FieldByName('PATIENTID').AsString+':'+Table3.FieldByName('SERIESINST').AsString;
-  ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];dofile[[lua/ladle.lua]]');
+  ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];do(fileGlobal.Basedir..[[lua/ladle.lua]])');
   ShellExecute(0, 'open', PWideChar(webaddress), nil, nil, SW_SHOWNORMAL);
 {$ENDIF KPACS}
 end;
@@ -6749,7 +6764,7 @@ begin
          Table2.FieldByName('STUDYINSTA').AsString+','+
          Table3.FieldByName('SERIESINST').AsString+','+
          Table4.FieldByName('SOPINSTANC').AsString;
-  ServerTask('Deleting db for SOP from GUI', 'deletesopfromdb:'+tmp);
+  ServerTask('Deleting db for SOP from GUI', 'deletesopfromdb:'+GuiToServerFilename(tmp));
   SetRefreshLevel(4);
   RefreshDatabase;
 end;
@@ -7171,9 +7186,9 @@ end;
 procedure TForm1.CheckBoxWebServerClick(Sender: TObject);
 begin
   if (Sender as TCheckBox).Checked then
-    ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];dofile[[lua/ladle.lua]]')
+    ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];dofile(Global.Basedir..[[lua/ladle.lua]])')
   else
-    ServerTask('', 'luastart:dofile[[lua/quitladle.lua]]');
+    ServerTask('', 'luastart:dofile(Global.Basedir..[[lua/quitladle.lua]])');
 end;
 
 procedure TForm1.CheckBoxWebServerMouseDown(Sender: TObject;
@@ -7343,9 +7358,9 @@ begin
 
       try
         if fileexists('printerdisplay.lua') then
-          ServerTask('', 'lua:x=DicomObject:new();x:Read[['+t+']];outfile=[['+tmp+']];dofile("printerdisplay.lua")')
+          ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(t)+']];outfile=[['+GuiToServerFilename(tmp)+']];dofile("printerdisplay.lua")')
         else
-          ServerTask('', 'convert_to_bmp:'+t+',9600,'+tmp);
+          ServerTask('', 'convert_to_bmp:'+GuiToServerFilename(t)+',9600,'+GuiToServerFilename(tmp));
         i := 0;
       except
         i := 999;
@@ -7755,9 +7770,9 @@ begin
 
     try
       if fileexists('printerdisplay.lua') then
-        ServerTask('', 'lua:x=DicomObject:new();x:Read[['+LastFile+']];outfile=[['+tmp+']];dofile("printerdisplay.lua")')
+        ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(LastFile)+']];outfile=[['+GuiToServerFilename(tmp)+']];dofile("printerdisplay.lua")')
       else
-        ServerTask('', 'convert_to_bmp:'+LastFile+',9600,'+tmp);
+        ServerTask('', 'convert_to_bmp:'+GuiToServerFilename(LastFile)+',9600,'+GuiToServerFilename(tmp));
     except
     end;
 
@@ -9104,7 +9119,7 @@ begin
   if SaveDialog1.Execute then
      ServerTask('Export from GUI: ', 'luastart:servercommand[[export:'+
      Table1.FieldByName('PATIENTID').AsString+
-     ',,,,'+SaveDialog1.Filename+',compression UN]]');
+     ',,,,'+GuiToServerFilename(SaveDialog1.Filename)+',compression UN]]');
 end;
 
 procedure TForm1.Study1Click(Sender: TObject);
@@ -9119,7 +9134,7 @@ begin
      ServerTask('Export from GUI: ', 'luastart:servercommand[[export:'+
      Table1.FieldByName('PATIENTID').AsString+','+
      Table2.FieldByName('STUDYINSTA').AsString+
-     ',,,'+SaveDialog1.Filename+',compression UN]]');
+     ',,,'+GuiToServerFilename(SaveDialog1.Filename)+',compression UN]]');
 end;
 
 procedure TForm1.Series1Click(Sender: TObject);
@@ -9135,7 +9150,7 @@ begin
      Table1.FieldByName('PATIENTID').AsString+','+
      Table2.FieldByName('STUDYINSTA').AsString+','+
      Table3.FieldByName('SERIESINST').AsString+
-     ',,'+SaveDialog1.Filename+',compression UN]]');
+     ',,'+GuiToServerFilename(SaveDialog1.Filename)+',compression UN]]');
 end;
 
 procedure TForm1.Image1Click(Sender: TObject);
@@ -9196,7 +9211,7 @@ begin
      Table2.FieldByName('STUDYINSTA').AsString+','+
      Table3.FieldByName('SERIESINST').AsString+','+
      Table4.FieldByName('SOPINSTANC').AsString+
-     ','+SaveDialog1.Filename+',compression UN]]');
+     ','+GuiToServerFilename(SaveDialog1.Filename)+',compression UN]]');
 end;
 
 procedure TForm1.DeleteClick(Sender: TObject);
@@ -9218,7 +9233,7 @@ begin
 
   tmp := Table1.FieldByName('PATIENTID' ).AsString+':'+
          Table4.FieldByName('SOPINSTANC').AsString;
-  ServerTask('Deleting image from GUI', 'deleteimage:'+tmp);
+  ServerTask('Deleting image from GUI', 'deleteimage:'+GuiToServerFilename(tmp));
 end;
 
 procedure TForm1.PrintImage1Click(Sender: TObject);
@@ -11052,7 +11067,7 @@ procedure Tform1.WMDropFiles(var Message: TWMDropFiles);
       end
       else
       begin
-        ServerTask('', 'addimagefile:' + root + '\' + sr.Name + newpatid);
+        ServerTask('', 'addimagefile:' + GuiToServerFilename(root + '\' + sr.Name) + newpatid);
         Application.ProcessMessages;
       end;
     end;
@@ -11066,7 +11081,7 @@ procedure Tform1.WMDropFiles(var Message: TWMDropFiles);
       end
       else
       begin
-        ServerTask('', 'addimagefile:' + root + '\' + sr.Name + newpatid);
+        ServerTask('', 'addimagefile:' + GuiToServerFilename(root + '\' + sr.Name) + newpatid);
         Application.ProcessMessages;
       end;
     end;
@@ -11115,7 +11130,7 @@ begin
         DropDirectory(AFileName, newpatid)
       else
       begin
-        ServerTask('', 'addimagefile:' + aFileName + newpatid);
+        ServerTask('', 'addimagefile:' + GuiToServerFilename(aFileName) + newpatid);
         Application.ProcessMessages;
       end;
     end;

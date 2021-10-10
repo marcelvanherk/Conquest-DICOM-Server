@@ -1,0 +1,131 @@
+<HTML>
+<HEAD><TITLE>Conquest DICOM software</TITLE>
+<IMG SRC="conquest.jpg" ALIGN="right" ALT="Developed in the Conquest project">
+<BR>
+<BR>
+<H1>Conquest DICOM software 1.5.0b</H1>November 2, 2020;
+<br>
+<br>
+<A HREF="https://forum.image-systems.biz/forum/index.php?board/33-conquest-users/">Please have a look at the Forum for questions and answers</A>
+</HEAD>
+<BODY BGCOLOR="CFDFCF">
+<HR>
+Within the EC <A HREF="http://www.nethotel.dk/conquest/public/cqpub.htm">Conquest</A> project, 
+a full featured <A HREF="http://medical.nema.org">DICOM</A> server has
+been developed based on and heavily extending the public domain <A HREF=ftp://imrad.ucdmc.ucdavis.edu/pub/dicom/UCDMC>UCDMC DICOM code</A>
+developed by Mark Oskin when he was at the 
+<A HREF="http://www.ucdmc.ucdavis.edu">Medical Center of the University of California at Davis</A>. 
+<P>The Conquest DICOM software was written by <A HREF="marcel.html">Marcel van Herk</A> and Lambert Zijp at the <A HREF="http://www.nki.nl">Netherlands Cancer Institute</A>.We have decided to provide our extended DICOM software also to the public domain. It is now maintained by Marcel van Herk at the University of Manchester.
+
+<P>Please check our <A HREF="https://forum.image-systems.biz/forum/index.php?board/33-conquest-users/">FORUM</A> (kindly hosted by the <A HREF="http://www.k-pacs.net">K-PACS</A> team).
+
+Some possible applications of the Conquest DICOM software are:
+<BR>
+<BR><IMG SRC="bullet_H.gif" ALIGN="center" ALT=" ">DICOM training and testing
+<BR><IMG SRC="bullet_H.gif" ALIGN="center" ALT=" ">Demonstration and research image archives
+<BR><IMG SRC="bullet_H.gif" ALIGN="center" ALT=" ">Image format conversion from a scanner with DICOM network access
+<BR><IMG SRC="bullet_H.gif" ALIGN="center" ALT=" ">DICOM image viewing and slide making
+<BR><IMG SRC="bullet_H.gif" ALIGN="center" ALT=" ">DICOM image selection, (limited) editing, and splitting and merging of series
+<BR><IMG SRC="bullet_H.gif" ALIGN="center" ALT=" ">Advanced scriptable image modification, filtering, forwarding and conversion
+<BR><IMG SRC="bullet_H.gif" ALIGN="center" ALT=" ">DICOM caching and archive merging
+<BR><IMG SRC="bullet_H.gif" ALIGN="center" ALT=" ">DICOM web access for viewing and data management (scriptable)
+<BR><IMG SRC="bullet_H.gif" ALIGN="center" ALT=" ">Connects to Lua IDE for all sorts of DICOM manipulation
+
+<P ALIGN="center"><IMG SRC="browser_withmenu_small.jpg" ALT="dicom browser"></P>
+<H3 ALIGN="center">The built-in image browser of the Conquest DICOM server (Windows only)</H3>
+
+<TABLE>
+       <TD><IMG SRC="newweb_start_small.jpg" ALT="web server start page">
+       <TD><IMG SRC="newweb_studyviewer_small.jpg" ALT="advanced web viewer">
+</TABLE>
+<H3 ALIGN="center">Web access to the Conquest DICOM server with Apache2 (winamp), connects to several viewers such as DWV and Weasis (Windows/Linux)</H3>
+       
+
+<HR>
+<H2>Features of the UCDMC DICOM software are:</H2>
+Complete DICOM server offering storage, verification, query and retrieve with programmable SQL database tables. This user-programmable feature allows the MicroPACS to be custom tailored to a particular Clinical/Research area.  
+ 
+<P>The server supports a wide range of databases with ODBC (Windows) or without (Windows/Linux), including DbaseIII, MySQL, Postgres and SqLite.
+<P>
+<P><HR>
+<H2>Some features added by the Conquest project are:</H2>
+
+<P>Fast error free and transparent compression (>2x) of image data on disk with NKI private, JPEG or JPEG2000 compression.
+<P>A database browser and slice viewer integrated in the PACS system with options for: viewing DICOM header, creating BMP files (ideal for slides), sending selected images, printing, database fix tools such as changing patient IDs, deleting and anonymizing studies and series, and splitting and merging series. Use drag and drop to load ZIP, DICOM and HL7 files.
+<P>A simple query/move user interface for diagnostic purposes, to improve your knowledge of DICOM, and to grab missing data from another server.
+<P>Elementary DICOM print server and client - prints to the default printer.
+<P>JPEG, JPEG2000 compression and decompression (thanks to Bruce Barton) and RLE decompression supported. 
+<P>Flexible configuration of JPEG and NKI private compression with optional (de)compression of incoming, dropped, transmitted and archived files.
+<P>A simple DICOM Modality Worklist implementation with HL7 import with configurable translation.
+<P>A CGI WEB interface with several possible viewers (also on the Linux version with does not have a GUI).
+<P>The server can act as an advanced (Lua) scriptable DICOM image forwarder, processor and/or DICOM image cache.
+<P>The server integrates a small web client that also acts as a viewer.
+<P>The server and its webserver operation can be scripted in Lua for any type of processing and extension.
+<P>
+
+<P ALIGN="center"><IMG SRC="ZeroBraneStudio_Conquest.jpg" ALT="dicom browser"></P>
+<H3 ALIGN="center">Integration between ZeroBraneStudio, a lean and mean Lua IDE and Conquest to unleash Lua scripting in the Conquest DICOM server</H3>
+
+ 
+<font size="3" face="Arial">
+<HR>
+  <B>Download for Windows or Linux:</B>
+
+<IMG SRC="conquesticon.jpg" ALIGN="right" ALT="conquest">
+<P>New release, unified for Windows/Linux: </B><BR><BR>
+[Version 1.5.0 released (15 March 2020), Open source release on Github; Implements a small built-in web server, web page and server command attachfile; multi-threaded move and forwards, more scripting features and servercommands, a Lua console using IUP, better Linux options, scriptable dicom echo, etc.]
+[Version 1.5.0a released (20 June 2020), Fixes in compression and rare data corruption under Linux; web tool extensions]
+[Version 1.5.0b released (2 November 2020), Web with login; some bug fixes and faster anonymisation]
+  <P>
+    <A HREF="http://ingenium.home.xs4all.nl/dicomserver/dicomserver150b.zip">
+      Download <B>dicomserver150b.zip</B> (23 MB, DICOM server + documentation + sample data + source + IDE integration)
+    </A>
+    <br>
+    <br>
+    <A HREF="https://github.com/marcelvanherk/Conquest-DICOM-Server/commit/81b480c0b176f7036be0966e948118d32f4edae1">
+      Browse dicomserver150b release source code on <B>GitHub</B>
+    </A>
+    <br>
+    <br>
+    <A HREF="https://github.com/marcelvanherk/Conquest-DICOM-Server">
+      Browse latest Conquest dicomserver source code on <B>GitHub</B>
+    </A>
+    <br>
+    <br>
+    <br>
+  </P>
+
+</font>
+<HR>
+
+<H3>Contact, ConQuest DICOM server and extensions to MicroPACS</H3>
+
+Marcel van Herk
+<BR>University of Manchester
+<BR>Please check first our new <A HREF="https://forum.image-systems.biz/forum/index.php?board/33-conquest-users/">FORUM</A> (kindly hosted by the <A HREF="http://www.k-pacs.net">K-PACS</A> team).
+
+<H3>Technical Contact, original MicroPACS (no longer active)</H3>
+
+Mark Oskin
+<BR>UC Davis Medical Center
+<BR>PACS Research and Development Lab.
+
+<H3>Administrative / Licensing Contact, original MicroPACS</H3>
+
+Richard L. Kennedy
+<BR>UC Davis Medical Center
+
+<P>Copyright (c) 2020 University of Manchester.
+Developed by Marcel van Herk, Lambert Zijp and Jan Meinders; the Netherlands Cancer Institute; Radiotherapy Department; maintained by Marcel van Herk, University of Manchester.
+
+<P>Copyright (c) 1995 Regents of the University of California.  All rights reserved.
+Developed by: Mark Oskin, mhoskin@ucdavis.edu; University of California, Davis Medical Center; Department of Radiology with a Solaris port done and maintained by: Terry Rosenbaum; Michigan State University; Department of Radiology.
+
+<P>Redistribution and use in source and binary forms are permitted provided that the above copyright notice and this paragraph are duplicated in all such forms and that any documentation, advertising materials, and other materials related to such distribution and use acknowledge that the software was developed by the University of California, Davis.  The name of the University may not be used to endorse or promote  products derived from this software without specific prior written permission.  THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+
+<HR>
+
+<BR>Please first check our <A HREF="https://forum.image-systems.biz/forum/index.php?board/33-conquest-users/">FORUM</A> (kindly hosted by the <A HREF="http://www.k-pacs.net">K-PACS</A> team).
+
+</BODY>
+</HTML>

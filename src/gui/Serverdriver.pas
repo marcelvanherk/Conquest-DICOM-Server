@@ -682,6 +682,7 @@ When            Who     What
 20210621        mvh     Alt-regen folder load text file with one folder name per line; push again to stop
 20210630        mvh     No missing \ alert on linux, GetTempDir adjusted for linux (wip)
 20211003        mvh     Added GuiToServerFilename to enable mix OS running (wip)
+20211010        mvh     Merged Luiz extra controls for move to MAGx (but simplified)
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -732,7 +733,7 @@ procedure ServerTask(text, args: string);
 // function in CQDICOM.DLL
 function DcmEcho(LocalAE, RemoteAE, RemoteIP, RemotePort, NKIcommand1,
                    NKIcommand2: ansistring):integer; stdcall;
-                   external 'cqDicom.dll' name 'DcmEcho'
+                   external 'CqDicom.dll' name 'DcmEcho'
 
 {************************************}
 
@@ -1110,6 +1111,9 @@ type
     CheckBoxWebServer: TCheckBox;
     ButtonRegenFolder: TButton;
     OpenDialog1: TOpenDialog;
+    btnDoItNow: TButton;
+    NightlyStrTimeToMoveLabel: TLabel;
+    NightlyStrTimeToMoveText: TMaskEdit;
     procedure FormCreate(Sender: TObject);
     procedure RestoreconfigButtonClick(Sender: TObject);
     procedure SaveConfigButtonClick(Sender: TObject);
@@ -1267,6 +1271,7 @@ type
     procedure ButtonRegenFolderClick(Sender: TObject);
     procedure ButtonRegenFolderMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
+    procedure btnDoItNowClick(Sender: TObject);
   private
     procedure WMDropFiles(var Message: TWMDropFiles); message WM_DROPFILES;
     procedure WMQueryEndSession(var Message: TWMQueryEndSession); message WM_QUERYENDSESSION;
@@ -1390,6 +1395,11 @@ var DroppedFileCompression: string = 'un';      // uncompressed
 var IncomingCompression:    string = 'un';
 var ArchiveCompression:     string = 'as';      // as-is
 var JPEGSupport:            boolean= FALSE;	// from dgatesop.lst
+
+// Luiz added at Sept 19 2021
+var NightlyStrTimeToMove: string ='02:00';
+var DoNightlyToMoveNow  : boolean=false;
+// end add
 
 var TapebackupStatus : string;
 var TapeDevice : integer    = 0;
@@ -3419,6 +3429,14 @@ begin
 
     if Copy(s, 0, length('nightlymovetarget')) = 'nightlymovetarget' then
       target := GetData(s);
+    // Luiz added at Sept 19 2021
+
+    if Copy(s, 0, length('nightlystrtimetomove')) = 'nightlystrtimetomove' then begin
+        NightlyStrTimeToMove := GetData(s);
+        if length(NightlyStrTimeToMove) > 2 then
+          if NightlyStrTimeToMove[2]=':' then NightlyStrTimeToMove := '0' + NightlyStrTimeToMove;
+        NightlyStrTimeToMoveText.text := NightlyStrTimeToMove;
+    end;
 
     if Copy(s, 0, length('magdevices')) = 'magdevices' then
       MagDevices := StrToIntDef(GetData(s), 1);
@@ -3785,9 +3803,12 @@ begin
 
   ComboBoxMoveTarget.Enabled := MagDevices>1;
   EditNightlyMoveTreshold.Enabled := MagDevices>1;
+  NightlyStrTimeToMoveLabel.Enabled := MagDevices>1;
+  NightlyStrTimeToMoveText.Enabled := MagDevices>1;
   Label36.Enabled := MagDevices>1;
   Label37.Enabled := MagDevices>1;
   ComboBoxMoveTarget.Items.Clear;
+  ComboBoxMoveTarget.Items.Add('None');
   for i:=1 to MagDevices-1 do
     ComboBoxMoveTarget.Items.Add('MAG'+IntToStr(i));
 
@@ -4455,6 +4476,9 @@ begin
   IncomingCompression    := LowerCase(IncomingCompression);
   ArchiveCompression     := LowerCase(ArchiveCompression);
 
+  // Luiz added at Sept 19 2021
+  NightlyStrTimeToMove:=trim(NightlyStrTimeToMoveText.text);
+
   if UncompressedButton.Checked then
   begin
     if (IncomingCompression<>'un') and (IncomingCompression<>'UN') then
@@ -4607,6 +4631,8 @@ begin
   begin
     writeln(f, 'NightlyMoveThreshhold    = ' + trim(EditNightlyMoveTreshold.text));
     writeln(f, 'NightlyMoveTarget        = ' + trim(ComboBoxMoveTarget.text));
+    // Luiz added at Sept 19 2021
+    writeln(f, 'NightlyStrTimeToMove     = ' + trim(NightlyStrTimeToMoveText.text));
   end;
 
   if MirrorDevices <> 0 then
@@ -5828,8 +5854,12 @@ begin
   end;
 end;
 
-// Save ACRNEMA.MAP
+procedure TForm1.btnDoItNowClick(Sender: TObject);
+begin
+   DoNightlyToMoveNow := true;
+end;
 
+// Save ACRNEMA.MAP
 procedure TForm1.Button1Click(Sender: TObject);
 begin
   if MessageDlg('Save and use new ACRNEMA.MAP ?', mtConfirmation,
@@ -10278,14 +10308,20 @@ begin
     CleanTriggered := false;
 
   // automatically move data early in the morning
-  if (copy(t, 1, length('02:00'))='02:00')
+  // original if (copy(t, 1, length('02:00'))='02:00')
+  // Luiz added at Sept 19 2021
+  if (copy(t, 1, length(NightlyStrTimeToMove))=NightlyStrTimeToMove)
       and (StrToIntDef(trim(EditNightlyMoveTreshold.text), 0)<>0)
+      and (NightlyStrTimeToMove<>'')
       and ComboBoxMoveTarget.Enabled
+      and (ComboBoxMoveTarget.ItemIndex>0)
+      or (DoNightlyToMoveNow and (ComboBoxMoveTarget.ItemIndex>0))
       and (DiskFreeGB(Label10.Caption[1])*1024 < StrToIntDef(trim(EditNightlyMoveTreshold.text), 0)) then
   begin
     if not MoveTriggered then
     begin
       MoveTriggered := true;
+      btnDoItNow.Enabled := false;
 
       mb := StrToIntDef(trim(EditNightlyMoveTreshold.text), 0) - DiskFreeGB(Label10.Caption[1]) * 1024;
 
@@ -10305,11 +10341,14 @@ begin
         exit;
       end;
 
-       WriteMemo(MaintenanceMemo, 'finished nightly moving', 100, 200, 'maintenance');
+      WriteMemo(MaintenanceMemo, 'finished nightly moving', 100, 200, 'maintenance');
+      btnDoItNow.Enabled := true;
     end
   end
   else
     MoveTriggered := false;
+
+  DoNightlyToMoveNow:= false;
 
   // automatically zip the log files early in the morning
   // done by dgate if directly logging to file or service

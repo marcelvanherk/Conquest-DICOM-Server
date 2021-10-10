@@ -28,7 +28,7 @@ object Form1: TForm1
     Top = 0
     Width = 818
     Height = 554
-    ActivePage = TabSheet3
+    ActivePage = TabSheet1
     Align = alClient
     ParentShowHint = False
     ShowHint = False
@@ -47,6 +47,8 @@ object Form1: TForm1
         Align = alLeft
         BevelOuter = bvLowered
         TabOrder = 0
+        ExplicitLeft = 3
+        ExplicitTop = 3
         object Label4: TLabel
           Left = 72
           Top = 32
@@ -123,20 +125,27 @@ object Form1: TForm1
           Caption = 'Cleanup nightly below: (MB)'
         end
         object Label36: TLabel
-          Left = 42
-          Top = 457
+          Left = 111
+          Top = 465
           Width = 29
           Height = 13
           Caption = 'Below'
           Enabled = False
         end
         object Label37: TLabel
-          Left = 123
-          Top = 457
+          Left = 201
+          Top = 465
           Width = 66
           Height = 13
           Caption = 'MB, move to: '
           Enabled = False
+        end
+        object NightlyStrTimeToMoveLabel: TLabel
+          Left = 44
+          Top = 465
+          Width = 13
+          Height = 13
+          Caption = 'At:'
         end
         object ServerName: TMaskEdit
           Left = 408
@@ -384,9 +393,9 @@ object Form1: TForm1
           Text = '0'
         end
         object EditNightlyMoveTreshold: TEdit
-          Left = 76
-          Top = 454
-          Width = 43
+          Left = 143
+          Top = 462
+          Width = 52
           Height = 21
           Hint = 
             'Free disk space treshold of MAG0 for automatic transfer of data ' +
@@ -398,8 +407,8 @@ object Form1: TForm1
           Text = '0'
         end
         object ComboBoxMoveTarget: TComboBox
-          Left = 190
-          Top = 454
+          Left = 268
+          Top = 462
           Width = 67
           Height = 21
           Hint = 
@@ -422,6 +431,16 @@ object Form1: TForm1
           ShowHint = True
           TabOrder = 8
           OnClick = CheckBoxKeepAliveClick
+        end
+        object NightlyStrTimeToMoveText: TMaskEdit
+          Left = 63
+          Top = 462
+          Width = 42
+          Height = 21
+          EditMask = '!90:00;1;_'
+          MaxLength = 5
+          TabOrder = 10
+          Text = '  :  '
         end
       end
       object SaveConfigButton: TButton
@@ -540,6 +559,15 @@ object Form1: TForm1
         ShowHint = True
         TabOrder = 8
         OnClick = Close1Click
+      end
+      object btnDoItNow: TButton
+        Left = 342
+        Top = 460
+        Width = 75
+        Height = 25
+        Caption = 'Do It Now'
+        TabOrder = 9
+        OnClick = btnDoItNowClick
       end
     end
     object TabSheet2: TTabSheet

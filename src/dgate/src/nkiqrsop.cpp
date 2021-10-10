@@ -269,6 +269,9 @@
 20210114        mvh     Enable compression selection for C-GET (do not force "UN") as tested by Chris
 20210323        mvh     Fix leak after Host '' will not accept image 
 20210325        mvh     Outgoing compression with ! e.g. JK! will not propose uncompressed
+20210409        mvh     Blocked out IARQ for debugging outgoing association
+20210516        mvh     Blocked out recompressed message - disturbs cgi operation; 
+			Note need to accept e.g. 9999,0700 c-move/get commands in data as well as command
 */
 
 //#define bool BOOL
@@ -672,7 +675,7 @@ BOOL	StandardRetrieveNKI	::	Read (
 			return ( TRUE );
 			}
 		
-		IARQ ( NewPDU, TRUE );
+		//IARQ ( NewPDU, TRUE );
 		}
 
 	Index = 0;
@@ -720,9 +723,9 @@ BOOL	StandardRetrieveNKI	::	Read (
 			}
 		else
 			{
-			// if (!cget) 
-			AcceptedCompress = UsedPDU->GetAcceptedCompressionType(iUID);
-			// else AcceptedCompress = "un";
+			//if (!cget) 
+			  AcceptedCompress = UsedPDU->GetAcceptedCompressionType(iUID);
+			//else AcceptedCompress = "un";
 
 			StripGroup2 = memicmp(AcceptedCompress, "as", 2)!=0 && memicmp(AcceptedCompress, "is", 2)!=0;
 
@@ -4883,8 +4886,8 @@ BOOL recompress(DICOMDataObject **pDDO, const char *Compression, const char *Fil
 
 	if (StripGroup2) Strip2(*pDDO);
 
-        if (rc && status>0)
-          OperatorConsole.printf("[recompress]: recompressed with mode = %s (strip=%d)\n", Compression, StripGroup2);
+        //if (rc && status>0)
+        //  OperatorConsole.printf("[recompress]: recompressed with mode = %s (strip=%d)\n", Compression, StripGroup2);
 
 	RecompressTime += (int)time(NULL)-t;
 

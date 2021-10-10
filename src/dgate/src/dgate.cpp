@@ -1161,6 +1161,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20210415	mvh	luadicomstore returns an dicomarray of results
 20210501	mvh	Allow use of 0x0008,0x3001 sequence to return servercommand result
 20210509	mvh	Added UT in header dump; simplified overflow check in luaserialize, upped limit
+20210928        mvh     pivoglot: Removed max(), do not use strstr()>0; allow host:port for dicomecho and dicomget
+20210930        mvh     Added md5() for lua
 
 ENDOFUPDATEHISTORY
 */
@@ -1177,10 +1179,6 @@ ENDOFUPDATEHISTORY
 
 #ifndef UNUSED_ARGUMENT
 #define UNUSED_ARGUMENT(x) (void)x
-#endif
-
-#ifndef max
-inline int max(int a, int b) { return a > b ? a : b; }
 #endif
 
 #include <stdarg.h>
@@ -6475,6 +6473,19 @@ int console;
     lua_pushnil(L);
     return 1;
   }
+  //extern void MD5_compute(char *in, char *out);
+  static int luamd5(lua_State *L)
+  { if (lua_gettop(L)==1)
+    { unsigned char result[16];
+      char s[33];
+      MD5_compute((char *)lua_tostring(L, 1), result);
+      for (int i=0; i<16; i++) sprintf(s+i*2, "%02x", result[i]);
+      lua_pushstring(L, s);
+      return 1;
+    }
+    lua_pushnil(L);
+    return 1;
+  }  
   static int luagenuid(lua_State *L)
   { char n[80];
     GenUID(n);
@@ -8501,6 +8512,7 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     lua_register      (*L, "changeuidback", luachangeuidback);
     lua_register      (*L, "genuid",        luagenuid);
     lua_register      (*L, "crc",           luacrc);
+    lua_register      (*L, "md5",           luamd5);
     lua_register      (*L, "system",        luasystem);
     lua_register      (*L, "sleep",         luasleep);
     lua_register      (*L, "addimage",      luaaddimage);
@@ -22262,7 +22274,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 
 		int rows=0, cols=0;
 		if (q) sscanf(q, "%d/%d", &rows, &cols);
-		int size = max(rows, cols);
+		int size = rows>cols?rows:cols;
 		if (size==0) size=1600;
 
 		// experimental bitmap strip, will likely be removed
@@ -26697,7 +26709,7 @@ void parseHL7(char **p, char *data, char *type, char *tmp, char *HL7FieldSep, ch
     data[8]=0;
     strcat(type, ".DATE");								// XXX.N.DATE
   }
-  else if (strstr(type, ".DATE")>0)							// date was returned, now get time
+  else if (strstr(type, ".DATE"))							// date was returned, now get time
   { strcpy(data, tmp);									// time
     strcpy(type+strlen(type)-4, "TIME");						// XXX.N.TIME
   }
@@ -26709,7 +26721,7 @@ void parseHL7(char **p, char *data, char *type, char *tmp, char *HL7FieldSep, ch
 
     strcat(type, ".0");									// XXX.N.0
   }
-  else if (strchr(data, *HL7RepeatSep))							// translate repeat type, first entry
+  else if (strchr(data, *HL7RepeatSep))						// translate repeat type, first entry
   { q = strchr(data, *HL7RepeatSep);
     if (q) *q=0;
     if (q) strcpy(tmp, q+1);
@@ -27767,7 +27779,17 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	PDU.AttachRTC(&VRType);
 
 	if(!GetACRNema((char *)ae, (char *)ip, (char *)port, (char *)compress))
-		return 0;
+        { // it does not exist: get host:port
+          strcpy((char *)ip, (char *)ae);
+          char *p = strchr((char *)ip, ':');
+          if (p) 
+          { *p=0;
+            strcpy((char *)port, p+1);
+          }
+          else 
+            strcpy((char *)port, "5678");
+          strcpy((char *)compress, "UN");
+        }
 
 	// query to get list of SopClass UIDs
 
@@ -27895,13 +27917,14 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 
 	if(!GetACRNema((char *)ae, (char *)ip, (char *)port, (char *)compress))
         { strcpy((char *)ip, (char *)ae);
-          p = strchr((char *)ip, ':');
+          char *p = strchr((char *)ip, ':');
           if (p) 
           { *p=0;
             strcpy((char *)port, p+1);
           }
           else 
             strcpy((char *)port, "5678");
+          strcpy((char *)compress, "UN");
         }
 
 	PDU.SetRequestedCompressionType("");	// default
@@ -28001,7 +28024,17 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
     PDU.AddAbstractSyntax(uid);
     
     if(!GetACRNema((char *)ae, (char *)host, (char *)port, (char *)compr)) 
-    	return FALSE;
+    { // it does not exist: get host:port
+      strcpy((char *)host, (char *)ae);
+      char *p = strchr((char *)host, ':');
+      if (p) 
+      { *p=0;
+        strcpy((char *)port, p+1);
+      }
+      else 
+        strcpy((char *)port, "5678");
+      strcpy((char *)compr, "UN");
+    }
     
     if(!PDU.Connect(host, port))
     	return ( FALSE );

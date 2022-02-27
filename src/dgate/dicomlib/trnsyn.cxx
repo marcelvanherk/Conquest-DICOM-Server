@@ -77,6 +77,8 @@
 20201223   mvh   check length of VR < lVRBuffer.GetIncomingSize() to avoid crash on corrupted files
 20210110   mvh   Lenght error conditional, returns possibly truncated object if NoDicomCheck=1
 20210113   mvh   Added new types UR, UC, OD and OV with 32 bits VR length; added swapping of OD and OV
+20210118   mvh   WIP: Added code to read implicitly coded sequences in explicit content
+20210118   mvh   Every length exceeding warning phrased differently for easy of finding
 */
 
 /*
@@ -577,7 +579,7 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 
 			if (vr->Length>lVRBuffer.GetIncomingSize())
 				{
-				if (DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length))
+				if (DicomError(DCM_ERROR_PARSE, "Length exceeding remaining file size: %08x\n", vr->Length))
 					return FALSE;
 				return ( TRUE );
 				}
@@ -666,7 +668,7 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 		// Explicit Length ( normal)
 		if (vr->Length > lVRBuffer.GetIncomingSize())
 			{
-			if (DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length))
+			if (DicomError(DCM_ERROR_PARSE, "Length exceeds remainder file size: %08x\n", vr->Length))
 			  return FALSE;
 			return ( TRUE );
 			}
@@ -884,6 +886,8 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			}		
 		lVRBuffer >> vr->Element;
 
+                //DicomError(DCM_ERROR_PARSE, "process: %08x\n", 0x10000*vr->Group+vr->Element);
+
 		if (vr->Group < CurrentGroup)
 			{
 			if (DicomError(DCM_ERROR_PARSE, "(Exp) Encountered an invalid group order during load of DCM file (after %08x)\n", (CurrentGroup<<16)+CurrentElement))
@@ -983,7 +987,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 
 			if (vr->Length>lVRBuffer.GetIncomingSize())
 				{
-				if (DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length))
+				if (DicomError(DCM_ERROR_PARSE, "Length exceeding remainder file size: %08x\n", vr->Length))
 				  return FALSE;
 				return ( TRUE );
 				}
@@ -1021,7 +1025,39 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 		lVRBuffer >> s1[0];lVRBuffer>>s1[1];
 		Pack(s1[0],s1[1],vr->TypeCode);
 
-		if(	(vr->TypeCode=='OB')||
+                // invalid typecode, may be unexpected implicit coding
+		if (s1[0]<'A' || s1[0]>'Z' || s1[1]<'A' || s1[1]>'Z') 
+                        {
+                                UINT16 h; lVRBuffer >> h;
+                                vr->Length = ((UINT32)h<<16) + ((UINT32)s1[1]<<8) + ((UINT32)s1[0]);
+                                
+                                vr->TypeCode = 0;
+                                if (AttachedRTC) 
+                                        AttachedRTC->RunTimeClass(vr);
+                                if (vr->TypeCode == 0)
+                                        vr->TypeCode = 'UN';
+                                //if(	(vr->TypeCode=='OB')||
+                                //        (vr->TypeCode=='OW')||
+                                //        (vr->TypeCode=='UN')||
+                                //        (vr->TypeCode=='UT')||
+                                //        (vr->TypeCode=='OF')||
+                                //        (vr->TypeCode=='OD')||
+                                //        (vr->TypeCode=='OV')||
+                                //        (vr->TypeCode=='UR')||
+                                //        (vr->TypeCode=='UC')||
+                                //        (vr->TypeCode=='SQ'))
+                                //        {
+                                //        lVRBuffer >> vr->Length;	// 32 bit Length
+                                //        }
+                                //else
+                                //        {
+                                //        vr->Length = (UINT32) Length16;
+                                //        }
+                        
+                        }
+                // END invalid typecode, may be unexpected implicit coding
+
+		else if(	(vr->TypeCode=='OB')||
 			(vr->TypeCode=='OW')||
 			(vr->TypeCode=='UN')||
 			(vr->TypeCode=='UT')||
@@ -1035,7 +1071,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			lVRBuffer >> Length16;	// Toss away 16 bits
 			lVRBuffer >> vr->Length;	// 32 bit Length
 			}
-		else
+                else
 			{
 			lVRBuffer >> Length16;
 			vr->Length = (UINT32) Length16;
@@ -1089,7 +1125,8 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 
 		if (vr->Length>lVRBuffer.GetIncomingSize())
 			{
-			if (DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length))
+			//DicomError(DCM_ERROR_PARSE, "In: %08x\n", 0x10000*vr->Group+vr->Element);
+			if (DicomError(DCM_ERROR_PARSE, "Item Length exceeds remaining file size: %08x\n", vr->Length))
 			  return FALSE;
 			return ( TRUE );
 			}
@@ -1565,7 +1602,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 
 			if (vr->Length>lVRBuffer.GetIncomingSize())
 				{
-				if (DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length))
+				if (DicomError(DCM_ERROR_PARSE, "Item Length exceeding remaining file size: %08x\n", vr->Length))
 				  return FALSE;
 				return ( TRUE );
 				}
@@ -1757,7 +1794,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 
 		if (vr->Length>lVRBuffer.GetIncomingSize())
 			{
-			if (DicomError(DCM_ERROR_PARSE, "Length exceeds remaining file size: %08x\n", vr->Length))
+			if (DicomError(DCM_ERROR_PARSE, "Item Length exceeds remainder file size: %08x\n", vr->Length))
 			  return FALSE;
 			return ( TRUE );
 			}

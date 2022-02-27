@@ -74,6 +74,7 @@
 20121208        mvh     Added %date to filenamesyntax gives yyyymmdd
 20131013	mvh	Default FileNameSyntax set to 4
 20160316	mvh	Avoid buffer overflow reading string[-1]
+20220227	mvh	Added RenameOnRewrite flag: will force rename of any object rewritten 
 */
 
 #ifndef	WHEDGE
@@ -114,6 +115,7 @@ dgatefnmin(int a, int b)
 	}
 
 static char FileNameSyntaxString[256];
+static int RenameOnRewrite=0;
 
 static
 int
@@ -138,6 +140,10 @@ GetFileNameSyntax(unsigned int *maxfilenamelength)
 		MyGetPrivateProfileString ( RootSC, "MaxFileNameLength", "255",
 			(char*) Temp, 128, ConfigFile);
 		MaxLength = (unsigned int)atoi(Temp);
+
+		MyGetPrivateProfileString ( RootSC, "RenameOnRewrite", "0",
+			(char*) Temp, 128, ConfigFile);
+		RenameOnRewrite = atoi(Temp);
 		}
 
 	if (maxfilenamelength) *maxfilenamelength = MaxLength;
@@ -294,7 +300,7 @@ GenerateFileName(
 		else
 			q = strrchr(FileNameSyntaxString, '.');
 	
-		if (p && q && strcmp(p, q)!=0)
+		if ((p && q && strcmp(p, q)!=0) || RenameOnRewrite!=0)
 			{
 			// changing extension: removed stored image
 			//DeleteImageFile(filename, FALSE);

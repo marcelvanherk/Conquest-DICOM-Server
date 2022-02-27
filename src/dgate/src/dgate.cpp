@@ -1163,6 +1163,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20210509	mvh	Added UT in header dump; simplified overflow check in luaserialize, upped limit
 20210928        mvh     pivoglot: Removed max(), do not use strstr()>0; allow host:port for dicomecho and dicomget
 20210930        mvh     Added md5() for lua
+20220131        mvh     Added object:Serialize(true, true): json with pixel data included
+20220210        mvh     Fix object:Serialize(true, false); add convert_to_json, -jj and -js options
+20220227        mvh     Added json input o=DicomObject:new(json), o:SetVR(g, e, json), o:Copy(json) (latter merges)
 
 ENDOFUPDATEHISTORY
 */
@@ -6935,7 +6938,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     }
     return 0;
   }
-  
+    
   // getvr(Object, group, element) returns table for normal VR, addo for sequence
   static int luagetvr(lua_State *L)
   { VR *vr;
@@ -6999,7 +7002,68 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     }
     return 0;
   }
+  
+#define JSMN_STRICT
+#include "jsmn.h"
+
+  int jsonaddtoobject(DICOMDataObject *O, const char *js, jsmntok_t *t, size_t count);
+
+  int jsonname(char *name, const char *js, jsmntok_t *t, size_t count)
+  { if (t->end-t->start>127) return 0;
+    if (t->type!=JSMN_STRING) return 0;
+    strncpy(name, js+t->start, t->end-t->start);
+    name[t->end-t->start]=0;
+    return 1;
+  }
+  
+  int jsonsetvr(VR *vr, const char *js, jsmntok_t *t, size_t count)
+  { if (t->type==JSMN_PRIMITIVE || t->type==JSMN_STRING)
+    { int llen = t->end-t->start;
+      int len=0; 
+      for (int i=0; i<llen; i++) { if (js[t->start+i]=='\\') i++; len++; }
+      vr->ReAlloc(2*((len+1)/2));
+      len=0; for (int i=0; i<llen; i++) { if (js[t->start+i]=='\\') i++; ((char *)(vr->Data))[len++]=js[t->start+i]; }
+      if (len&1)((char *)(vr->Data))[len++]=' ';
+      return 1;
+    }
+    if (t->type==JSMN_ARRAY)
+    { Array < DICOMDataObject * > *SQE  = new Array <DICOMDataObject *>;
+      int j = 0;
+      for (int i = 0; i < t->size; i++) {
+        DICOMDataObject *dd = new DICOMDataObject; 
+        j += jsonaddtoobject(dd, js, t + 1 + j, count - j);
+	SQE->Add(dd);      
+      }
+      vr->SQObjectArray = SQE;
+      return j+1;
+    }
+    return 0;
+  }
+
+  int jsonaddtoobject(DICOMDataObject *O, const char *js, jsmntok_t *t, size_t count)
+  { char name[128];
+    int j = 0;
+    
+    for (int i = 0; i < t->size; i++) {
+      j += jsonname(name, js, t+j+1, count-j);
+      RTCElement Entry;
+      Entry.Description = name;
+      if (VRType.GetGroupElement(&Entry))
+      { int g = Entry.Group;
+        int e = Entry.Element;
+        VR *vr = new VR(g, e, 0, (void *) NULL, FALSE);
+        O->DeleteVR(vr);
+	delete vr;
+	vr = new VR(g, e, 0, (void *) NULL, FALSE);
+        j+=jsonsetvr(vr, js, t+j+1, count-j);
+        O->Push(vr);
+      }
+    }
+    return j + 1;
+  }
+
   // setvr(Object, group, element, data); if data is a table sets a simple VR, if it is an ADDO sets a sequence
+  // Also accepts a json array string as data to write into a sequence
   static int luasetvr(lua_State *L)
   { VR *vr;
     if (lua_isuserdata(L,1)) 
@@ -7010,6 +7074,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       lua_pop(L, 1);
       int g = lua_tointeger(L,2);
       int e = lua_tointeger(L,3);
+      UINT16 TypeCode = VRType.RunTimeClass(g, e, NULL);
       if (lua_isuserdata(L, 4) && O)
       { lua_getmetatable(L, 4);
           lua_getfield(L, -1, "ADDO");  A = (Array < DICOMDataObject * > *) lua_topointer(L, -1); lua_pop(L, 1);
@@ -7040,8 +7105,6 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 #else
         llen = lua_objlen(L, 4);
 #endif
-        UINT16 TypeCode = VRType.RunTimeClass(g, e, NULL);
-
 	if (TypeCode == 'UL')
         { vr->ReAlloc(llen*4);
           for(int i=0; i<llen; i++)
@@ -7100,14 +7163,34 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       else if (lua_isstring(L, 4) && O)
       { size_t llen;
 	const char *data;
-        vr = O->GetVR(g, e);
+        data = lua_tolstring (L, 4, &llen);            
+	vr = O->GetVR(g, e);
         if (!vr) 
         { vr = new VR(g, e, 0, (void *) NULL, FALSE);
           O->Push(vr);
         }
-        data = lua_tolstring (L, 4, &llen);
-        vr->ReAlloc(llen);
-	if (data && llen) memcpy((BYTE *)(vr->Data), (BYTE *)data, llen);
+
+        if (TypeCode!='SQ')
+        { if (data && llen) 
+          { vr->ReAlloc(2*((llen+1)/2));
+            memcpy((BYTE *)(vr->Data), (BYTE *)data, llen);
+          }
+          if (llen&1)
+          { if (TypeCode != 'UI') memset((BYTE *)(vr->Data)+llen, ' ', 1);
+            else    	          memset((BYTE *)(vr->Data)+llen, 0, 1);
+          }
+        }
+        else
+        { jsmn_parser p;
+          jsmntok_t *tok;
+          jsmn_init(&p);
+          size_t tokcount = llen/5; // safe bet 'x':0,
+          tok = (jsmntok_t *)malloc(tokcount*sizeof(jsmntok_t));
+          int r = jsmn_parse(&p, data, llen, tok, tokcount);
+          if (tok->type == JSMN_ARRAY)
+            jsonsetvr(vr, data, tok, tokcount);
+          free((void *)tok);
+        }
       }
     }
     return 0;
@@ -7173,7 +7256,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     return 0;
   }
 
-  // copydicom(source), Data:Copy()
+  // copydicom(source), Data:Copy(), Data:Copy(json) -- latter adds/overwrites json object elements to Data
   static int luacopydicom(lua_State *L)
   { struct scriptdata *sd = getsd(L);
     if (lua_isuserdata(L,1)) 
@@ -7184,6 +7267,19 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 
       if (O)
       { DICOMDataObject *pDDO = MakeCopy(O);
+        if (lua_isstring(L, 2))
+        { size_t llen=0;
+          const char *data = lua_tolstring (L, 2, &llen);
+          jsmn_parser p;
+          jsmntok_t *tok;
+          jsmn_init(&p);
+          size_t tokcount = llen/5; // safe bet 'x':0,
+          tok = (jsmntok_t *)malloc(tokcount*sizeof(jsmntok_t));
+          int r = jsmn_parse(&p, data, llen, tok, tokcount);
+          if (tok->type == JSMN_OBJECT)
+            jsonaddtoobject(pDDO, data, tok, tokcount);
+          free((void *)tok);
+        }
         luaCreateObject(L, pDDO, NULL, TRUE); 
         return 1;
       }
@@ -7363,7 +7459,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 
   static int luaserialize(lua_State *L)
   { struct scriptdata *sd = getsd(L);
-    BOOL json=0;
+    BOOL json=false, includepixeldata=false;
     if (lua_isboolean(L,2))
       json = lua_toboolean(L, 2);
     char eq='=';
@@ -7374,6 +7470,9 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       br1='[';
       br2=']';
     }
+
+    if (lua_isboolean(L,3))
+      includepixeldata = lua_toboolean(L, 3);
 
     if (lua_isuserdata(L,1)) 
     { char *result=(char *)malloc(MAXLEN);
@@ -7484,8 +7583,30 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
   	    else if (c2 == 'OF' && !json)
             { Index+=sprintf(result+Index, "%s%cnil --[[OF not serialized]],", name, eq);
 	    }
+	    else if (c2=='OF' && vr->Length>4 && includepixeldata)
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
+              for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
+                Index+=sprintf(result+Index, "%f,", ((float *)(vr->Data))[i]);
+	      Index--;
+	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "%c,", br2);
+	    }
+	    else if (c2=='OF' && vr->Length>4 && !includepixeldata)
+            { 
+	    }
   	    else if (c2 == 'OW' && !json)
             { Index+=sprintf(result+Index, "%s%cnil --[[OW not serialized]],", name, eq);
+	    }
+	    else if (c2=='OW' && vr->Length>2 && includepixeldata)
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
+              for (i=0; (i<vr->Length/2) && (Index<MAXLEN/2); i++)
+                Index+=sprintf(result+Index, "%d,", ((short *)(vr->Data))[i]);
+	      Index--;
+	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "%c,", br2);
+	    }
+	    else if (c2=='OW' && vr->Length>2 && !includepixeldata)
+            { 
 	    }
   	    else if (c2 == 'SQ')
             { if (vr->SQObjectArray)
@@ -7587,10 +7708,26 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     return 0;
   }
 
-  // newdicomobject()
+  // newdicomobject(), DicomObject:new(), DicomObject:new(json) -- latter converts json object to DICOM
   static int luanewdicomobject(lua_State *L)
   { DICOMDataObject *O = new DICOMDataObject;
     luaCreateObject(L, O, NULL, TRUE); 
+    size_t llen=0;
+    const char *data=NULL;
+    if (lua_isstring(L, 1)) data = lua_tolstring (L, 1, &llen);
+    if (lua_isstring(L, 2)) data = lua_tolstring (L, 2, &llen);
+    if (data)
+    { jsmn_parser p;
+      jsmntok_t *tok;
+      jsmn_init(&p);
+      size_t tokcount = llen/5; // safe bet 'x':0,
+      tok = (jsmntok_t *)malloc(tokcount*sizeof(jsmntok_t));
+      int r = jsmn_parse(&p, data, llen, tok, tokcount);
+      if (tok->type == JSMN_OBJECT)
+        jsonaddtoobject(O, data, tok, tokcount);
+      free((void *)tok);
+    }
+
     return 1;
   }
   
@@ -12716,6 +12853,7 @@ PrintOptions ()
 	fprintf(stderr, "          [-nd|-nc#,FILE]     NKI de-/compress# FILE\n");
 	fprintf(stderr, "          [-nu IN OUT]        Generic decompress NKI file\n");
 	fprintf(stderr, "          [-jd|-jc#,FILE]     JPEG de-/compress# FILE\n");
+	fprintf(stderr, "          [-js|-jjFILE]       DICOM to json summary;complete with pixel data\n");
 	fprintf(stderr, "          [-j*##|-j-##,FILE]  Recompress FILE to ##\n");
 	fprintf(stderr, "          [-as#,N|-amFROM,TO] Select#KB to archive of MAGN|move device data\n");
 	fprintf(stderr, "          [-au|-aeFROM,TO]    Undo select for archiving|rename device\n");
@@ -12858,7 +12996,8 @@ PrintOptions ()
         fprintf(stderr, "    --convert_to_gif:file,size,out,l/w/f Downsize and convert to mono GIF\n");
         fprintf(stderr, "    --convert_to_bmp:file,size,out,l/w/f Downsize and convert to color BMP\n");
         fprintf(stderr, "    --convert_to_jpg:file,size,out,l/w/f Downsize and convert to color JPG\n");
-        fprintf(stderr, "    --convert_to_dicom:file,size,comp,f  Downsize/compress/frame DICOM\n");
+        fprintf(stderr, "    --convert_to_dicom:file,size,comp,f  Downsize/compress/frame DICOM to stdout\n");
+        fprintf(stderr, "    --convert_to_json:file,size,comp,f,p Down/comp/frame to json p=pixeldata\n");
         fprintf(stderr, "    --extract_frames:file,out,first,last Select frames of DICOM file\n");
 	fprintf(stderr, "    --count_frames:file                  report # frames in DICOM file\n");
         fprintf(stderr, "    --uncompress:file,out                Uncompress DICOM\n");
@@ -13722,6 +13861,29 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 
 						PDU2.SaveDICOMDataObject(argv[valid_argc]+5, ACRNEMA_VR_DUMP, pDDO);
 						delete pDDO;
+						exit(1);
+						}
+
+					if (argv[valid_argc][2] == 's')		// -js to json (summary)
+						{
+					        OperatorConsole.On();
+						struct scriptdata sd = {&globalPDU, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
+						char script[1000]="local d=DicomObject:new();d:Read([[";
+						strcat(script, argv[valid_argc]+3);
+						strcat(script, "]]);io.write(d:Serialize(true,false))");
+						do_lua(&(globalPDU.L), script, &sd);
+						exit(1);
+						}
+
+					if (argv[valid_argc][2] == 'j')		// -jj to json (complete)
+						{
+					        OperatorConsole.On();
+						struct scriptdata sd = {&globalPDU, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
+						char script[1000]="local d=DicomObject:new();d:Read([[";
+						strcat(script, argv[valid_argc]+3);
+						strcat(script, "]]);io.write(d:Serialize(true,true))");
+						do_lua(&(globalPDU.L), script, &sd);
+						exit(1);
 						}
 
 					return ( FALSE );
@@ -22162,6 +22324,43 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			recompress(&pDDO, q, "", q[0]=='n' || q[0]=='N', &PDU);
 			SaveDICOMDataObject(tempfile, pDDO);
 			ImagesToDicomFromGui++;
+			delete pDDO;
+			}
+		}
+
+	else if (memcmp(SilentText, "convert_to_json:", 16)==0)
+		{
+		char *r2=NULL;
+		DICOMDataObject *pDDO;
+		if (p) 
+		{ *p++=0;				// points after 1st comma
+		  q = strchr(p, ',');
+		  if (q)  
+		  { *q++=0;				// points after 2nd comma
+		    r1 = strchr(q, ',');
+		    if (r1) 
+		    { *r1++=0;				// points after 3nd comma
+	               r2 = strchr(r1, ',');
+	               if (r2) *r2++=0;
+		    }
+		  }
+		}
+		pDDO = LoadForGUI(SilentText+16);
+
+		if (pDDO) 
+			{
+			char un[]="un";
+			char p0[]="0";
+			if (p==NULL) p = p0;
+			if (q==NULL) q = un;
+			NewTempFile(tempfile, ".json");
+			if (r1 && r2) ExtractFrame(pDDO, (unsigned int)atoi(r1));
+			if (r2) MaybeDownsize(pDDO, NULL, atoi(p));
+			if (r2) recompress(&pDDO, q, "", q[0]=='n' || q[0]=='N', &PDU);
+			char *script="lua:local r=Data:Serialize(true,%s);local f=io.open([[%s]], 'wt');f:write(r);f:close()";
+			char script2[1024];
+			sprintf(script2, script, r2&&atoi(r2)?"true":"false", tempfile);
+		        CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, script2);
 			delete pDDO;
 			}
 		}

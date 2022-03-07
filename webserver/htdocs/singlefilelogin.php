@@ -18,6 +18,7 @@
  * Modified: mvh 20201021 Create user.db if it does not exist, using ini string to set admin_password
  * Modified: mvh 20201021 Layout registerform with table
  * Modified: mvh 20201025 Added sqlite note, allow empty $ini, ini can define users admin, student, teacher and moodle
+ * Modified: mvh 20211209 Pass 'name' parameter through to after login
  */
  
 class OneFileLoginApplication
@@ -449,6 +450,15 @@ class OneFileLoginApplication
         echo '<input id="login_input_username" type="text" name="user_name" required /> ';
         echo '<label for="login_input_password">Password</label> ';
         echo '<input id="login_input_password" type="password" name="user_password" required /> ';
+
+        // pass 'name' parameter through to after login
+	$t = parse_url($_SERVER["REQUEST_URI"]);
+        if (array_key_exists("query", $t)) {
+           parse_str($t["query"], $output);
+           if (array_key_exists('name', $output))
+              echo '<input id="name" type="hidden" name="name" value='. $output['name'] . ' /> ';
+        }
+	
         echo '<input type="submit"  name="login" value="Log in" />';
         echo '</form>';
 

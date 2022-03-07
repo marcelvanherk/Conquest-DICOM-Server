@@ -17,3 +17,5 @@ copy c:\dicom150beta\t.dic .\webserver\cgi-bin\newweb\dgate.dic
 
 del .\webserver\cgi-bin\dgate.exe
 del .\webserver\cgi-bin\newweb\dgate.exe
+
+REM do not forget to update MINT14 compiled version of dgate (paradigit\d\vmware with maklinux_precompiled)

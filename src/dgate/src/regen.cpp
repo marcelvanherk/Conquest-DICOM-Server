@@ -54,6 +54,7 @@ bcb 20091231: Changed char* to const char* for gcc4.2 warnings
 mvh 20100111: Merged; fixed WIN32 changes
 mvh 20120630: Regen now allows files without 3 letter extension
 mvh 20201224: Added regen and regenFail converter
+mvh 20220206: Allow regen of selected folders/files (pass own * wildcards to RegenDir)
 */
 
 // #define MULTITHREAD
@@ -209,12 +210,15 @@ BOOL RegenDir(Database *DB, char *PathString, const char *Device)
 
 	char		TempPath[1024];
 	char		Physical[1024];
+        char            *hasstar, *q;
 
 	GetPhysicalDevice(Device, Physical);
 
 	strcpy(TempPath, PathString);
-	strcat(TempPath, "*.*");
-
+        hasstar=strchr(TempPath, '*');
+	if (hasstar==NULL)
+	  strcat(TempPath, "*.*");
+            
 	// Traverse first level of subdirectories	
 
 	fdHandle = FindFirstFile(TempPath, &FileData);
@@ -235,7 +239,12 @@ BOOL RegenDir(Database *DB, char *PathString, const char *Device)
 		  		)
 				{
 				strcpy(TempPath, PathString);
-				strcat(TempPath, FileData.cFileName);
+                                if (hasstar)
+                                        { 
+                                        q=strrchr(TempPath, PATHSEPCHAR);
+                                        if (q) q[1]=0;
+                                        }
+                                strcat(TempPath, FileData.cFileName);
 				strcat(TempPath, PATHSEPSTR);
 				RegenDir(DB, TempPath, Device);
 				}
@@ -243,6 +252,12 @@ BOOL RegenDir(Database *DB, char *PathString, const char *Device)
 		else
 			{
 			strcpy(TempPath, PathString);
+                        if (hasstar)
+                                { 
+                                q=strrchr(TempPath, PATHSEPCHAR);
+                                if (q) q[1]=0;
+                                }
+
 			strcat(TempPath, FileData.cFileName);
 
 			RegenToDatabase (DB, TempPath + strlen(Physical), TempPath, Device);
@@ -377,7 +392,8 @@ Regen(const char *Device, int IsCacheOrJukeBox, char *SubDir)
 		if (SubDir)
 			{
 			strcat(PathString, SubDir);
-			strcat(PathString, PATHSEPSTR);
+			if (strchr(SubDir, '*')==NULL) 
+                          strcat(PathString, PATHSEPSTR);
 			}
 
 		return RegenDir(&DB, PathString, Device);

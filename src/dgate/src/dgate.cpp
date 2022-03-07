@@ -1166,6 +1166,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220131        mvh     Added object:Serialize(true, true): json with pixel data included
 20220210        mvh     Fix object:Serialize(true, false); add convert_to_json, -jj and -js options
 20220227        mvh     Added json input o=DicomObject:new(json), o:SetVR(g, e, json), o:Copy(json) (latter merges)
+20220205	mvh	-ar has optional dir folder; e.g. dgate -arMAG0,a*.* regens all folders with 'a' 
 
 ENDOFUPDATEHISTORY
 */
@@ -12846,7 +12847,7 @@ PrintOptions ()
 	fprintf(stderr, "          [-^|-l|-Lfile]      GUI/Normal/Debug log to file\n");
 	fprintf(stderr, "          [-p#|-hAE|-qIP|-b]  Set port|AE|Target IP|Single thread debug mode\n");
 	fprintf(stderr, "          [-wDIR]             Set the working directory for dgate(ini,dic,...)\n");
-	fprintf(stderr, "          [-i|-r|-arDEVICE]   Init|Init/regenerate DB|Regen single device\n");
+	fprintf(stderr, "          [-i|-r|-arDEV[,dir]]Init|Init/regenerate DB|Regen dirs single device\n");
 	fprintf(stderr, "          [-d|-m|-k]          List (-d) devices (-m) AE map (-k) DICOM.SQL\n");
 	fprintf(stderr, "          [-t|-o]             Test console|Test database\n");
 	fprintf(stderr, "          [-sOpt|-esap d u p] Create ODBC source (WIN32), database with SApw\n");
@@ -13438,9 +13439,20 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 							OperatorConsole.printf("***Could not load kfactor file: %s\n", KFACTORFILE);
 							exit(1);
 							}
-						OperatorConsole.printf("Regen single device: %s\n", argv[valid_argc]+3);
-						if (!Regen(argv[valid_argc]+3, FALSE)) exit(1);
-						OperatorConsole.printf("Regeneration Complete\n");
+						char *p = strchr(argv[valid_argc]+3,',');
+						if (p)
+							{
+							*p=0;
+							OperatorConsole.printf("Regen folders on single device: %s\n", argv[valid_argc]+3);
+							if (!Regen(argv[valid_argc]+3, FALSE, p+1)) exit(1);
+							OperatorConsole.printf("Regeneration folders Complete\n");
+							}
+						else
+							{
+							OperatorConsole.printf("Regen single device: %s\n", argv[valid_argc]+3);
+							if (!Regen(argv[valid_argc]+3, FALSE)) exit(1);
+							OperatorConsole.printf("Regeneration Complete\n");
+							}
 						}
 						
 					// rEname device name

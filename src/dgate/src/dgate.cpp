@@ -1166,7 +1166,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220131        mvh     Added object:Serialize(true, true): json with pixel data included
 20220210        mvh     Fix object:Serialize(true, false); add convert_to_json, -jj and -js options
 20220227        mvh     Added json input o=DicomObject:new(json), o:SetVR(g, e, json), o:Copy(json) (latter merges)
-20220205	mvh	-ar has optional dir folder; e.g. dgate -arMAG0,a*.* regens all folders with 'a' 
+20220307	mvh	-ar has optional dir folder; e.g. dgate -arMAG0,a*.* regens all folders with 'a' 
+20220308	mvh	Fix buffer overflow in luaserialize 
 
 ENDOFUPDATEHISTORY
 */
@@ -7644,7 +7645,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       	        Index+=sprintf(result+Index, " --[[truncated]] ");
 	      }
 
-              char *t = (char *)malloc(len*4+1); // generate escape characters where needed
+              char *t = (char *)malloc(len*6+1); // generate escape characters where needed /u0000 requires 6
               int k=0;
               for (int i=0; i<len; i++)
               { unsigned char c= ((unsigned char *)(vr->Data))[i];

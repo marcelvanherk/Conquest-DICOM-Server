@@ -1,6 +1,6 @@
 This is the new **conquest DICOM server** source code repository, it is the first ever release of the full source code of Conquest Dicom server with full source code, including the windows GUI.
 
-[Web page] https://ingenium.home.xs4all.nl/dicom.html
+[Web page] http://www.natura-ingenium.nl/dicom.html
 
 [Forum] (https://forum.image-systems.biz/forum/index.php?board/33-conquest-users/)
 

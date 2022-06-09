@@ -38,6 +38,7 @@
 -- mvh 20201109: Use single command for uploadsql
 -- mvh 20210204: Pass CGI('newname') to anonymize_script in zipanonymized
 -- mvh 20210208: Fixed that
+-- mvh 20220329: Upload now uses start/uploadfile command (works through php interface)
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -651,9 +652,11 @@ end
 HTML("</table>");
 
 HTML("<FORM ACTION=\"dgate%s\" METHOD=POST ENCTYPE=\"multipart/form-data\">", ex);
-HTML("<INPUT NAME=mode    TYPE=HIDDEN VALUE=addlocalfile>");
-HTML("<INPUT NAME=port    TYPE=HIDDEN VALUE=%s>", port);
-HTML("<INPUT NAME=address TYPE=HIDDEN VALUE=%s>", address);
+HTML("<INPUT NAME=mode      TYPE=HIDDEN VALUE=start>");
+HTML("<INPUT NAME=parameter TYPE=HIDDEN VALUE=uploadfile>");
+HTML("<INPUT NAME=script    TYPE=HIDDEN VALUE=servercommand('addimagefile:'..filename)>");
+HTML("<INPUT NAME=port      TYPE=HIDDEN VALUE=%s>", port);
+HTML("<INPUT NAME=address   TYPE=HIDDEN VALUE=%s>", address);
 HTML("Upload file to enter into server (dcm/v2/HL7/zip/7z/gz/tar): <INPUT NAME=filetoupload SIZE=40 TYPE=file VALUE=>");
 HTML("<INPUT TYPE=SUBMIT VALUE=Go>");
 HTML("</FORM>");

@@ -19,6 +19,7 @@
 -- 20200109: 1.5.0-beta, Added dicomecho, listoldestpatients, crc, CGI()
 -- 20200125: Added new parameters to Serialize and dicommove, updated text a bit
 -- 20200314: release 1.5.0
+-- 20220322: Added sort parameter to dbquery
 
 --[[
 -- read/write data, create sequences, and write into sequences (if [] not passed, [0] is assumed)
@@ -439,7 +440,7 @@ return {
   type = "function"
   },
   dbquery = {
-  args = "(database: string, fields: string, query: string)",
+  args = "(database: string, fields: string, query: string, sort: string)",
   description = "Executes SQL query on database",
   returns = "(table of records from 1 with table of fields from 1)",
   type = "function"

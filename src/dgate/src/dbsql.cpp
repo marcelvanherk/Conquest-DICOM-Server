@@ -241,6 +241,7 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20201031	mvh	Added mods_joint index
 20201110	mvh	Also added mods_back index for de-anonymise
 20210930        mvh     Added joint indices e.g. idx_patientid_studyinsta; Stage #xx uses 112 bits MD5 dbUIDPrefix[0,24]+MD5(dbUIDPrefix+Stage+UID)
+20220625        mvh     Fix joint indices code; passed wrong table names for Series and Image
 */
 
 #define NCACHE 256
@@ -3837,7 +3838,7 @@ InitializeTables(int mode)
 		strcpy(joint, UniqueLink(StudyDB));
 		strcat(joint, ", ");
 		strcat(joint, UniqueLink(SeriesDB));
-		DB.CreateIndex ( StudyTableName, "idx_studyinsta_seriesinst", joint);
+		DB.CreateIndex ( SeriesTableName, "idx_studyinsta_seriesinst", joint);
 		}
 
 	fprintf(stderr, "Image Database\n");
@@ -3868,7 +3869,7 @@ InitializeTables(int mode)
 		strcpy(joint, UniqueLink(SeriesDB));
 		strcat(joint, ", ");
 		strcat(joint, UniqueLink(ImageDB));
-		DB.CreateIndex ( StudyTableName, "idx_seriesinst_sopinstanc", joint);
+		DB.CreateIndex ( ImageTableName, "idx_seriesinst_sopinstanc", joint);
 		}
 
 #if 0

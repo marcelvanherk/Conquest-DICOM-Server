@@ -20,6 +20,7 @@
 -- 20200125: Added new parameters to Serialize and dicommove, updated text a bit
 -- 20200314: release 1.5.0
 -- 20220322: Added sort parameter to dbquery
+-- 20220718: Updated documentation for json interfaces
 
 --[[
 -- read/write data, create sequences, and write into sequences (if [] not passed, [0] is assumed)
@@ -239,13 +240,13 @@ return {
         Write = { args = "(filename: string)", description = "write dicom object",  returns = "()",  type = "method", },
         Dump = { args = "(filename: string)", description = "write dicom object header as text file",  returns = "()",  type = "method", },
         GetVR = { args = "(group: int, element: int, asstring: boolean)", description = "get vr as byte sequence from dicom object",  returns = "(DicomArray/table/string: sequence/array of vr values/binary data)", type = "method", },
-        SetVR = { args = "(group: int, element: int, a: table/string)", description = "set vr from DicomArray/table of bytes/binary string",  returns = "()",  type = "method", },
+        SetVR = { args = "(group: int, element: int, a: table/string)", description = "set vr from DicomArray/table of bytes/binary string/json string(for sequence)",  returns = "()",  type = "method", },
 	AddImage = { args = "()", description = "add object into dicom server",  returns = "()",  type = "method", },
-	Copy = { args = "()", description = "returns copy of dicom object",  returns = "(DicomObject)",  type = "method", },
+	Copy = { args = "(json_string)", description = "returns copy of dicom object optionally augmented with json string",  returns = "(DicomObject)",  type = "method", },
 	Compress = { args = "(string)", description = "returns compressed copy of dicom object",  returns = "(DicomObject)",  type = "method", },
 	DeleteFromSequence = { args = "(name: string, n: integer (starts at 0))", description = "delete item from named sequence",  returns = "()",  type = "method", },
 	ListItems = { args = "()", description = "List all VRs in dicom object",  returns = "(names, types, groups, elements: string(| separated) )",  type = "method", },
-	Serialize = { args = "(json: boolean)", description = "return object in lua syntax, e.g. loadstring('return '..a:Serialize()) converts object to table; or in json format of argument true (default false)",  returns = "(code: string)",  type = "method", },
+	Serialize = { args = "(json: boolean=false, includepixeldata: boolean=false)", description = "return object in lua or json syntax, e.g. loadstring('return '..a:Serialize()) converts object to table; or in json format of argument true (default false)",  returns = "(code: string)",  type = "method", },
 
         -- mini DICOM dictionary
 	QueryRetrieveLevel = { type ='value', description = "string", valuetype = nil, },
@@ -305,14 +306,14 @@ return {
     childs = {
 	free      = { type = 'method', description = "destructor", args = "()", returns = "()", valuetype = nil,},
 	Delete    = { type = 'method', description = "delete sequence item", args = "(n: integer (starts at 0))", returns = "()", valuetype = nil,},
-	Serialize = { args = "()", description = "return array in lua syntax, e.g. loadstring('return '..a:Serialize()) converts array to table",  returns = "DicomArray",  type = "method", },
+	Serialize = { args = "(json: boolean=false, includepixeldata: boolean=false)", description = "return array in lua or json syntax, e.g. loadstring('return '..a:Serialize()) converts array to table",  returns = "DicomArray",  type = "method", },
 	[0]       = { description = "element", valuetype = "DicomObject",},
     }
   },
   newdicomobject = {
     type = "function",
-    description = "Returns an empty DICOM object",
-    args = "()",
+    description = "Returns an empty DICOM object or convert json string to DICOM object",
+    args = "(nil|json_string)",
     returns = "DicomObject",
     valuetype = "DicomObject",
   },
@@ -324,8 +325,8 @@ return {
   },
   copydicomobject = {
     type = "function",
-    description = "return copy of dicom object",
-    args = "(DicomObject)",
+    description = "return copy of dicom object, optionally augmented with json object",
+    args = "(DicomObject,json_string)",
     returns = "(DicomObject)",
   },
   compressdicomobject = {
@@ -500,7 +501,7 @@ return {
   type = "function",
   },
   setvr = {
-  args = "(group: int, element: int, a: DicomArray/table/string)",
+  args = "(group: int, element: int, a: DicomArray/table/string/json string(for sequence))",
   description = "set VR as sequence or binary in dicom object",
   returns = "()",
   type = "function"
@@ -571,7 +572,7 @@ return {
   dicomstore = {
   args = "(image(s): DicomObject/DicomArray, AE: string)",
   description = "store object(s) on DICOM archive",
-  returns = "error string",
+  returns = "dicom result array",
   type = "function"
   },
   newdicomdelete = {
@@ -659,7 +660,7 @@ return {
   type = "function"
   },
   serialize = { 
-  args = "(object: DicomObject or DicomArray, json: boolean=false", 
+  args = "(object: DicomObject or DicomArray, json: boolean=false, includepixeldata: boolean=false", 
   description = "return object in lua or json syntax, e.g. loadstring('return '..serialize(a)) converts object to table",
   returns = "(code: string)",  
   type = "method", 

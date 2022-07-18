@@ -1168,6 +1168,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220227        mvh     Added json input o=DicomObject:new(json), o:SetVR(g, e, json), o:Copy(json) (latter merges)
 20220307	mvh	-ar has optional dir folder; e.g. dgate -arMAG0,a*.* regens all folders with 'a' 
 20220308	mvh	Fix buffer overflow in luaserialize 
+20220718	mvh	-$ sets stdout to binary; lua servercommand2 WIP
 
 ENDOFUPDATEHISTORY
 */
@@ -6378,6 +6379,101 @@ int console;
     if (L2 && rc==-1) return 1;
     return 0;
   }
+
+  /*
+  static int luaservercommand2(lua_State *L)
+	{
+	PDU_Service		PDU;
+	DICOMCommandObject	DCO;
+	DICOMCommandObject	DCOR;
+	UID			uid;
+	VR			*vr;
+	LE_UINT16		command, datasettype, messageid;//, tuint16;
+	BYTE			SOP[64];
+	int			rc=0;
+
+	PDU.ClearAbstractSyntaxs();
+	PDU.SetLocalAddress(MYACRNEMA);
+	PDU.SetRemoteAddress(MYACRNEMA);
+	uid.Set("1.2.840.10008.3.1.1.1");	// Dicom APP
+	PDU.SetApplicationContext(uid);
+	uid.Set("1.2.840.10008.1.1");		// Verification
+	PDU.AddAbstractSyntax(uid);
+
+	if(!PDU.Connect((unsigned char *)ServerCommandAddress, Port))
+		return ( 1 );
+	
+	strcpy((char*) SOP, "1.2.840.10008.1.1"); // Verification
+	vr = new VR (0x0000, 0x0002, strlen((char*)SOP), (void*) SOP, FALSE);
+	DCO.Push(vr);
+
+	const char *c = lua_tostring(L,1);
+        vr = new VR (0x9999, 0x0400, strlen(c), c, FALSE);
+	DCO.Push(vr);
+
+	command = 0x0030;
+	vr = new VR (0x0000, 0x0100, 0x0002, &command, FALSE);
+	DCO.Push(vr);
+
+	datasettype = 0x0101;	
+	vr = new VR (0x0000, 0x0800, 0x0002, &datasettype, FALSE);
+	DCO.Push(vr);
+
+	messageid = 0x0001;
+	vr = new VR (0x0000, 0x0110, 0x0002, &messageid, FALSE);
+	DCO.Push(vr);
+
+	if (lua_isuserdata(L, 2)) 
+	      { lua_getmetatable(L, 1);
+	        lua_getfield(L, -1, "DDO");  
+                DICOMDataObject *pDDO = (DICOMDataObject *) 
+                lua_topointer(L, -1); 
+                lua_pop(L, 1);
+                lua_getfield(L, -1, "ADDO");  
+                Array < DICOMDataObject * > *A = (Array < DICOMDataObject * > *) lua_topointer(L, -1); 
+                lua_pop(L, 1);
+	        lua_pop(L, 1);
+		VR *newVR = new VR(0x0008, 0x3001, 0, (void *) NULL, FALSE);
+		Array < DICOMDataObject * > *ADDO = (Array<DICOMDataObject*>*) vr2->SQObjectArray;
+		Array < DICOMDataObject * > *SQE  = new Array <DICOMDataObject *>;
+		if (pDDO) 
+                	{
+                	DICOMDataObject *dd = MakeCopy(pDDO); 
+			SQE->Add(dd);
+                	}
+                if (A)
+                	{
+                        for (int j=0; j<A->GetSize(); j++)
+	                { DICOMDataObject *dd = MakeCopy(A->Get(j)); 
+	                  SQE->Add(dd);
+	                }
+
+		newVR->SQObjectArray = (void*) SQE;
+          	DCO.Push(vr);
+	      }
+	}
+
+	PDU.Write(&DCO, uid);
+
+	if(!PDU.Read(&DCOR))
+		return ( 0 );	// associate lost
+
+	while((vr = DCOR.Pop()))
+		{
+		if (vr->Group == 0x9999 && vr->Element == 0x0401)
+			{
+			int len=vr->Length;
+                        lua_pushlstring(L, (char *)(vr->Data), len);
+                        rc = -1;
+                        }
+		delete vr;
+		}
+
+	PDU.Close();
+	return ( 1 );
+	}
+  */
+
   static int luadictionary(lua_State *L)
   { if (lua_gettop(L)==2)
     { int g = lua_tointeger(L,1);
@@ -12845,7 +12941,7 @@ PrintOptions ()
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage:\n");
 	fprintf(stderr, "(1) DGATE <-!#|-v|-u#>        Report as in dicom.ini|stdout|UDP(#=port)\n");
-	fprintf(stderr, "          [-^|-l|-Lfile]      GUI/Normal/Debug log to file\n");
+	fprintf(stderr, "          [-^|-l|-Lfile|-$]   GUI/Normal/Debug log to file, binary output\n");
 	fprintf(stderr, "          [-p#|-hAE|-qIP|-b]  Set port|AE|Target IP|Single thread debug mode\n");
 	fprintf(stderr, "          [-wDIR]             Set the working directory for dgate(ini,dic,...)\n");
 	fprintf(stderr, "          [-i|-r|-arDEV[,dir]]Init|Init/regenerate DB|Regen dirs single device\n");
@@ -13181,6 +13277,10 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 					OperatorConsole.AddTimeStamps(1);
 					StartZipThread();
 					Logging=TRUE;
+					break;
+
+				case	'$':	// change stdout to binary
+					setmode(fileno(stdout), O_BINARY);
 					break;
 
 				case	'#':	// be verbose to passed file with timestamps (with debug)

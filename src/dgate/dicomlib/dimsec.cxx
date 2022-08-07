@@ -20,6 +20,7 @@
 20140608	mvh	Added BYTE PCid to CStoreRSP::Write
 20140611	mvh	This change is under review: pcid does not seem to get the right value
 20180315	mvh	Started on C-GET
+20220805        mvh     Pass through 0x9999,0x0404 from DCO to DCOR in CECHORSP (set when payload odd length)
 */
 
 /****************************************************************************
@@ -146,6 +147,9 @@ BOOL	CEchoRSP :: Write ( PDU_Service *PDU, DICOMCommandObject *DCO,
 				break;
 			case	0x0110:
 				vr->Element = 0x0120;
+				DCOR.Push ( vr );
+				break;
+			case	0x0404: // odd length in payload from server command
 				DCOR.Push ( vr );
 				break;
 			default:

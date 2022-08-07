@@ -1169,6 +1169,12 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220307	mvh	-ar has optional dir folder; e.g. dgate -arMAG0,a*.* regens all folders with 'a' 
 20220308	mvh	Fix buffer overflow in luaserialize 
 20220718	mvh	-$ sets stdout to binary; lua servercommand2 WIP
+20220729	mvh	serialize has a third parameter: creates dicomweb style json output
+20220729	mvh	fix dicomweb formatting of empty VRs
+20220803	mvh	Fix serializing of empty sequences; fix json parsing dealing with sequences and undefined items
+20220805	mvh	Added "binary" mode to luaservercommand; will not remove trailing zero/space
+                        Set 0x9999,0x0404 if payload file has odd length and process when recieving to lua (only for now)
+20220807	mvh	Set e.g. Rows (US and UL elements) to "" to make it empty instead of 0
 
 ENDOFUPDATEHISTORY
 */
@@ -6369,6 +6375,7 @@ int console;
       else if (strcmp(t, "cgihtml"  )==0) {c=console; html=TRUE;}
       else if (t[0]=='<') {b=t+1; html=FALSE; upload=TRUE;}
       else if (t[0]=='>') {c=open(t+1, O_CREAT | O_TRUNC | O_BINARY | O_RDWR, 0666); html=FALSE; download=FALSE;}
+      else if (strcmp(t, "binary"   )==0) {b="binary"; L2=L;}
       else { L2=L; }
     }
     else
@@ -7119,9 +7126,29 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     { int llen = t->end-t->start;
       int len=0; 
       for (int i=0; i<llen; i++) { if (js[t->start+i]=='\\') i++; len++; }
-      vr->ReAlloc(2*((len+1)/2));
-      len=0; for (int i=0; i<llen; i++) { if (js[t->start+i]=='\\') i++; ((char *)(vr->Data))[len++]=js[t->start+i]; }
-      if (len&1)((char *)(vr->Data))[len++]=' ';
+      if (VRType.RunTimeClass(vr->Group, vr->Element, NULL)=='US')
+      { char string[64];
+        if (len) 
+        { len = 2;
+	  *(unsigned short *)string = atoi(string);
+        }
+        vr->ReAlloc(len);
+        if (len) memcpy(vr->Data, string, len);
+      }
+      else if (VRType.RunTimeClass(vr->Group, vr->Element, NULL)=='UL')
+      { char string[64];
+        if (len) 
+        { len = 4;
+	  *(unsigned int *)string = atoi(string);
+        }
+        vr->ReAlloc(len);
+        if (len) memcpy(vr->Data, string, len);
+      }
+      else
+      { vr->ReAlloc(2*((len+1)/2));
+        len=0; for (int i=0; i<llen; i++) { if (js[t->start+i]=='\\') i++; ((char *)(vr->Data))[len++]=js[t->start+i]; }
+        if (len&1)((char *)(vr->Data))[len++]=' ';
+      }
       return 1;
     }
     if (t->type==JSMN_ARRAY)
@@ -7142,20 +7169,26 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
   { char name[128];
     int j = 0;
     
-    for (int i = 0; i < t->size; i++) {
-      j += jsonname(name, js, t+j+1, count-j);
-      RTCElement Entry;
-      Entry.Description = name;
-      if (VRType.GetGroupElement(&Entry))
-      { int g = Entry.Group;
-        int e = Entry.Element;
-        VR *vr = new VR(g, e, 0, (void *) NULL, FALSE);
-        O->DeleteVR(vr);
-	delete vr;
-	vr = new VR(g, e, 0, (void *) NULL, FALSE);
-        j+=jsonsetvr(vr, js, t+j+1, count-j);
-        O->Push(vr);
+    for (int i = 0; i < t->size; i++) 
+    { if (t[j+1].type==JSMN_PRIMITIVE || t[j+1].type==JSMN_STRING || t[j+1].type==JSMN_ARRAY) 
+      { j += jsonname(name, js, t+j+1, count-j);
+        RTCElement Entry;
+        Entry.Description = name;
+        if (VRType.GetGroupElement(&Entry))
+        { int g = Entry.Group;
+          int e = Entry.Element;
+          VR *vr = new VR(g, e, 0, (void *) NULL, FALSE);
+          O->DeleteVR(vr);
+	  delete vr;
+	  vr = new VR(g, e, 0, (void *) NULL, FALSE);
+          j+=jsonsetvr(vr, js, t+j+1, count-j);
+          O->Push(vr);
+        }
+	else
+	  j++; // do not support parsing undefined sequences for now
       }
+      else
+	return 0;
     }
     return j + 1;
   }
@@ -7282,11 +7315,11 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
         { jsmn_parser p;
           jsmntok_t *tok;
           jsmn_init(&p);
-          size_t tokcount = llen/5; // safe bet 'x':0,
+          size_t tokcount = llen/3; // safe bet 'x':0,
           tok = (jsmntok_t *)malloc(tokcount*sizeof(jsmntok_t));
           int r = jsmn_parse(&p, data, llen, tok, tokcount);
           if (tok->type == JSMN_ARRAY)
-            jsonsetvr(vr, data, tok, tokcount);
+            jsonsetvr(vr, data, tok, r);
           free((void *)tok);
         }
       }
@@ -7371,11 +7404,11 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
           jsmn_parser p;
           jsmntok_t *tok;
           jsmn_init(&p);
-          size_t tokcount = llen/5; // safe bet 'x':0,
+          size_t tokcount = llen/3; // safe bet 'x':0,
           tok = (jsmntok_t *)malloc(tokcount*sizeof(jsmntok_t));
           int r = jsmn_parse(&p, data, llen, tok, tokcount);
           if (tok->type == JSMN_OBJECT)
-            jsonaddtoobject(pDDO, data, tok, tokcount);
+            jsonaddtoobject(pDDO, data, tok, r);
           free((void *)tok);
         }
         luaCreateObject(L, pDDO, NULL, TRUE); 
@@ -7552,25 +7585,32 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     return 0;
   }
 
-  // serialize dicom object; does not do pixel data, truncates large elements
+  // serialize dicom object; optional include pixel data, truncates large elements
   #define MAXLEN 200000000 // total length, one element is max 1/2 of that
 
   static int luaserialize(lua_State *L)
   { struct scriptdata *sd = getsd(L);
-    BOOL json=false, includepixeldata=false;
+    BOOL json=false, includepixeldata=false, dicomweb=false;
     if (lua_isboolean(L,2))
       json = lua_toboolean(L, 2);
+    if (lua_isboolean(L,3))
+      includepixeldata = lua_toboolean(L, 3);
+    if (lua_isboolean(L,4))
+      dicomweb = lua_toboolean(L, 4);
+
     char eq='=';
     char br1='{';
     char br2='}';
+    char br3[2];
     if (json)
     { eq=':';
       br1='[';
       br2=']';
     }
-
-    if (lua_isboolean(L,3))
-      includepixeldata = lua_toboolean(L, 3);
+    br3[0]=0;
+    if (dicomweb)
+    { strcpy(br3, "}");
+    }
 
     if (lua_isuserdata(L,1)) 
     { char *result=(char *)malloc(MAXLEN);
@@ -7587,7 +7627,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       lua_pop(L, 1);
 
       if (A && !json) Index+=sprintf(result+Index, "{");
-      if (A && json)  Index+=sprintf(result+Index, "[");
+      if ((A||dicomweb) && json)  Index+=sprintf(result+Index, "[");
 
       for (int j=0; j<(A!=NULL?A->GetSize():1); j++) 
       { if (A) O=(DICOMDataObject *)(A->Get(j));
@@ -7607,78 +7647,84 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	  
 	  if (vr->Element!=0 && *s!=0 && c2!=0 && Index<MAXLEN/2)
 	  { char *name=s;
+              
             char tmp[128];
-            if (json) 
+            if (json && !dicomweb) 
 	    { sprintf(tmp, "\"%s\"", s);
               name = tmp;
 	    }
-            if (c2=='UL' && vr->Length==4)
+            if (json && dicomweb)
+            { sprintf(tmp, "\"%04x%04x\": { \"vr\": \"%c%c\", \"Value\"", 
+                vr->Group, vr->Element, c2>>8, c2&255);
+              name = tmp;
+            }
+            if (c2=='UL' && (vr->Length==4 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%d,", name, eq, (int)((UINT32 *)(vr->Data))[0]);
 	    }
-	    else if (c2=='UL' && vr->Length>4)
+	    else if (c2=='UL' && (vr->Length>4 || dicomweb))
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", (int)((UINT32 *)(vr->Data))[i]);
 	      Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "%c,", br2);
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
-	    else if (c2=='US' && vr->Length==2)
+	    else if (c2=='US' && (vr->Length==2 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%d,", name, eq, ((UINT16 *)(vr->Data))[0]);
 	    }
-	    else if (c2=='US' && vr->Length>2)
+	    else if (c2=='US' && (vr->Length>2 || dicomweb))
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/2) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", ((UINT16 *)(vr->Data))[i]);
 	      Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "%c,", br2);
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
-	    else if (c2=='SL' && vr->Length==4)
+	    else if (c2=='SL' && (vr->Length==4 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%d,", name, eq, (int)((INT32 *)(vr->Data))[0]);
 	    }
-	    else if (c2=='SL' && vr->Length>4)
+	    else if (c2=='SL' && (vr->Length>4 || dicomweb))
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", (int)((INT32 *)(vr->Data))[i]);
 	      Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "%c,", br2);
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
-	    else if (c2=='SS' && vr->Length==2)
+	    else if (c2=='SS' && (vr->Length==2 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%d,", name, eq, ((INT16 *)(vr->Data))[0]);
 	    }
-	    else if (c2=='SS' && vr->Length>2)
+	    else if (c2=='SS' && (vr->Length>2 || dicomweb))
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/2) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", ((INT16 *)(vr->Data))[i]);
 	      Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "%c,", br2);
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
-	    else if (c2=='FD' && vr->Length==8)
+	    else if (c2=='FD' && (vr->Length==8 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%f,", name, eq, ((double *)(vr->Data))[0]);
 	    }
-	    else if (c2=='FD' && vr->Length>8)
+	    else if (c2=='FD' && (vr->Length>8 || dicomweb))
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/8) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%f,", ((double *)(vr->Data))[i]);
 	      Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "%c,", br2);
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
-	    else if (c2=='FL' && vr->Length==4)
+	    else if (c2=='FL' && (vr->Length==4 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%f,", name, eq, ((float *)(vr->Data))[0]);
 	    }
-	    else if (c2=='FL' && vr->Length>4)
+	    else if (c2=='FL' && (vr->Length>4 || dicomweb))
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%f,", ((float *)(vr->Data))[i]);
 	      Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "%c,", br2);
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
-  	    else if (c2 == 'OF' && !json)
+  	    else if (c2 == 'OF' && (!json && !dicomweb))
             { Index+=sprintf(result+Index, "%s%cnil --[[OF not serialized]],", name, eq);
 	    }
 	    else if (c2=='OF' && vr->Length>4 && includepixeldata)
@@ -7687,7 +7733,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
                 Index+=sprintf(result+Index, "%f,", ((float *)(vr->Data))[i]);
 	      Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "%c,", br2);
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
 	    else if (c2=='OF' && vr->Length>4 && !includepixeldata)
             { 
@@ -7701,14 +7747,14 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
                 Index+=sprintf(result+Index, "%d,", ((short *)(vr->Data))[i]);
 	      Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
-	      Index+=sprintf(result+Index, "%c,", br2);
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
 	    else if (c2=='OW' && vr->Length>2 && !includepixeldata)
             { 
 	    }
   	    else if (c2 == 'SQ')
             { if (vr->SQObjectArray)
-              { lua_getglobal(L, "serialize");
+	      { lua_getglobal(L, "serialize");
 	        luaCreateObject(L, NULL, (Array < DICOMDataObject * > *)vr->SQObjectArray, FALSE);
 		lua_pushboolean(L, json);
                 lua_call(L, 2, 1);
@@ -7740,7 +7786,8 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      { len = MAXLEN/2; // keep to safe limit
       	        Index+=sprintf(result+Index, " --[[truncated]] ");
 	      }
-
+              
+              // todo: in dicomweb mode string should be split into elements at backslash
               char *t = (char *)malloc(len*6+1); // generate escape characters where needed /u0000 requires 6
               int k=0;
               for (int i=0; i<len; i++)
@@ -7776,11 +7823,17 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	          t[k++] = c;
 	      }
 	      t[k++] = 0;
-              Index+=sprintf(result+Index, "%s%c\"%s\",", name, eq, t);
+              if (dicomweb)
+                Index+=sprintf(result+Index, "%s%c%c\"%s\"%c%s,", name, eq, br1, t, br2, br3);
+              else
+                Index+=sprintf(result+Index, "%s%c\"%s\"%s,", name, eq, t, br3);
 	      free(t);
 	    }
 	    else if (vr->Length==0)
-            { Index+=sprintf(result+Index, "%s%c\"\",", name, eq);
+            { if (dicomweb)
+                Index+=sprintf(result+Index, "%s%c%c\"\"%c%s,", name, eq, br1, br2, br3);
+              else
+                Index+=sprintf(result+Index, "%s%c\"\"%s,", name, eq, br3);
 	    }
 	  }
 	  DO2.Push(vr);
@@ -7793,8 +7846,8 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	}
 	if (A) Index+=sprintf(result+Index, ",");
       }
-      if (A) Index--;
-      if (A) Index+=sprintf(result+Index, "%c", br2);
+      if (A && A->GetSize()>0) Index--;
+      if (A || dicomweb) Index+=sprintf(result+Index, "%c", br2);
       if (truncated && !json) 
 	Index+=sprintf(result+Index, " --[[truncated]] ");
       if (nUN && !json) 
@@ -7818,11 +7871,11 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     { jsmn_parser p;
       jsmntok_t *tok;
       jsmn_init(&p);
-      size_t tokcount = llen/5; // safe bet 'x':0,
+      size_t tokcount = llen/3; // safe bet 'x':0,
       tok = (jsmntok_t *)malloc(tokcount*sizeof(jsmntok_t));
       int r = jsmn_parse(&p, data, llen, tok, tokcount);
       if (tok->type == JSMN_OBJECT)
-        jsonaddtoobject(O, data, tok, tokcount);
+        jsonaddtoobject(O, data, tok, r);
       free((void *)tok);
     }
 
@@ -9830,12 +9883,16 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
           Array < DICOMDataObject * > *ADDO1 = NULL;
 	  
 	  if (VRType.RunTimeClass(g, e, NULL)=='US')
-	  { len = 2;
-	    *(unsigned short *)string = atoi(string);
+	  { if (len) 
+            { len = 2;
+	      *(unsigned short *)string = atoi(string);
+            }
 	  }
 	  else if (VRType.RunTimeClass(g, e, NULL)=='UL')
-	  { len = 4;
-	    *(unsigned int *)string = atoi(string);
+	  { if (len)
+            { len = 4;
+	      *(unsigned int *)string = atoi(string);
+            }
 	  }
           
   	  if (len&1)
@@ -9905,7 +9962,7 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
     	      vr->ReAlloc(len);
   
   	    if (vr) 
-            { memcpy(vr->Data, string, len);
+            { if (len) memcpy(vr->Data, string, len);
               if (N >= -1) SystemDebug.printf("%sconverter%d.%d executes: %s\n", ininame, N, part, line);
             }
           }
@@ -23459,11 +23516,17 @@ BOOL StorageApp	::	ServerChild (int theArg )
 					if (extra) memcpy((char *)(vr3->Data), txt, extra); 
 					fread((char*)(vr3->Data)+extra, 1, len, f);
                                 	fclose(f); 
+                                        if (len&1)
+                                                {
+                                                UINT16 oddlength = 1;	
+                                                VR *vr4 = new VR (0x9999, 0x0404, 2, &oddlength, FALSE);
+                                                DCO.Push(vr4); // requires change in dimsec.cpp
+                                                }
 					SOPVerification.WriteResponse(&PDU, &DCO, vr3);
-					}
+                                        }
 				else
 					SOPVerification.WriteResponse(&PDU, &DCO, NULL);
-				unlink(tempfile);
+                                unlink(tempfile);
 				}
 			else if (Response[0]!=0 && vr2==NULL)
 				{
@@ -24609,12 +24672,14 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
           fclose(f); 
           DCO.Push(vr);
 	}
-
-	if (buf) *buf=0;
+        
+        if (buf && !L) *buf=0;
 	PDU.Write(&DCO, uid);
 
 	if(!PDU.Read(&DCOR))
 		return ( 1 );	// associate lost
+        
+        int oddlength = DCOR.GetUINT16(0x9999,0x0404);
 
 	while((vr = DCOR.Pop()))
 		{
@@ -24623,21 +24688,24 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 			if (vr->Length < 100)
 				rc = atoi((char *)vr->Data);
 
-			if (buf)
+			if (L)
+				{
+				int len=vr->Length;
+                                if (oddlength) len--;
+                                if (buf==NULL)
+				{ if (len>1 && ((char *)(vr->Data))[len-1]==' ') len--;
+				  else if (len>1 && ((char *)(vr->Data))[len-1]==0) len--;
+                                }
+                                lua_pushlstring(L, (char *)(vr->Data), len);
+				rc = -1;
+				}
+			else if (buf)
 				{
 				int len;
 				if (html) len = processhtml(buf, (char *)vr->Data, vr->Length);
                                 else      memcpy(buf, vr->Data, len = vr->Length);
 				buf[len]=0;
 				if (len>1 && buf[len-1]==' ') len--;
-				rc = -1;
-				}
-			else if (L)
-				{
-				int len=vr->Length;
-				if (len>1 && ((char *)(vr->Data))[len-1]==' ') len--;
-				else if (len>1 && ((char *)(vr->Data))[len-1]==0) len--;
-                                lua_pushlstring(L, (char *)(vr->Data), len);
 				rc = -1;
 				}
 			else
@@ -24665,6 +24733,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 					//if (len>33)
 					  //if (memcmp(vr->Data, "Content-type: application/dicom\n", 32)==0)
 					    //len--;
+                                        if (oddlength) len--;
 					write(con, vr->Data, len);
 					rc = -1;
 					}

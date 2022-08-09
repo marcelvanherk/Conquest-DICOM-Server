@@ -1175,6 +1175,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220805	mvh	Added "binary" mode to luaservercommand; will not remove trailing zero/space
                         Set 0x9999,0x0404 if payload file has odd length and process when recieving to lua (only for now)
 20220807	mvh	Set e.g. Rows (US and UL elements) to "" to make it empty instead of 0
+20220809	mvh	Fix -$ argument for Linux (ignored)
 
 ENDOFUPDATEHISTORY
 */
@@ -13337,7 +13338,9 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 					break;
 
 				case	'$':	// change stdout to binary
+#ifdef WIN32
 					setmode(fileno(stdout), O_BINARY);
+#endif
 					break;
 
 				case	'#':	// be verbose to passed file with timestamps (with debug)

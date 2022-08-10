@@ -1176,6 +1176,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
                         Set 0x9999,0x0404 if payload file has odd length and process when recieving to lua (only for now)
 20220807	mvh	Set e.g. Rows (US and UL elements) to "" to make it empty instead of 0
 20220809	mvh	Fix -$ argument for Linux (ignored)
+20220810	mvh	Added support for json item names like "00100020" as well as tag names
 
 ENDOFUPDATEHISTORY
 */
@@ -7172,13 +7173,23 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     
     for (int i = 0; i < t->size; i++) 
     { if (t[j+1].type==JSMN_PRIMITIVE || t[j+1].type==JSMN_STRING || t[j+1].type==JSMN_ARRAY) 
-      { j += jsonname(name, js, t+j+1, count-j);
-        RTCElement Entry;
-        Entry.Description = name;
-        if (VRType.GetGroupElement(&Entry))
-        { int g = Entry.Group;
-          int e = Entry.Element;
-          VR *vr = new VR(g, e, 0, (void *) NULL, FALSE);
+      { int g=-1, e=-1;
+
+        j += jsonname(name, js, t+j+1, count-j);
+	if (isxdig(name[0]) && strlen(name)==8) 
+	{ g = htoin(name,   4);
+  	  e = htoin(name+4, 4);
+	}
+	else
+	{ RTCElement Entry;
+          Entry.Description = name;
+          if (VRType.GetGroupElement(&Entry))
+          { g = Entry.Group;
+            e = Entry.Element;
+	  }
+	}
+	if (g>=0 && e>=0)
+        { VR *vr = new VR(g, e, 0, (void *) NULL, FALSE);
           O->DeleteVR(vr);
 	  delete vr;
 	  vr = new VR(g, e, 0, (void *) NULL, FALSE);
@@ -7186,7 +7197,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
           O->Push(vr);
         }
 	else
-	  j++; // do not support parsing undefined sequences for now
+	  j++; // assume unknown item has one value -> cannot parse unknown sequences for now
       }
       else
 	return 0;

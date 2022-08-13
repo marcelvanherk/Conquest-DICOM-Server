@@ -1,0 +1,28 @@
+{
+  "name": "dicomapi",
+  "version": "1.0.0",
+  "description": "Dicom Conquest API sample",
+  "main": "app.js",
+  "scripts": {
+    "start": "node .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      ".git/*"
+    ],
+    "delay": "2500"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.27.2",
+    "cors": "^2.8.5",
+    "dns": "^0.2.2",
+    "dotenv": "^16.0.1",
+    "express": "^4.18.1",
+    "morgan": "^1.10.0",
+    "request": "^2.88.2"
+  }
+}

@@ -11,13 +11,21 @@ extern "C" {
 #include <lualib.h>
 }
 
+#ifndef UNIX
 #	include <io.h>
+#else
+#       include <unistd.h>
+#       include <dirent.h>
+#       include <pthread.h>
+#       include <stdlib.h>
+#endif
 
 #	include <stdio.h>
 #	include <ctype.h>
 #	include <fcntl.h>
 #	include <sys/stat.h>
 
+#ifndef UNIX
 int gl_LastError;
 #define DCM_E_OK 0
 #define DCM_E_CONNECT 7
@@ -178,6 +186,8 @@ EXIT:
 	PDU.Close();
         return gl_LastError==DCM_E_OK?rc:gl_LastError;
 }
+
+#endif
 
 #ifdef EXE
 
@@ -359,6 +369,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
     BOOL upload=FALSE; // upload
     BOOL download=FALSE; // download
     int console = fileno(stdout);
+    char bin[]="binary";
 
     if (lua_isstring(L,2)) 
     { t = (char *)lua_tostring(L,2);
@@ -367,7 +378,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
       else if (strcmp(t, "cgihtml"  )==0) {c=console; html=TRUE;}
       else if (t[0]=='<') {b=t+1; html=FALSE; upload=TRUE;}
       else if (t[0]=='>') {c=open(t+1, O_CREAT | O_TRUNC | O_BINARY | O_RDWR, 0666); html=FALSE; download=FALSE;}
-      else if (strcmp(t, "binary"   )==0) {b="binary"; L2=L;}
+      else if (strcmp(t, "binary"   )==0) {b=bin; L2=L;}
       else { L2=L; }
     }
     else
@@ -428,7 +439,10 @@ const char *do_lua(lua_State **L, char *cmd)
 //}
 
 int main(int argc, char **argv)
-{ setmode(fileno(stdout), O_BINARY);
+{
+#ifdef WIN32
+ setmode(fileno(stdout), O_BINARY);
+#endif
   if (argc<2)
   { printf("Conquest server control client: -? provides help\n");
     exit(0);

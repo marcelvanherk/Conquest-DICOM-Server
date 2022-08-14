@@ -49,11 +49,18 @@ Other option is take this data from DB query
 /* used to cache the response if dicom conquest PACS is alive*/
 let CQDICOMISALIVE = false;
 
+// let opsys = process.platform;
+// if (opsys == "darwin") {
+//   opsys = "MacOS";
+// } else if (opsys == "win32" || opsys == "win64") {
+//   opsys = "Windows";
+// } else if (opsys == "linux") {
+//   opsys = "Linux";
+// }
+
 /*It needs to be configured with your data*/
-// let CQPORT = "11344"; // process.env.CQPORT || "5678";
 let CQPORT = process.env.CQPORT || "5678";
 let CQIP = process.env.CQIP || "127.0.0.1";
-// let CQIP =  "8.tcp.ngrok.io";
 let CQAE = process.env.CQAE || "CONQUESTSRV1";
 let APIFOLDER = `${global.appRoot}/api/dgate`;
 
@@ -142,7 +149,7 @@ const getParams = (params, tags, query) => {
     if (!["includefield", "limit", "offset"].includes(propName)) {
       let v = query[propName];
       if (typeof v === "string" || v instanceof String) {
-        v = v.replaceAll(",", "\\\\");
+        v = v.replace(/,/g, "\\\\");
       }
       const opt = { [propName]: v };
       params = { ...params, ...opt }; // order opt and params is important
@@ -235,7 +242,6 @@ router.get("/rs/studies/:studyInstanceUid/series", async (req, res) => {
     const dados = await os.execCommand(cmd);
     try {
       temp = JSON.parse(dados);
-      // SeriesDate: item['00080021']?.Value?.[0],
       if (temp && temp.length > 0) {
         temp.sort((a, b) => {
           if (a["00080021"]?.Value?.[0] == b["00080021"]?.Value?.[0]) return 0;
@@ -290,9 +296,11 @@ router.get(
       let fson = JSON.parse(dados);
       if (fson && fson.length > 0) {
         fson.sort((a, b) => {
-          if (a.InstanceNumber == b.InstanceNumber) return 0;
-          if (a.InstanceNumber < b.InstanceNumber) return -1;
-          if (a.InstanceNumber > b.InstanceNumber) return 1;
+          if (+a["00200013"]?.Value?.[0] == +b["00200013"]?.Value?.[0])
+            return 0;
+          if (+a["00200013"]?.Value?.[0] < +b["00200013"]?.Value?.[0])
+            return -1;
+          if (+a["00200013"]?.Value?.[0] > +b["00200013"]?.Value?.[0]) return 1;
         });
       }
       if (limit) fson = fson.slice(offset, offset + limit);
@@ -741,9 +749,9 @@ router.post("/dicomImages", async (req, res) => {
     const fson = JSON.parse(dados);
     if (fson && fson.length > 0) {
       fson.sort((a, b) => {
-        if (a.InstanceNumber == b.InstanceNumber) return 0;
-        if (a.InstanceNumber < b.InstanceNumber) return -1;
-        if (a.InstanceNumber > b.InstanceNumber) return 1;
+        if (+a.InstanceNumber == +b.InstanceNumber) return 0;
+        if (+a.InstanceNumber < +b.InstanceNumber) return -1;
+        if (+a.InstanceNumber > +b.InstanceNumber) return 1;
       });
     }
     const resp = fson.map((el, index) => {

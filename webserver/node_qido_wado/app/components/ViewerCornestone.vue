@@ -549,7 +549,9 @@ export default {
       }
     })
   },
-
+  beforeUnmount() {
+    //
+  },
   methods: {
     debounce(fn, d) {
       let timer
@@ -765,7 +767,7 @@ export default {
     async loadAndViewImage(im) {
       this.closeDropDown(-1)
       this.loaded = false
-      this.dialogWait = true
+      // this.dialogWait = true
       cornerstone.disable(this.canvas)
       cornerstone.enable(this.canvas)
       // cornerstone.imageCache.purgeCache()
@@ -837,7 +839,7 @@ export default {
           this.bottomleft = `Image #1/1`
         }
         this.loaded = true
-        this.dialogWait = false
+        // this.dialogWait = false
         cornerstoneTools.setToolDisabled('FreehandRoi')
         cornerstoneTools.setToolDisabled('Magnify')
         const ZoomTool = cornerstoneTools.ZoomTool

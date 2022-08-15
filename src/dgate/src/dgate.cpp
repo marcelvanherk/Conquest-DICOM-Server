@@ -1178,6 +1178,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220809	mvh	Fix -$ argument for Linux (ignored)
 20220810	mvh	Added support for json item names like "00100020" as well as tag names
 20220814	mvh	Added and use wadoparse server command in cgi exe mode, keep wadorequest
+20220815	mvh	Most output formatats that recognise cgi now accept binary 
 
 ENDOFUPDATEHISTORY
 */
@@ -20947,6 +20948,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				f = fopen(tempfile, "wt");
 				fprintf(f, "Content-type: text/html\n\n");
 				}
+			else if (strcmp(p, "binary")==0)
+				{
+				NewTempFile(tempfile, ".txt");
+				f = fopen(tempfile, "wb");
+				}
 			else
 				f = fopen(p, "wt");
 
@@ -21026,6 +21032,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			f = fopen(tempfile, "wt");
 			fprintf(f, "Content-type: text/html\n\n");
 			}
+		else if (strcmp(p, "binary")==0)
+			{
+			NewTempFile(tempfile, ".txt");
+			f = fopen(tempfile, "wb");
+			}
 		else
 			f = fopen(p, "wt");
 
@@ -21077,6 +21088,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			NewTempFile(tempfile, ".txt");
 			f = fopen(tempfile, "wt");
 			fprintf(f, "Content-type: text/html\n\n");
+			}
+		else if (strcmp(p, "binary")==0)
+			{
+			NewTempFile(tempfile, ".txt");
+			f = fopen(tempfile, "wb");
 			}
 		else
 			f = fopen(p, "wt");
@@ -22281,6 +22297,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			f = fopen(tempfile, "wt");
 			fprintf(f, "<pre>");
 			}
+		else if (strcmp(p, "binary")==0)
+			{
+			NewTempFile(tempfile, ".txt");
+			f = fopen(tempfile, "wb");
+			}
 		else
 			f = fopen(p, "wt");
 		DICOMDataObject *pDDO = LoadForGUI(SilentText+12);
@@ -22311,6 +22332,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			f = fopen(tempfile, "wt");
 			fprintf(f, "<pre>");
 			}
+		else if (strcmp(p, "binary")==0)
+			{
+			NewTempFile(tempfile, ".txt");
+			f = fopen(tempfile, "wb");
+			}
 		else
 			f = fopen(p, "wt");
 		StatusDisplay(f);
@@ -22337,6 +22363,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			NewTempFile(tempfile, ".txt");
 			f = fopen(tempfile, "wt");
 			fprintf(f, "<pre>");
+			}
+		else if (strcmp(p, "binary")==0)
+			{
+			NewTempFile(tempfile, ".txt");
+			f = fopen(tempfile, "wb");
 			}
 		else
 			f = fopen(p, "wt");
@@ -22369,6 +22400,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			NewTempFile(tempfile, ".txt");
 			f = fopen(tempfile, "wt");
 			fprintf(f, "<pre>");
+			}
+		else if (strcmp(p, "binary")==0)
+			{
+			NewTempFile(tempfile, ".txt");
+			f = fopen(tempfile, "wb");
 			}
 		else
 			f = fopen(p, "wt");
@@ -22432,6 +22468,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 					NewTempFile(tempfile, ".gif");
 					ToGif(pDDO, tempfile, atoi(p), 0, level, window, frame, 1);
 					}
+				else if (strcmp(q, "binary")==0)
+					{
+					NewTempFile(tempfile, ".gif");
+					ToGif(pDDO, tempfile, atoi(p), 0, level, window, frame, 1);
+					}
 				else if (strcmp(q, "cgi")==0)
 					{
 					NewTempFile(tempfile, ".gif");
@@ -22451,6 +22492,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 					NewTempFile(tempfile, ".bmp");
 					ToBMP(pDDO, tempfile, atoi(p), 0, level, window, frame, 1);
 					}
+				else if (strcmp(q, "binary")==0)
+					{
+					NewTempFile(tempfile, ".bmp");
+					ToGif(pDDO, tempfile, atoi(p), 0, level, window, frame, 1);
+					}
 				else if (strcmp(q, "cgi")==0)
 					{
 					NewTempFile(tempfile, ".bmp");
@@ -22469,6 +22515,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 					{
 					NewTempFile(tempfile, ".jpg");
 					ToJPG(pDDO, tempfile, atoi(p), 0, level, window, frame, 95, 1);
+					}
+				else if (strcmp(q, "binary")==0)
+					{
+					NewTempFile(tempfile, ".jpg");
+					ToGif(pDDO, tempfile, atoi(p), 0, level, window, frame, 1);
 					}
 				else if (strcmp(q, "cgi")==0)
 					{
@@ -23171,6 +23222,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		else if (strcmp(r2, "cgi")==0)
 		{ NewTempFile(tempfile, ".zip");
 		  r2 = tempfile;
+		}
+		else if (strcmp(r2, "binary")==0)
+		{ NewTempFile(tempfile, ".zip");
+		  r2 = tempfile;
+		  strcpy(SilentText, "export to binary");
 		}
 
 		if (r2) DcmSubmitData(SilentText+7, p, q, r1, r3, "zip", r2, 0, NULL, Thread);

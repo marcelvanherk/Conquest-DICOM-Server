@@ -2,6 +2,7 @@
   <v-container fluid style="max-height: 90vh" class="pa-0 pt-1">
     <lazy-wait-dialog :d-wait="dialogWait" />
     <div class="wrapper">
+      <!-- <div class="white--text">{{ desloc }}</div> -->
       <div class="toolbar d-flex justify-space-between">
         <div style="visibility: none"></div>
         <v-btn-toggle dense class="black">
@@ -243,9 +244,14 @@
       </div>
       <div class="d-flex">
         <div class="left">
-          <div class="stack-wrapper scrollbar">
+          <div
+            id="divthumb"
+            class="stack-wrapper scrollbar"
+            @mousewheel.prevent="wheelThumbs"
+          >
             <img
               v-for="(item, index) in thumbs"
+              :id="`th${index}`"
               :key="index"
               :src="item.thumb"
               class="stack"
@@ -359,7 +365,9 @@ export default {
   },
 
   data: () => ({
+    // desloc: 0,
     progress: 0,
+    instanceNumber: null,
     dialogWait: false,
     activeImg: null,
     measurements: [],
@@ -476,6 +484,7 @@ export default {
   },
 
   mounted() {
+    window.addEventListener('resize', this.onResizeDoc)
     this.canvas = this.$refs.canvas
     cornerstone.enable(this.canvas, {
       renderer: 'webgl',
@@ -510,12 +519,19 @@ export default {
         this.currentImage.data.string('x00080020'),
         'YYYYMMDD'
       ).format('DD-MM-YYYY')
+      this.instanceNumber = this.currentImage.data.string('x00200013')
+      this.bottomleft = `Image #${this.instanceNumber}/${this.thumbs.length}`
       this.rightup.rightup2 = this.$moment({})
         .seconds(this.currentImage.data.string('x00080030'))
         .format('HH:mm:ss')
       this.rightup.rightup3 = this.currentImage.data.string('x00080060') // modality
       const dispArea = cornerstone.getDisplayedArea(this.currentImage, viewport)
       this.rightup.rightup4 = `${dispArea.brhc.x}x${dispArea.brhc.y}`
+
+      this.activeImg = this.thumbsImages.findIndex(
+        (o) => o.mainImage == this.currentImage.imageId.replace('wadouri:', '')
+      )
+      this.scrollThumb('th' + this.activeImg)
     }
 
     cornerstone.events.addEventListener(
@@ -525,7 +541,6 @@ export default {
         this.progress = eventData.percentComplete
       }
     )
-
     this.canvas.addEventListener('cornerstoneimagerendered', onImageRendered)
     this.canvas.addEventListener(
       'cornerstonetoolsmeasurementcompleted',
@@ -545,12 +560,12 @@ export default {
           this.stack.imageIds.length
         }`
       } else {
-        this.bottomleft = `Image #1/1`
+        this.bottomleft = `Image #${this.instanceNumber}/${this.thumbs.length}`
       }
     })
   },
   beforeUnmount() {
-    //
+    window.removeEventListener('resize', this.onResizeDoc)
   },
   methods: {
     debounce(fn, d) {
@@ -563,6 +578,41 @@ export default {
           fn.apply(context, args)
         }, d)
       }
+    },
+    onResizeDoc() {
+      if (this.canvas && this.thumbs?.[this.activeImg]?.mainImage) {
+        // console.log('loaded')
+        this.loadAndViewImage(this.thumbs[this.activeImg].mainImage)
+        // cornerstone.resize(this.canvas, false)
+      }
+    },
+    scrollParentToChild(parent, child) {
+      // Where is the parent on page
+      const parentRect = parent.getBoundingClientRect()
+      // What can you see?
+      const parentViewableArea = {
+        height: parent.clientHeight,
+        width: parent.clientWidth,
+      }
+
+      // Where is the child
+      const childRect = child.getBoundingClientRect()
+      // Is the child viewable?
+      const isViewable =
+        childRect.top >= parentRect.top &&
+        childRect.top <= parentRect.top + parentViewableArea.height
+
+      // if you can't see the child try to scroll parent
+      if (!isViewable) {
+        // scroll by offset relative to parent
+        parent.scrollTop = childRect.top + parent.scrollTop - parentRect.top
+      }
+    },
+    scrollThumb(id) {
+      this.scrollParentToChild(
+        document.getElementById('divthumb'),
+        document.getElementById(id)
+      )
     },
     selectItem(item, index) {
       this.activeImg = index
@@ -836,7 +886,7 @@ export default {
           this.bottomleft = `Image
           ${this.stack.currentImageIdIndex + 1}/${this.stack.imageIds.length}`
         } else {
-          this.bottomleft = `Image #1/1`
+          this.bottomleft = `Image #${this.instanceNumber}/${this.thumbs.length}`
         }
         this.loaded = true
         // this.dialogWait = false
@@ -999,7 +1049,6 @@ export default {
         Math.round(viewport.voi.windowCenter)
     },
     handleWWWC(element) {
-      this.canvas.onwheel = null
       this.canvas.onwheel = null
       this.closeDropDown(-1)
       this.activeBtn = 'btnWWC'
@@ -1164,7 +1213,7 @@ export default {
           mouseButtonMask: 1,
         })
       } else if (this.thumbs.length > 0) {
-        this.canvas.onwheel = this.debounce(this.wheelE, 300)
+        this.canvas.onwheel = this.debounce(this.wheelE, 50)
       } else {
         this.canvas.onwheel = null
       }
@@ -1172,20 +1221,32 @@ export default {
     wheelE(e) {
       e.stopPropagation()
       e.preventDefault()
+
       if (e.deltaY > 0) {
+        // next
+        this.sliceKeys(1)
+      } else if (e.deltaY < 0) {
+        // prev
+        this.sliceKeys(-1)
+      }
+    },
+    wheelThumbs(e) {
+      this.debounce(this.wheelE(e), 50)
+    },
+    sliceKeys(dir) {
+      if (dir > 0) {
         if (this.thumbs.length > 0) {
           if (this.activeImg < this.thumbs.length) {
             this.activeImg++
             if (this.activeImg == this.thumbs.length) this.activeImg = 0
-            this.loadAndViewImage(this.thumbs[this.activeImg].mainImage)
           }
         }
-      } else if (e.deltaY < 0) {
+      } else if (dir < 0) {
         // prev
         this.activeImg--
         if (this.activeImg < 0) this.activeImg = this.thumbs.length - 1
-        this.loadAndViewImage(this.thumbs[this.activeImg].mainImage)
       }
+      this.loadAndViewImage(this.thumbs[this.activeImg].mainImage)
     },
 
     handleInvert(element) {
@@ -1241,12 +1302,12 @@ export default {
 }
 
 .left {
-  width: 150px;
+  width: 90px;
   float: left;
   background-color: black;
   position: relative;
   text-align: center;
-  border: 1px solid #9ccef9;
+  /* border: 1px solid #9ccef9; */
   margin-left: 3px;
 }
 .right {
@@ -1254,7 +1315,7 @@ export default {
   float: right;
   background-color: black;
   position: relative;
-  border: solid 1px #9ccef9;
+  /* border: solid 1px #9ccef9; */
   margin-right: 10px;
   margin-left: 5px;
 }
@@ -1272,12 +1333,12 @@ export default {
   height: calc(100vh - 50px);
   padding: 0;
   margin: 0;
-  overflow-y: hidden;
+  /* overflow-y: hidden; */
   position: relative;
 }
 .dicom-viewer {
-  width: 80%;
-  height: 90%;
+  width: 100%;
+  height: 100%;
   position: relative;
   margin-top: auto !important;
   margin-bottom: auto !important;
@@ -1361,9 +1422,17 @@ export default {
   right: 3px;
   position: absolute;
 }
-.stack {
+/* .stack {
   width: 110px;
   height: 100px;
+  margin: 0px;
+  position: relative;
+  border: 2px solid grey;
+  border-radius: 12px;
+} */
+.stack {
+  width: 60px;
+  height: 50px;
   margin: 0px;
   position: relative;
   border: 2px solid grey;
@@ -1374,17 +1443,23 @@ export default {
   border-radius: 12px;
 }
 
-.stack-wrapper {
+/* .stack-wrapper {
   height: 80vh;
   width: 150px;
   overflow: hidden;
+} */
+
+.stack-wrapper {
+  height: 80vh;
+  width: 90px;
+  overflow: auto;
 }
 .stack-wrapper:first-child {
   margin-top: 5px;
 }
-.stack-wrapper:hover {
+/* .stack-wrapper:hover {
   overflow-y: auto;
-}
+} */
 .dropdown {
   position: relative;
   display: inline-block;
@@ -1428,15 +1503,15 @@ Not supports in Firefox and IE */
 /* total width */
 .scrollbar::-webkit-scrollbar {
   background-color: #fff;
-  width: 10px;
+  width: 15px;
 }
 .scrollbar::-webkit-scrollbar-track {
   box-shadow: inset 0 0 5px grey;
-  border-radius: 10px;
+  border-radius: 3px;
 }
-.scrollbar::-webkit-scrollbar-track:hover {
+/* .scrollbar::-webkit-scrollbar-track:hover {
   background-color: #f4f4f4;
-}
+} */
 
 /* scrollbar itself */
 .scrollbar::-webkit-scrollbar-thumb {
@@ -1444,13 +1519,13 @@ Not supports in Firefox and IE */
   border-radius: 16px;
   border: 5px solid #fff;
 }
-.scrollbar::-webkit-scrollbar-thumb:hover {
+/* .scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #404061;
   border: 4px solid #f4f4f4;
-}
+} */
 
 /* set button(top and bottom of the scrollbar) */
-.scrollbar::-webkit-scrollbar-button {
+/* .scrollbar::-webkit-scrollbar-button {
   display: none;
-}
+} */
 </style>

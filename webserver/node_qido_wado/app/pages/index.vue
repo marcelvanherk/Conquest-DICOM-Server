@@ -47,6 +47,7 @@
                       label="Patient Id"
                       hide-details="auto"
                       clearable
+                      @keyup.enter="searchStudies"
                       @input="paciente.pacnome = ''"
                     ></v-text-field>
                   </v-col>
@@ -56,6 +57,7 @@
                       label="Patient Name"
                       hide-details="auto"
                       clearable
+                      @keyup.enter="searchStudies"
                       @input="paciente.pacid = ''"
                     ></v-text-field>
                   </v-col>
@@ -90,7 +92,9 @@
                   :headers="headersStudies"
                   :items="studies"
                   item-key="StudyInstanceUID"
-                  class="elevation-1 marcarguias"
+                  class="elevation-1 marcarguias dstudies"
+                  disable-pagination
+                  hide-default-footer
                   @click:row="rowClickStudy"
                 >
                   <template #[`item.StudyDate`]="{ item }">
@@ -136,8 +140,10 @@
                   dense
                   :headers="headersSeries"
                   :items="series"
+                  disable-pagination
+                  hide-default-footer
                   item-key="SeriesInstanceUID"
-                  class="elevation-1 marcarguias"
+                  class="elevation-1 marcarguias dseries"
                   @click:row="rowClickSerie"
                 >
                   <template #[`item.SeriesTime`]="{ item }">
@@ -184,7 +190,9 @@
                   :headers="headersImage"
                   :items="images"
                   item-key="InstanceNumber"
-                  class="elevation-1 marcarguias"
+                  class="elevation-1 marcarguias dimage"
+                  disable-pagination
+                  hide-default-footer
                   @click:row="rowClickImage"
                 >
                 </v-data-table>
@@ -271,6 +279,7 @@ export default {
         value: 'SeriesDate',
       },
       { text: 'Serie Time', value: 'SeriesTime' },
+      { text: 'Series Description', value: 'SeriesDescription' },
       { text: 'Serie Inst UID', value: 'SeriesInstanceUID' },
     ],
 
@@ -456,6 +465,7 @@ export default {
             SeriesDate: item['00080021']?.Value?.[0],
             SeriesTime: item['00080031']?.Value?.[0],
             PatientID: item['00100020']?.Value?.[0],
+            SeriesDescription: item['0008103e']?.Value?.[0],
             StudyInstanceUID: item['0020000d']?.Value?.[0],
             SeriesInstanceUID: item['0020000e']?.Value?.[0],
           }
@@ -518,5 +528,18 @@ export default {
 ::v-deep .v-tabs-bar {
   padding-bottom: 5px;
   padding-left: 5px;
+}
+
+::v-deep .dstudies {
+  max-height: 200px;
+  overflow-y: auto;
+}
+::v-deep .dserie {
+  max-height: 200px;
+  overflow-y: auto;
+}
+::v-deep .dimage {
+  max-height: 300px;
+  overflow-y: auto;
 }
 </style>

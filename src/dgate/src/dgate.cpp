@@ -1177,6 +1177,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220807	mvh	Set e.g. Rows (US and UL elements) to "" to make it empty instead of 0
 20220809	mvh	Fix -$ argument for Linux (ignored)
 20220810	mvh	Added support for json item names like "00100020" as well as tag names
+20220814	mvh	Added and use wadoparse server command in cgi exe mode, keep wadorequest
 
 ENDOFUPDATEHISTORY
 */
@@ -13169,7 +13170,8 @@ PrintOptions ()
 	fprintf(stderr, "    --count_frames:file                  report # frames in DICOM file\n");
         fprintf(stderr, "    --uncompress:file,out                Uncompress DICOM\n");
         fprintf(stderr, "    --compress:file,mode,out             Compress DICOM to mode e.g. J2\n");
-        fprintf(stderr, "    --wadorequest:parameters             Internal WADO server\n");
+        fprintf(stderr, "    --wadorequest:parameters             Internal WADO server (old)\n");
+        fprintf(stderr, "    --wadoparse:query_string             Internal WADO server\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Database options:\n");
 	fprintf(stderr, "    --query:table|fields|where|fmt|file Arbitrary query output to file\n" );
@@ -20613,6 +20615,8 @@ static void SimplifyDicom(DICOMDataObject *pDDO)
 	while((vr=DO2.Pop())) pDDO->Push(vr);
 }
 
+static int cgi_parse(char *in, char *out, const char *name, const char *def);
+
 void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &DCO,
                 char *Response, unsigned int ConnectedIP, char *tempfile, int Thread)
 	{
@@ -22609,9 +22613,76 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			}
 		}
 
-	else if (memcmp(SilentText, "wadorequest:", 12)==0)
+	else if (memcmp(SilentText, "wadorequest:", 12)==0 || memcmp(SilentText, "wadoparse:", 10)==0)
 		{
 		DICOMDataObject *pDDO;
+		char *begin = SilentText+12;
+		if (memcmp(SilentText, "wadoparse:", 10)==0)
+			{	
+			begin = SilentText+10;
+	
+			char studyUID[256];
+			cgi_parse(begin, studyUID,   "studyUID",    "");
+			
+			char seriesUID[256];
+			cgi_parse(begin, seriesUID,   "seriesUID",    "");
+			
+			char objectUID[256];
+			cgi_parse(begin, objectUID,   "objectUID",    "");
+			
+			char contentType[256];
+			cgi_parse(begin, contentType,   "contentType",    "");
+			
+			char rows[256];
+			cgi_parse(begin, rows,   "rows",    "");
+			
+			char columns[256];
+			cgi_parse(begin, columns,   "columns",    "");
+			
+			char region[256];
+			cgi_parse(begin, region,   "region",    "");
+			for (unsigned int i=0; i<strlen(region); i++) if (region[i]==',') region[i] = '/';
+			
+			char windowCenter[256];
+			cgi_parse(begin, windowCenter,   "windowCenter",    "");
+			
+			char windowWidth[256];
+			cgi_parse(begin, windowWidth,   "windowWidth",    "");
+			
+			char frameNumber[256];
+			cgi_parse(begin, frameNumber,   "frameNumber",    "");
+			
+			char transferSyntax[256];
+			cgi_parse(begin, transferSyntax,   "transferSyntax",    "");
+			
+			char anonymize[256];
+			cgi_parse(begin, anonymize,   "anonymize",    "");
+		
+			char imageQuality[256];
+			cgi_parse(begin, imageQuality,   "imageQuality",    "");
+			
+	
+			char presentationUID[256];
+			cgi_parse(begin, presentationUID,   "presentationUID",    ""); // ignored for now
+			
+			char bridge[256];
+			cgi_parse(bridge, bridge,   "bridge",    "");
+			
+			char obj[256];
+			sprintf(obj, "%s\\%s\\%s", studyUID, seriesUID, objectUID);
+			
+			char lwfq[256];
+			sprintf(lwfq, "%d/%d/%d/%d", atoi(windowCenter), atoi(windowWidth), atoi(frameNumber), atoi(imageQuality));
+			
+			char size[256];
+			sprintf(size, "%d/%d", atoi(rows), atoi(columns));
+			
+			char command[512];
+			sprintf(command, "%s,%s,%s,%s,%s,%s,%s,%s,%s", obj, lwfq, size, region, contentType, transferSyntax, anonymize, "", bridge);
+			p = strchr(command, ',');
+			begin = command;
+			}
+
 		char *r2=NULL, *r3=NULL, *r4=NULL, *r5=NULL, *r6=NULL, *r7=NULL;
 		if (p) 
 		{ *p++=0;				// points after 1st comma
@@ -22664,13 +22735,13 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (r2 && strcmp(r2, "image/bmp")==0 && frame<0)
 			{
 			char *stud, *ser, *sop;
-			ser = strchr(SilentText+12, '\\');
+			ser = strchr(begin, '\\');
 			if (ser) sop = strchr(ser+1, '\\');
 			if (ser && sop)
 				{
 				*sop++= 0;
 				*ser++= 0;
-				stud  = SilentText+12;
+				stud  = begin;
 
 				if(r7)
 				  strcpy(tempfile, r7);
@@ -22689,13 +22760,13 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (r2 && strcmp(r2, "image/jpeg")==0 && frame<0)
 			{
 			char *stud, *ser, *sop;
-			ser = strchr(SilentText+12, '\\');
+			ser = strchr(begin, '\\');
 			if (ser) sop = strchr(ser+1, '\\');
 			if (ser && sop)
 				{
 				*sop++= 0;
 				*ser++= 0;
-				stud  = SilentText+12;
+				stud  = begin;
 
 				if(r7)
 				  strcpy(tempfile, r7);
@@ -22711,9 +22782,9 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			}
 
 		if (r6==NULL || *r6==0)
-			pDDO = LoadForGUI(SilentText+12);
+			pDDO = LoadForGUI(begin);
 		else
-			pDDO = LoadForBridge(SilentText+12, r6);
+			pDDO = LoadForBridge(begin, r6);
 		if (pDDO) 
 			{
 			int nf = GetNumberOfFrames(pDDO);
@@ -22846,7 +22917,6 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			delete pDDO;
 			if (r7) tempfile[0]=0;
 			}
-			
 		}
 
 	else if (memcmp(SilentText, "count_frames:", 13)==0)
@@ -25010,6 +25080,51 @@ static int CGI(char *out, const char *name, const char *def)
   return 0;
 }
 
+static int cgi_parse(char *in, char *out, const char *name, const char *def)
+{ char *p = in, *q;
+  char tmp[512];
+  int  i, j;
+
+  if (out!=def) *out = 0;
+  strcpy(tmp, "&");	// & only hits on second item
+  strcat(tmp, name);
+  strcat(tmp, "=");
+  
+  // check first item
+  if (p)
+  { if (strlen(p)>=strlen(tmp+1) && memcmp(p, tmp+1, strlen(tmp+1))==0) q=p-1;
+    else q = strstr(p, tmp);
+  }
+  else
+    q=NULL;
+
+  if (q==NULL)
+  { if (out!=def) strcpy(out, def);
+    return 0;
+  }
+
+  q = q + strlen(tmp);
+
+  i = 0; j = 0;
+  while (q[i] != 0  && q[i] != '&')
+  { if (q[i] == '%')
+    { tmp[j++] = (char)(htoin(q+i+1, 2));
+      i = i+3;
+    }
+    else if (q[i] == '+')
+    { tmp[j++] = ' ';
+      i++;
+    }
+    else
+      tmp[j++] = q[i++];
+  }
+  tmp[j++] = 0;
+
+  strcpy(out, tmp);
+
+  return 0;
+}
+
 static BOOL Tabulate(const char *c1, const char *par, const char *c4, BOOL edit=FALSE)
 { const char *p=strchr(par, ':');
   char buf[512];
@@ -26972,60 +27087,6 @@ static BOOL DgateWADO()
   CGI(requestType,   "requestType",    "");		// is this a WADO request?
   if (strcmp(requestType, "WADO")!=0) return FALSE;
 
-  char studyUID[256];
-  CGI(studyUID,   "studyUID",    "");
-
-  char seriesUID[256];
-  CGI(seriesUID,   "seriesUID",    "");
-
-  char objectUID[256];
-  CGI(objectUID,   "objectUID",    "");
-
-  char contentType[256];
-  CGI(contentType,   "contentType",    "");
-
-  char rows[256];
-  CGI(rows,   "rows",    "");
-
-  char columns[256];
-  CGI(columns,   "columns",    "");
-
-  char region[256];
-  CGI(region,   "region",    "");
-  for (unsigned int i=0; i<strlen(region); i++) if (region[i]==',') region[i] = '/';
-
-  char windowCenter[256];
-  CGI(windowCenter,   "windowCenter",    "");
-
-  char windowWidth[256];
-  CGI(windowWidth,   "windowWidth",    "");
-
-  char frameNumber[256];
-  CGI(frameNumber,   "frameNumber",    "");
-
-  char transferSyntax[256];
-  CGI(transferSyntax,   "transferSyntax",    "");
-
-  char anonymize[256];
-  CGI(anonymize,   "anonymize",    "");
-
-  char annotation[256];
-  CGI(annotation,   "annotation",    "");
-  for (unsigned int i=0; i<strlen(annotation); i++) if (annotation[i]==',') annotation[i] = '/';
-
-  char imageQuality[256];
-  CGI(imageQuality,   "imageQuality",    "");
-
-  char charset[256];
-  CGI(charset,   "charset",    "");   // ignored for now
-
-  char presentationUID[256];
-  CGI(presentationUID,   "presentationUID",    ""); // ignored for now
-  
-  char bridge[256];
-  MyGetPrivateProfileString ( "wadoservers", "bridge", "", bridge, 256, ConfigFile);
-  CGI(bridge,   "bridge",    bridge);
-
   console = fileno(stdout);
 #ifdef WIN32
   setmode(console, O_BINARY);
@@ -27036,39 +27097,15 @@ static BOOL DgateWADO()
 
   char RootSC[256];
   MyGetPrivateProfileString ( RootConfig, "MicroPACS", RootConfig, RootSC, 64, ConfigFile);
-
   char WebServerFor[256];
   sprintf(WebServerFor, "127.0.0.1");
   MyGetPrivateProfileString ( RootSC,        "WebServerFor", WebServerFor, WebServerFor, 256, ConfigFile);
   MyGetPrivateProfileString ( "webdefaults", "address",      WebServerFor, WebServerFor, 256, ConfigFile);
   strcpy(ServerCommandAddress, WebServerFor);
 
-  char obj[256];
-  sprintf(obj, "%s\\%s\\%s", studyUID, seriesUID, objectUID);
-
-  char lwfq[256];
-  sprintf(lwfq, "%d/%d/%d/%d", atoi(windowCenter), atoi(windowWidth), atoi(frameNumber), atoi(imageQuality));
-
-  char size[256];
-  sprintf(size, "%d/%d", atoi(rows), atoi(columns));
-
-  char command[512];
-  sprintf(command, "wadorequest:%s,%s,%s,%s,%s,%s,%s,%s,%s", obj, lwfq, size, region, contentType, transferSyntax, anonymize, annotation, bridge);
-
-#if 1
+  char command[1024];
+  sprintf(command, "wadoparse:%s", global_query_string);
   SendServerCommand("", command, console, NULL, FALSE);
-#else
-  HTML("Content-type: text/html\n");
-  HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
-  HTML("<BODY BGCOLOR='CFDFCF'>");
-  HTML("<H2>Conquest DICOM server - version %s</H2>", DGATE_VERSION);
-  HTML("<HR>");
-  HTML("<H2>WADO is not yet available</H2>");
-  HTML("command: %s", command);
-  HTML("</OBJECT>");
-  HTML("</BODY>");
-#endif
-
   exit(0);
 };
 

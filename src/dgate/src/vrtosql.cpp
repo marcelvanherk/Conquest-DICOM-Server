@@ -78,6 +78,7 @@
 20191019        mvh     Removed sorting for CountOnly query (SQL fails on postgres)
 20200125	mvh	Accept 9999,0c000 ConquestImageQueryOrder (use field name, is truncated to 10)
 20200314	mvh	Implemented QueriesReturnISO_IR flag
+20220815        mvh     Implemented sorting for all queries except Modality, properly sort on Number fields
 */
 
 #ifndef	WHEDGE
@@ -754,6 +755,8 @@ BOOL	QueryOnPatient (
 	VR				VRPatientName;
 	DBENTRY				*DBEntryPatientName;
 	char				SortOrder[128];
+	char				Order[128];
+	char				OrderCalc[128];
 	char				*Sorting;
 	BOOL				DoSort;
 	BOOL				SendAE = FALSE;
@@ -780,6 +783,7 @@ BOOL	QueryOnPatient (
 	// the Patient/Study database.  If they are not, well, then we
 	// return FALSE.
 	DoSort = FALSE;
+	Order[0] = OrderCalc[0] = 0;
 	while ((vr = DDO->Pop()))
 		{
 		if(vr->Element == 0x0000)
@@ -842,6 +846,22 @@ BOOL	QueryOnPatient (
 			if(vr->Element == 0x0900)
 				{
 				mask = vr->GetUINT16();
+				delete vr;
+				continue;	// discard it
+				}
+		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c00)
+				{
+				memcpy(Order, vr->Data, vr->Length);
+				Order[vr->Length]=0;
+				if (strstr(Order, "Number")) 
+                                { Order[10]=0;
+                                  sprintf(OrderCalc, "(%s+0)", Order);
+                                }
+                                else
+				{ Order[10]=0;
+			          strcpy(OrderCalc, Order);
+				}
 				delete vr;
 				continue;	// discard it
 				}
@@ -912,12 +932,22 @@ BOOL	QueryOnPatient (
 		++Index;++CCIndex;
 		}
 
-        if (PatientQuerySortOrder[0]) 
+	if (Order[0])
+		{
+		if(CCIndex)
+			strcat(ColumnString, ", ");
+		strcat(ColumnString, Order);
+		}
+	else if (PatientQuerySortOrder[0]) 
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
 		strcat(ColumnString, PatientQuerySortOrder);
 		}
+
+        if (Order[0]) Sort = OrderCalc;
+        else if (StudyQuerySortOrder[0]) Sort = StudyQuerySortOrder;
+	if (CountOnly) Sort = NULL;
 
         sprintf(Tables, "%s",
 	  	PatientTableName);
@@ -952,7 +982,21 @@ BOOL	QueryOnPatient (
 		Sorting = NULL;
 
         Sort = Sorting;
-        if (PatientQuerySortOrder[0]) Sort = PatientQuerySortOrder;
+        if (Order[0])
+		{
+		if(CCIndex)
+			strcat(ColumnString, ", ");
+		strcat(ColumnString, Order);
+		}
+	else if (PatientQuerySortOrder[0]) 
+		{
+		if(CCIndex)
+			strcat(ColumnString, ", ");
+		strcat(ColumnString, PatientQuerySortOrder);
+		}
+
+        if (Order[0]) Sort = OrderCalc;
+        else if (StudyQuerySortOrder[0]) Sort = PatientQuerySortOrder;
 	if (CountOnly) Sort = NULL;
 
 	SystemDebug.printf("Sorting (%s) DoSort := %d\n", Sort, DoSort);
@@ -1126,6 +1170,8 @@ BOOL	QueryOnStudy (
 	VR				VRPatientName;
 	DBENTRY				*DBEntryPatientName;
 	char				SortOrder[128];
+	char				Order[128];
+	char				OrderCalc[128];
 	char				*Sorting;
 	BOOL				DoSort;
         char				*Sort=NULL;
@@ -1147,7 +1193,7 @@ BOOL	QueryOnStudy (
 	// return FALSE.
 
 	DoSort = FALSE;
-
+	Order[0] = OrderCalc[0] = 0;
 	while ((vr = DDO->Pop()))
 		{
 		if(vr->Element == 0x0000)
@@ -1203,6 +1249,22 @@ BOOL	QueryOnStudy (
 			if(vr->Element == 0x0900)
 				{
 				mask = vr->GetUINT16();
+				delete vr;
+				continue;	// discard it
+				}
+		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c00)
+				{
+				memcpy(Order, vr->Data, vr->Length);
+				Order[vr->Length]=0;
+				if (strstr(Order, "Number")) 
+                                { Order[10]=0;
+                                  sprintf(OrderCalc, "(%s+0)", Order);
+                                }
+                                else
+				{ Order[10]=0;
+			          strcpy(OrderCalc, Order);
+				}
 				delete vr;
 				continue;	// discard it
 				}
@@ -1300,7 +1362,13 @@ BOOL	QueryOnStudy (
 		safestrcat(SearchString, TempString, sizeof(SearchString));
 		}
 
-        if (StudyQuerySortOrder[0]) 
+        if (Order[0])
+		{
+		if(CCIndex)
+			strcat(ColumnString, ", ");
+		strcat(ColumnString, Order);
+		}
+	else if (StudyQuerySortOrder[0]) 
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
@@ -1357,7 +1425,8 @@ BOOL	QueryOnStudy (
 		Sorting = NULL;
 
         Sort = Sorting;
-        if (StudyQuerySortOrder[0]) Sort = StudyQuerySortOrder;
+        if (Order[0]) Sort = OrderCalc;
+        else if (StudyQuerySortOrder[0]) Sort = StudyQuerySortOrder;
 	if (CountOnly) Sort = NULL;
 
 	SystemDebug.printf("Sorting (%s) DoSort := %d\n", Sort, DoSort);
@@ -1521,6 +1590,9 @@ BOOL	QueryOnSeries (
 	SQLLEN				*DBL;
 	VR				*vr;
 	BOOL				SendAE = FALSE;
+	char				SortOrder[128];
+	char				Order[128];
+	char				OrderCalc[128];
 	char				TempString [ 8192 ];
 	char				SearchString [ 8192 ];
 	char				ColumnString [ 4096 ];
@@ -1542,6 +1614,7 @@ BOOL	QueryOnSeries (
 	// the Patient/Study database.  If they are not, well, then we
 	// return FALSE.
 
+	Order[0] = OrderCalc[0] = 0;
 	while ((vr = DDO->Pop()))
 		{
 		if(vr->Element == 0x0000)
@@ -1589,6 +1662,22 @@ BOOL	QueryOnSeries (
 			if(vr->Element == 0x0900)
 				{
 				mask = vr->GetUINT16();
+				delete vr;
+				continue;	// discard it
+				}
+		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c00)
+				{
+				memcpy(Order, vr->Data, vr->Length);
+				Order[vr->Length]=0;
+				if (strstr(Order, "Number")) 
+                                { Order[10]=0;
+                                  sprintf(OrderCalc, "(%s+0)", Order);
+                                }
+                                else
+				{ Order[10]=0;
+			          strcpy(OrderCalc, Order);
+				}
 				delete vr;
 				continue;	// discard it
 				}
@@ -1719,7 +1808,13 @@ BOOL	QueryOnSeries (
 		safestrcat(SearchString, TempString, sizeof(SearchString));
 		}
 
-        if (SeriesQuerySortOrder[0]) 
+        if (Order[0])
+		{
+		if(CCIndex)
+			strcat(ColumnString, ", ");
+		strcat(ColumnString, Order);
+		}
+	else if (SeriesQuerySortOrder[0]) 
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
@@ -1761,7 +1856,8 @@ BOOL	QueryOnSeries (
 
 	// Issue Query
 
-        if (SeriesQuerySortOrder[0]) Sort = SeriesQuerySortOrder;
+        if (Order[0]) Sort = OrderCalc;
+        else if (StudyQuerySortOrder[0]) Sort = SeriesQuerySortOrder;
 	if (CountOnly) Sort = NULL;
 
 	if(strlen(SearchString))
@@ -1924,12 +2020,14 @@ BOOL	QueryOnImage (
 	BOOL				SendAE = FALSE, SendObjectFile = FALSE;
 	char				*TempString;
 	char				*SearchString;
+	char				SortOrder[128];
+	char				Order [ 128 ];
+	char				OrderCalc[128];
 	char				ColumnString [ 4096 ];
 	char				Tables [ 256 ];
         char				*Sort=NULL;
 	UINT16				mask = 0xffff;
 	BOOL				CountOnly = FALSE;
-	char				Order [ 256 ];
 
 // Analysis of length of strings:
 //
@@ -1968,7 +2066,7 @@ BOOL	QueryOnImage (
         	}
 
 	SystemDebug.printf("Query On Image\n");
-	Order[0]=0;
+	Order[0] = OrderCalc[0] = 0;
 
 	while ((vr = DDO->Pop()))
 		{
@@ -2029,7 +2127,14 @@ BOOL	QueryOnImage (
 				{
 				memcpy(Order, vr->Data, vr->Length);
 				Order[vr->Length]=0;
-				if (vr->Length>10) Order[10]=0;
+				if (strstr(Order, "Number")) 
+                                { Order[10]=0;
+                                  sprintf(OrderCalc, "(%s+0)", Order);
+                                }
+                                else
+				{ Order[10]=0;
+			          strcpy(OrderCalc, Order);
+				}
 				delete vr;
 				continue;	// discard it
 				}
@@ -2263,7 +2368,7 @@ BOOL	QueryOnImage (
 		}
 
 	// Issue Query
-        if (Order[0]) Sort = Order;
+        if (Order[0]) Sort = OrderCalc;
         else if (ImageQuerySortOrder[0]) Sort = ImageQuerySortOrder;
 	if (CountOnly) Sort = NULL;
 

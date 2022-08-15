@@ -1,0 +1,10 @@
+{
+  "name": "conquest-demo",
+  "short_name": "conquest-demo",
+  "description": "This viewer uses the node.js QIDO/WADO api to conquest dicom server,  configure and install that one first and note its IP address and port number.",
+  "icons": [],
+  "start_url": "/?standalone=true",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "lang": "en"
+}

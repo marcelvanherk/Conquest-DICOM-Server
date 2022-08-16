@@ -1179,7 +1179,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220810	mvh	Added support for json item names like "00100020" as well as tag names
 20220814	mvh	Added and use wadoparse server command in cgi exe mode, keep wadorequest
 20220815	mvh	Most output formats that recognise cgi now accept binary 
-20220816	mvh	Fix Serialize in dicomweb format for sequences
+20220816	mvh	Fix Serialize in dicomweb format for sequences; use uppercase FX for dicomweb
 
 ENDOFUPDATEHISTORY
 */
@@ -7669,7 +7669,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
               name = tmp;
 	    }
             if (json && dicomweb)
-            { sprintf(tmp, "\"%04x%04x\": { \"vr\": \"%c%c\", \"Value\"", 
+            { sprintf(tmp, "\"%04X%04X\": { \"vr\": \"%c%c\", \"Value\"", 
                 vr->Group, vr->Element, c2>>8, c2&255);
               name = tmp;
             }

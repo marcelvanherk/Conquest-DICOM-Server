@@ -11,12 +11,9 @@
     $var = ob_get_contents();
     ob_end_clean();
    
-    //header_remove();
-    //header('Allow-Origin-Header: yes');
-    //header('Access-Control-Allow-Headers: Authorization');
-    header('Access-Control-Allow-Origin: http://localhost:3000');
+    header('Access-Control-Allow-Origin: *');
     header('Content-Type: application/json');
-    echo '{"data":' . $var . '}';
+    echo $var;
   }    
 
   // http://127.0.0.1/api/dicom/rs/studies?PatientID=118
@@ -28,7 +25,7 @@
        "00080201", "00100010", "00100020",
        "00100030", "00100040", "0020000D",
        "00200010", "00201206", "00201208"];
-    processData($query, $defaultTags, array("99990c00"=>"StudyDate"), "studies");
+    processData($query, $defaultTags, array("99990C00"=>"StudyDate"), "studies");
   }
 
   // http://127.0.0.1/api/dicom/rs/studies/1.2.840.113704.1.111.5068.1602767444.4/series
@@ -39,7 +36,7 @@
       "0020000E", "00200011", "00201209",
       "00080201", "00400244", "00400245",
       "00400275", "00400009", "00401001"];
-    processData($query, $defaultTags, array("StudyInstanceUID"=>$st, "99990c00"=>"SeriesTime"), "series");
+    processData($query, $defaultTags, array("StudyInstanceUID"=>$st, "99990C00"=>"SeriesTime"), "series");
   }
 
   // http://127.0.0.1/api/dicom/rs/studies/1.2.840.113704.1.111.5068.1602767444.4/series/1.2.840.113704.1.111.7348.1602767982.6/instances
@@ -49,5 +46,15 @@
       "00080201", "00081190", "00200013",
       "00280010", "00280011", "00280100",
       "00280008"];
-    processData($query, $defaultTags, array("StudyInstanceUID"=>$st, "SeriesInstanceUID"=>$se, "99990c00"=>"ImageNumber"), "images");
+    processData($query, $defaultTags, array("StudyInstanceUID"=>$st, "SeriesInstanceUID"=>$se, "99990C00"=>"ImageNumber"), "images");
+  }
+
+  function metadata($st) {
+    ob_start();
+    passthru('servertask "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']])"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/json');
+    echo $var;
   }

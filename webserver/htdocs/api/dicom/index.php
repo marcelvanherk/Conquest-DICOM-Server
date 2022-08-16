@@ -1,8 +1,6 @@
 <?php
     if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-        //header('Allow-Origin-Header: yes');
-        //header('Access-Control-Allow-Headers: Authorization');
-        header('Access-Control-Allow-Origin: http://localhost:3000');
+        header('Access-Control-Allow-Origin: *');
         exit(0);
     }
 
@@ -43,6 +41,11 @@
        if (array_key_exists("query", $t))
          parse_str($t["query"], $output);
        series($st, $output);
+    });
+
+    $router->get('/rs/studies/([0-9%.]+)/metadata', function ($st) {
+       include 'qido.php';
+       metadata($st);
     });
 
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances', function ($st, $se) {

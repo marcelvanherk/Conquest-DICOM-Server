@@ -14,6 +14,29 @@ function remotequery(ae, level, q, dicomweb)
  return f
 end;
 
+function remotemetadata(ae, level, st)
+  local remotecode = 
+[[
+  local ae=']]..ae..[[';
+  local level=']]..level..[[';
+  local dicomweb=]]..tostring(isdicomweb)..[[;
+  local q2=DicomObject:new();
+  q2.QueryRetrieveLevel='IMAGE'
+  q2.SeriesInstanceUID=''
+  q2.StudyInstanceUID=']]..st..[['
+  q2.InstanceNumber=''
+  q2.Rows=''
+  q2.Colums=''
+  q2.PatientID=''
+  q2.PatientName=''
+  q2.SOPInstanceUID=''
+  local r = dicomquery(ae, 'IMAGE', q2)
+  r = r:Serialize(true,false,true)
+  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close()
+]]
+ local f = servercommand('lua:'..remotecode)
+ return f
+end;
 
 function echo(server)
 local ae = server or servercommand('get_param:MyACRNema')
@@ -50,3 +73,9 @@ local ae = server or servercommand('get_param:MyACRNema')
 b=remotequery(ae, 'IMAGE', params, dicomweb);
 io.write(b or '')
 end;
+
+function metadata(server, st)
+local ae = server or servercommand('get_param:MyACRNema')
+b=remotemetadata(ae, 'STUDY', st);
+io.write(b)
+end

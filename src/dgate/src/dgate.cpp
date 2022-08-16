@@ -1178,7 +1178,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220809	mvh	Fix -$ argument for Linux (ignored)
 20220810	mvh	Added support for json item names like "00100020" as well as tag names
 20220814	mvh	Added and use wadoparse server command in cgi exe mode, keep wadorequest
-20220815	mvh	Most output formatats that recognise cgi now accept binary 
+20220815	mvh	Most output formats that recognise cgi now accept binary 
+20220816	mvh	Fix Serialize in dicomweb format for sequences
 
 ENDOFUPDATEHISTORY
 */
@@ -7771,14 +7772,16 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      { lua_getglobal(L, "serialize");
 	        luaCreateObject(L, NULL, (Array < DICOMDataObject * > *)vr->SQObjectArray, FALSE);
 		lua_pushboolean(L, json);
-                lua_call(L, 2, 1);
+		lua_pushboolean(L, includepixeldata);
+		lua_pushboolean(L, dicomweb);
+                lua_call(L, 4, 1);
 		if (lua_strlen(L, -1)>=MAXLEN/2)
                 { Index+=sprintf(result+Index, "%s%cnil", name, eq);
 	          if (!json) Index+=sprintf(result+Index, "--[[long SQ not serialized]]");
 	          Index+=sprintf(result+Index, ",");
 		}
 	        else
-                  Index+=sprintf(result+Index, "%s%c%s,", name, eq, lua_tostring(L, -1));
+                  Index+=sprintf(result+Index, "%s%c%s%s,", name, eq, lua_tostring(L, -1), br3);
 	        lua_pop(L, 1);
 	      }
 	    }

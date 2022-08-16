@@ -19,7 +19,6 @@ function remotemetadata(ae, level, st)
 [[
   local ae=']]..ae..[[';
   local level=']]..level..[[';
-  local dicomweb=]]..tostring(isdicomweb)..[[;
   local q2=DicomObject:new();
   q2.QueryRetrieveLevel='IMAGE'
   q2.SeriesInstanceUID=''

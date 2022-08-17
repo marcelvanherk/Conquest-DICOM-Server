@@ -410,14 +410,14 @@ export default {
           })
           return
         }
-        const dados = resp.data.data
+        const dados = resp.data
         this.studies = []
         dados.forEach((item) => {
           const values = {
             StudyDate: item['00080020']?.Value?.[0],
             PatientName: item['00100010']?.Value?.[0],
             PatientID: item['00100020']?.Value?.[0],
-            StudyInstanceUID: item['0020000d']?.Value?.[0],
+            StudyInstanceUID: item['0020000D']?.Value?.[0],
             PatientBirthDate: item['00100030']?.Value?.[0],
           }
           this.studies.push(values)
@@ -458,16 +458,16 @@ export default {
           })
           return
         }
-        const dados = resp.data.data
+        const dados = resp.data
         this.series = []
         dados.forEach((item) => {
           const values = {
             SeriesDate: item['00080021']?.Value?.[0],
             SeriesTime: item['00080031']?.Value?.[0],
             PatientID: item['00100020']?.Value?.[0],
-            SeriesDescription: item['0008103e']?.Value?.[0],
-            StudyInstanceUID: item['0020000d']?.Value?.[0],
-            SeriesInstanceUID: item['0020000e']?.Value?.[0],
+            SeriesDescription: item['0008103E']?.Value?.[0],
+            StudyInstanceUID: item['0020000D']?.Value?.[0],
+            SeriesInstanceUID: item['0020000E']?.Value?.[0],
           }
           this.series.push(values)
         })
@@ -492,14 +492,14 @@ export default {
           })
           return
         }
-        const dados = resp.data.data
+        const dados = resp.data
         this.images = []
         dados.forEach((item) => {
           const values = {
             InstanceNumber: item['00200013']?.Value?.[0],
             SOPInstanceUID: item['00080018']?.Value?.[0],
-            SeriesInstanceUID: item['0020000e']?.Value?.[0],
-            StudyInstanceUID: item['0020000d']?.Value?.[0],
+            SeriesInstanceUID: item['0020000E']?.Value?.[0],
+            StudyInstanceUID: item['0020000D']?.Value?.[0],
             NumberOfFrames: item['00280008']?.Value?.[0] || '-',
           }
           this.images.push(values)

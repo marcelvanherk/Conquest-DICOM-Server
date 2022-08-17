@@ -1,3 +1,4 @@
+//localhost:3002/api/dicom/rs/studies?limit=25&offset=0&fuzzymatching=false&includefield=00081030%2C00080060&StudyDate=20220801-20220816
 /*----------------------------------------------------------------------------------------
  ----------------------Conquest Dicom API using node.js ----------------------------------
 ------------------------------------------------------------------------------------------
@@ -37,7 +38,7 @@ const router = express.Router();
 const path = require("path");
 const { exec, spawn } = require("child_process");
 const { tagsForLevel } = require("../../helpers/dicom/tags");
-
+const url = require("url");
 /* memory buffer used to get images*/
 const MAX_BUFFER = 30000 * 1024;
 
@@ -48,15 +49,6 @@ Other option is take this data from DB query
 
 /* used to cache the response if dicom conquest PACS is alive*/
 let CQDICOMISALIVE = false;
-
-// let opsys = process.platform;
-// if (opsys == "darwin") {
-//   opsys = "MacOS";
-// } else if (opsys == "win32" || opsys == "win64") {
-//   opsys = "Windows";
-// } else if (opsys == "linux") {
-//   opsys = "Linux";
-// }
 
 /*It needs to be configured with your data*/
 let CQPORT = process.env.CQPORT || "5678";
@@ -146,7 +138,9 @@ const getParams = (params, tags, query) => {
 
   // take query tags and add to params
   Object.keys(query || {}).forEach((propName) => {
-    if (!["includefield", "limit", "offset"].includes(propName)) {
+    if (
+      !["includefield", "limit", "offset", "fuzzymatching"].includes(propName)
+    ) {
       let v = query[propName];
       if (typeof v === "string" || v instanceof String) {
         v = v.replace(/,/g, "\\\\");
@@ -184,7 +178,8 @@ All studies
 /studies{?search*}
 ------------------------------------------------------------------*/
 router.get("/rs/studies", async (req, res) => {
-  const query = req.query;
+  // res.send(ddd);
+  const query = url.parse(req.url, true).query;
   let params = { QueryRetrieveLevel: "STUDY" };
   let tags = getDefaultTags("STUDY", query);
   const tparams = getParams(params, tags, query);
@@ -210,7 +205,7 @@ router.get("/rs/studies", async (req, res) => {
     else temp = temp.slice(offset);
     res.set("Content-Type", "application/json");
     if (temp.length > 0) {
-      res.send({ data: temp });
+      res.send(temp);
     } else {
       res.status(204).send();
     }
@@ -223,12 +218,49 @@ router.get("/rs/studies", async (req, res) => {
 });
 
 /*-------------------------QIDO API--------------------------------
+study
+metadata
+------------------------------------------------------------------*/
+
+router.get("/rs/studies/:studyInstanceUids/metadata", async (req, res) => {
+  const StudyInstanceUID = req.params.studyInstanceUids;
+  let params = StudyInstanceUID;
+  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);metadata([[${CQAE}]],[[${params}]])`;
+  try {
+    const os = new os_func_spawn();
+    const dados = await os.execCommand(cmd);
+    try {
+      temp = JSON.parse(dados);
+      // if (temp && temp.length > 0) {
+      //   temp.sort((a, b) => {
+      //     if (a["00080021"]?.Value?.[0] == b["00080021"]?.Value?.[0]) return 0;
+      //     if (a["00080021"]?.Value?.[0] < b["00080021"]?.Value?.[0]) return -1;
+      //     if (a["00080021"]?.Value?.[0] > b["00080021"]?.Value?.[0]) return 1;
+      //   });
+      // }
+    } catch (error) {
+      console.log(error);
+      temp = [];
+    }
+    res.set("Content-Type", "application/json");
+    if (temp.length > 0) {
+      res.send(temp);
+    } else res.status(204).send(temp);
+  } catch (error) {
+    console.log(error);
+    return res.status(400).send({
+      message: "Error finding series",
+    });
+  }
+});
+
+/*-------------------------QIDO API--------------------------------
  Study's Series
 /studies/{study}/series{?search*}
 ------------------------------------------------------------------*/
 router.get("/rs/studies/:studyInstanceUid/series", async (req, res) => {
   const StudyInstanceUID = req.params.studyInstanceUid;
-  const query = req.query;
+  const query = url.parse(req.url, true).query;
   let params = { QueryRetrieveLevel: "SERIES", StudyInstanceUID };
   let tags = getDefaultTags("SERIES", query);
   const tparams = getParams(params, tags, query);
@@ -257,8 +289,8 @@ router.get("/rs/studies/:studyInstanceUid/series", async (req, res) => {
     }
     res.set("Content-Type", "application/json");
     if (temp.length > 0) {
-      res.send({ data: temp });
-    } else res.status(204).send({ data: temp });
+      res.send(temp);
+    } else res.status(204).send(temp);
   } catch (error) {
     console.log(error);
     return res.status(400).send({
@@ -274,7 +306,7 @@ router.get("/rs/studies/:studyInstanceUid/series", async (req, res) => {
 router.get(
   "/rs/studies/:studyInstanceUid/series/:seriesInstanceUid/instances",
   async (req, res) => {
-    const query = req.query;
+    const query = url.parse(req.url, true).query;
 
     const StudyInstanceUID = req.params.studyInstanceUid;
     const SeriesInstanceUID = req.params.seriesInstanceUid;
@@ -307,8 +339,8 @@ router.get(
       else fson = fson.slice(offset);
       res.set("Content-Type", "application/json");
       if (fson.length > 0) {
-        res.send({ data: fson });
-      } else res.status(204).send({ data: fson });
+        res.send(fson);
+      } else res.status(204).send(fson);
     } catch (error) {
       console.log(error);
       return res.status(400).send({
@@ -321,6 +353,11 @@ router.get(
 /*-------------------------QIDO API--------------------------------
  get a frame
 ------------------------------------------------------------------*/
+// https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs/studies/
+// 1.3.6.1.4.1.9590.100.1.2.85935434310203356712688695661986996009
+//   / series / 1.3.6.1.4.1.9590.100.1.2.374115997511889073021386151921807063992 /
+//     instances / 1.3.6.1.4.1.9590.100.1.2.289923739312470966435676008311959891294 / frames / 1
+
 router.get(
   "/rs/studies/:studyInstanceUid/series/:seriesInstanceUid/instances/:sopInstanceUid/frames/:frame",
   async (req, res) => {
@@ -349,8 +386,7 @@ router.get(
   WADO URI  GET
 ------------------------------------------------------------------*/
 router.get("/wadouri", async (req, res) => {
-  const query = req.query;
-
+  const query = url.parse(req.url, true).query;
   const {
     studyUID,
     seriesUID,
@@ -370,7 +406,6 @@ router.get("/wadouri", async (req, res) => {
     charset = "",
     presentationUID = "",
   } = query;
-
   if (requestType !== "WADO") {
     return res.status(400).send({
       message: "Invalid Request Type",
@@ -432,7 +467,7 @@ router.get("/wadouri", async (req, res) => {
         //   Buffer.from(stdout, "binary"),
         //   nulbuf,
         // ]);
-        res.set("Content-Type", contentType);
+        res.set("Content-Type", contentType); // contentType
         res.end(Buffer.from(stdout, "binary"));
       }
     }
@@ -443,7 +478,7 @@ router.get("/wadouri", async (req, res) => {
   WADO CGI  GET
 ------------------------------------------------------------------*/
 router.get("/wadocgi", async (req, res) => {
-  const query = req.query;
+  const query = url.parse(req.url, true).query;
 
   const {
     studyUID,
@@ -624,7 +659,7 @@ router.post("/dicomPatients", async (req, res) => {
     } catch (error) {
       temp = [];
     }
-    res.send({ data: temp });
+    res.send(temp);
   } catch (error) {
     console.log(error);
     return res.status(400).send({
@@ -671,7 +706,7 @@ router.post("/dicomStudies", async (req, res) => {
     } catch (error) {
       temp = [];
     }
-    res.send({ data: temp });
+    res.send(temp);
   } catch (error) {
     console.log(error);
     return res.status(400).send({
@@ -713,7 +748,7 @@ router.post("/dicomSeries", async (req, res) => {
     } catch (error) {
       temp = [];
     }
-    res.send({ data: temp });
+    res.send(temp);
   } catch (error) {
     console.log(error);
     return res.status(400).send({
@@ -761,7 +796,7 @@ router.post("/dicomImages", async (req, res) => {
       }
       return { ...el, filename, id: index + 1 };
     });
-    res.send({ data: resp });
+    res.send(resp);
   } catch (error) {
     console.log(error);
     return res.status(400).send({

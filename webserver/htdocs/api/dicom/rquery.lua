@@ -14,62 +14,44 @@ function remotequery(ae, level, q, dicomweb)
  return f
 end;
 
-function remotemetadata(ae, level, st)
+function remotemetadata(ae, level, st, se, sop)
   local remotecode = 
 [[
+  tags={"SpecificCharacterSet","SOPClassUID","SOPInstanceUID","StudyDate","ContentDate","StudyTime",
+    "ContentTime","AccessionNumber","Modality","ConversionType","ReferringPhysicianName","PatientName",
+    "PatientID","PatientBirthDate","PatientSex","BodyPartExamined","SecondaryCaptureDeviceManufacturer",
+    "SecondaryCaptureDeviceManufacturerModelName","StudyInstanceUID","SeriesInstanceUID","StudyID",
+    "SeriesNumber","InstanceNumber","PatientOrientation","SamplesPerPixel","PhotometricInterpretation",
+    "Rows","Columns","BitsAllocated","BitsStored","HighBit","PixelRepresentation",
+    "SmallestImagePixelValue","LargestImagePixelValue"} -- "PixelData"
   local ae=']]..ae..[[';
   local level=']]..level..[[';
   local q2=DicomObject:new();
+  for k, v in ipairs(tags) do q2[v]="" end
   q2.QueryRetrieveLevel='IMAGE'
-  q2.SeriesInstanceUID=''
   q2.StudyInstanceUID=']]..st..[['
-  q2.InstanceNumber=''
-  q2.Rows=''
-  q2.Columns=''
-  q2.PatientID=''
-  q2.PatientName=''
-  q2.SOPInstanceUID=''
-  q2.NumberOfFrames=''
-  q2.BitsStored=''
-  q2.SamplesPerPixel=''
-  q2.SOPClassUID=''
-  q2.SliceLocation=''
-  q2.Modality=''
-  q2.FrameOfReferenceUID=''
-  q2.PatientPosition=''
-  q2.SeriesTime=''
-  q2.SeriesDate=''
-  q2.StudyTime=''
-  q2.StudyDate=''
-  q2.ImageType=''
+  q2.SeriesInstanceUID=']]..(se or '')..[['
+  q2.SOPInstanceUID=']]..(sop or '')..[['
   local r = dicomquery(ae, 'IMAGE', q2)
   local d = DicomObject:new()
   d:Read(':'..r[0].SOPInstanceUID)
   for i=0, #r-1 do 
-    r[i].WindowCenter=d.WindowCenter 
-    r[i].WindowWidth=d.WindowWidth
-    r[i].RescaleIntercept=d.RescaleIntercept
-    r[i].RescaleSlope=d.RescaleSlope
-    r[i].HighBit=d.HighBit
-    r[i].PixelRepresentation=d.PixelRepresentation
-    r[i].BitsAllocated=d.BitsAllocated
-    r[i].PixelSpacing=d.PixelSpacing
-    r[i].PhotometricInterpretation = d.PhotometricInterpretation
-    r[i].ImageOrientationPatient = d.ImageOrientationPatient
-    r[i].ImagePositionPatient = d.ImagePositionPatient
-    r[i].SliceThickness = d.SliceThickness
-    r[i].PatientOrientation = d.PatientOrientation
-    r[i].ContrastBolusAgent = d.ContrastBolusAgent
-    r[i].AccessionNumber = d.AccessionNumber
-    r[i].ImageComments = d.ImageComments
-    r[i]:SetVR(0x8,0x1140,d:GetVR(0x8,0x1140))
+    for k, v in ipairs(tags) do
+      if r[i][v]==nil then
+        r[i][v]=d[v] or 'x'
+      end
+    end
   end
-  r = r:Serialize(true,false,true)
+  a=DicomObject:newarray()
+  for i=0, #r-1 do 
+    if r[i].Modality~='RTSTRUCT' then a:Add(r[i]) end
+  end
+  r = a:Serialize(true,false,true)
   local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close()
 ]]
  local f = servercommand('lua:'..remotecode)
  return f
-end;
+end
 
 function echo(server)
 local ae = server or servercommand('get_param:MyACRNema')

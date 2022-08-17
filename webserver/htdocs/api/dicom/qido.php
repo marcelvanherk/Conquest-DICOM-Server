@@ -49,9 +49,29 @@
     processData($query, $defaultTags, array("StudyInstanceUID"=>$st, "SeriesInstanceUID"=>$se, "99990C00"=>"ImageNumber"), "images");
   }
 
-  function metadata($st) {
+  function metadatastudy($st) {
     ob_start();
     passthru('servertask "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']])"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/json');
+    echo $var;
+  }
+
+  function metadataseries($st,$se) {
+    ob_start();
+    passthru('servertask "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']],[['.$se.']])"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/json');
+    echo $var;
+  }
+
+  function metadatasop($st,$se,$sop) {
+    ob_start();
+    passthru('servertask "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']],[['.$se.']],[['.$sop.']])"');
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Origin: *');

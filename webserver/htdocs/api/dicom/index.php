@@ -43,11 +43,6 @@
        series($st, $output);
     });
 
-    $router->get('/rs/studies/([0-9%.]+)/metadata', function ($st) {
-       include 'qido.php';
-       metadata($st);
-    });
-
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances', function ($st, $se) {
        include 'qido.php';
        $t = parse_url($_SERVER["REQUEST_URI"]);
@@ -55,6 +50,21 @@
        if (array_key_exists("query", $t))
          parse_str($t["query"], $output);
        instances($st, $se, $output);
+    });
+
+    $router->get('/rs/studies/([0-9%.]+)/metadata', function ($st) {
+       include 'qido.php';
+       metadatastudy($st);
+    });
+
+    $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/metadata', function ($st, $se) {
+       include 'qido.php';
+       metadataseries($st,$se);
+    });
+
+    $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances/([0-9%.]+)/metadata', function ($st, $se,$sop) {
+       include 'qido.php';
+       metadataseries($st,$se,$sop);
     });
 
     $router->run();

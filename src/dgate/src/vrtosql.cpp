@@ -79,6 +79,7 @@
 20200125	mvh	Accept 9999,0c000 ConquestImageQueryOrder (use field name, is truncated to 10)
 20200314	mvh	Implemented QueriesReturnISO_IR flag
 20220815        mvh     Implemented sorting for all queries except Modality, properly sort on Number fields
+20220817        mvh     Private tags for query limit (9999,0c01) and offset (9999,0c02), report sorting
 */
 
 #ifndef	WHEDGE
@@ -866,6 +867,22 @@ BOOL	QueryOnPatient (
 				continue;	// discard it
 				}
 		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c01)
+				{
+                                int len = strlen(OrderCalc);
+                                strcat(OrderCalc, " LIMIT ");
+				memcpy(OrderCalc+len+7, vr->Data, vr->Length);
+				OrderCalc[vr->Length+len+7]=0;
+                                }
+		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c02)
+				{
+                                int len = strlen(OrderCalc);
+                                strcat(OrderCalc, " OFFSET ");
+				memcpy(OrderCalc+len+8, vr->Data, vr->Length);
+				OrderCalc[vr->Length+len+8]=0;
+                                }
+		if(vr->Group == 0x9999)
 			if(vr->Element == 0x9999)
 				{
 				CountOnly = TRUE;
@@ -932,7 +949,7 @@ BOOL	QueryOnPatient (
 		++Index;++CCIndex;
 		}
 
-	if (Order[0])
+        if (Order[0])
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
@@ -954,10 +971,6 @@ BOOL	QueryOnPatient (
         
 	if (CountOnly)
 	  sprintf(ColumnString, "COUNT(1)");
-
-	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
-	SystemDebug.printf("Values: %.1000s\n", SearchString);
-	SystemDebug.printf("Tables: %.1000s\n", Tables);
 
 	while(SQLResultPatient.GetSize())
 		{
@@ -999,7 +1012,10 @@ BOOL	QueryOnPatient (
         else if (StudyQuerySortOrder[0]) Sort = PatientQuerySortOrder;
 	if (CountOnly) Sort = NULL;
 
-	SystemDebug.printf("Sorting (%s) DoSort := %d\n", Sort, DoSort);
+	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
+	SystemDebug.printf("Values: %.1000s\n", SearchString);
+	SystemDebug.printf("Tables: %.1000s\n", Tables);
+	if (Sort) SystemDebug.printf("Sort: %.1000s\n", Sort);
 
 	if(strlen(SearchString))
 		{
@@ -1269,6 +1285,22 @@ BOOL	QueryOnStudy (
 				continue;	// discard it
 				}
 		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c01)
+				{
+                                int len = strlen(OrderCalc);
+                                strcat(OrderCalc, " LIMIT ");
+				memcpy(OrderCalc+len+7, vr->Data, vr->Length);
+				OrderCalc[vr->Length+len+7]=0;
+                                }
+		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c02)
+				{
+                                int len = strlen(OrderCalc);
+                                strcat(OrderCalc, " OFFSET ");
+				memcpy(OrderCalc+len+8, vr->Data, vr->Length);
+				OrderCalc[vr->Length+len+8]=0;
+                                }
+		if(vr->Group == 0x9999)
 			if(vr->Element == 0x9999)
 				{
 				CountOnly = TRUE;
@@ -1385,10 +1417,6 @@ BOOL	QueryOnStudy (
 	if (CountOnly)
 	  sprintf(ColumnString, "COUNT(1)");
         
-	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
-	SystemDebug.printf("Values: %.1000s\n", SearchString);
-	SystemDebug.printf("Tables: %.1000s\n", Tables);
-
 	while(SQLResultStudy.GetSize())
 		{
 		delete SQLResultStudy.Get(0);
@@ -1429,7 +1457,10 @@ BOOL	QueryOnStudy (
         else if (StudyQuerySortOrder[0]) Sort = StudyQuerySortOrder;
 	if (CountOnly) Sort = NULL;
 
-	SystemDebug.printf("Sorting (%s) DoSort := %d\n", Sort, DoSort);
+	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
+	SystemDebug.printf("Values: %.1000s\n", SearchString);
+	SystemDebug.printf("Tables: %.1000s\n", Tables);
+	if (Sort) SystemDebug.printf("Sort: %.1000s\n", Sort);
 
 	if(strlen(SearchString))
 		{
@@ -1682,6 +1713,22 @@ BOOL	QueryOnSeries (
 				continue;	// discard it
 				}
 		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c01)
+				{
+                                int len = strlen(OrderCalc);
+                                strcat(OrderCalc, " LIMIT ");
+				memcpy(OrderCalc+len+7, vr->Data, vr->Length);
+				OrderCalc[vr->Length+len+7]=0;
+                                }
+		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c02)
+				{
+                                int len = strlen(OrderCalc);
+                                strcat(OrderCalc, " OFFSET ");
+				memcpy(OrderCalc+len+8, vr->Data, vr->Length);
+				OrderCalc[vr->Length+len+8]=0;
+                                }
+		if(vr->Group == 0x9999)
 			if(vr->Element == 0x9999)
 				{
 				CountOnly = TRUE;
@@ -1834,10 +1881,6 @@ BOOL	QueryOnSeries (
 	if (CountOnly)
 	  sprintf(ColumnString, "COUNT(1)");
 
-	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
-	SystemDebug.printf("Values: %.1000s\n", SearchString);
-	SystemDebug.printf("Tables: %.1000s\n", Tables);
-
 	while(SQLResultSeries.GetSize())
 		{
 		delete SQLResultSeries.Get(0);
@@ -1859,6 +1902,11 @@ BOOL	QueryOnSeries (
         if (Order[0]) Sort = OrderCalc;
         else if (StudyQuerySortOrder[0]) Sort = SeriesQuerySortOrder;
 	if (CountOnly) Sort = NULL;
+
+	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
+	SystemDebug.printf("Values: %.1000s\n", SearchString);
+	SystemDebug.printf("Tables: %.1000s\n", Tables);
+	if (Sort) SystemDebug.printf("Sort: %.1000s\n", Sort);
 
 	if(strlen(SearchString))
 		{
@@ -2139,6 +2187,22 @@ BOOL	QueryOnImage (
 				continue;	// discard it
 				}
 		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c01)
+				{
+                                int len = strlen(OrderCalc);
+                                strcat(OrderCalc, " LIMIT ");
+				memcpy(OrderCalc+len+7, vr->Data, vr->Length);
+				OrderCalc[vr->Length+len+7]=0;
+                                }
+		if(vr->Group == 0x9999)
+			if(vr->Element == 0x0c02)
+				{
+                                int len = strlen(OrderCalc);
+                                strcat(OrderCalc, " OFFSET ");
+				memcpy(OrderCalc+len+8, vr->Data, vr->Length);
+				OrderCalc[vr->Length+len+8]=0;
+                                }
+		if(vr->Group == 0x9999)
 			if(vr->Element == 0x9999)
 				{
 				CountOnly = TRUE;
@@ -2313,7 +2377,7 @@ BOOL	QueryOnImage (
 		strcat(ColumnString, ".DeviceName");
 		}
 
-	if (Order[0])
+        if (Order[0])
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
@@ -2342,10 +2406,6 @@ BOOL	QueryOnImage (
 	if (CountOnly)
 	  sprintf(ColumnString, "COUNT(1)");
 
-	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
-	SystemDebug.printf("Values: %.1000s\n", SearchString);
-	SystemDebug.printf("Tables: %.1000s\n", Tables);
-
 	while(SQLResultImage.GetSize())
 		{
 		delete SQLResultImage.Get(0);
@@ -2371,6 +2431,11 @@ BOOL	QueryOnImage (
         if (Order[0]) Sort = OrderCalc;
         else if (ImageQuerySortOrder[0]) Sort = ImageQuerySortOrder;
 	if (CountOnly) Sort = NULL;
+
+	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
+	SystemDebug.printf("Values: %.1000s\n", SearchString);
+	SystemDebug.printf("Tables: %.1000s\n", Tables);
+	if (Sort) SystemDebug.printf("Sort: %.1000s\n", Sort);
 
 	if(strlen(SearchString))
 		{

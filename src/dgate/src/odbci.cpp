@@ -181,6 +181,7 @@
 20201020   mvh    Added SQL server 2627 as exception (duplicate index)
 20201107   mvh    Allow multiple statements for MySQL (flag 65536)
 20210509   mvh    Reduce ODBC retries to 6 times
+20220817   mvh    Allow LIMIT and OFFSET to be added to the Sort parameter; some postprocessing for SQL server done; () rule for multiple sort was wrong
 */
 
 /*
@@ -4063,7 +4064,7 @@ BOOL	Database :: InternalQuery (	const char	*Table,
                 }
         	if ( Order ) if ( Order[0] != '\0' ) // Add second if for DARWIN
                 {
-                	if ( strchr(Order, ',') )
+                	if ( strchr(Order, ',')==NULL )
                         {
                         	strcat ( SQLStatement, " ORDER BY " );
                         	strcat ( SQLStatement, Order );
@@ -4094,7 +4095,7 @@ BOOL	Database :: InternalQuery (	const char	*Table,
                 }
         	if ( Order ) if ( Order[0] != '\0' ) // Add second if for DARWIN
                 {
-                	if ( strchr(Order, ',') )
+                	if ( strchr(Order, ',')==NULL )
                         {
                         	strcat ( SQLStatement, " ORDER BY " );
                         	strcat ( SQLStatement, Order );
@@ -4125,7 +4126,7 @@ BOOL	Database :: InternalQuery (	const char	*Table,
                 }
         	if ( Order ) if ( Order[0] != '\0' ) // Add second if for DARWIN
                 {
-                	if ( strchr(Order, ',') )
+                	if ( strchr(Order, ',')==NULL )
                         {
                         	strcat ( SQLStatement, " ORDER BY " );
                         	strcat ( SQLStatement, Order );
@@ -4156,7 +4157,7 @@ BOOL	Database :: InternalQuery (	const char	*Table,
 		}
 	if ( Order ) if ( Order[0] != '\0' )
 		{
-		if ( strchr(Order, ',') )
+		if ( strchr(Order, ',')==NULL )
 			{
 			strcat ( SQLStatement, " ORDER BY " );
 			strcat ( SQLStatement, Order );
@@ -4167,7 +4168,15 @@ BOOL	Database :: InternalQuery (	const char	*Table,
 			strcat ( SQLStatement, Order );
 			strcat ( SQLStatement, ")" );
 			}
-		}
+		char *p = strstr(SQLStatement, " LIMIT ");             // sql server does not support LIMIT in the same way
+		if ( p )
+			{
+			char *q=strstr(p+1, " OFFSET ");
+                	sprintf (SQLStatement, "SET ROWCOUNT %d SELECT %s FROM %s WHERE %s ORDER BY %s OFFSET %d",
+			atoi(p+7), Columns, Table, Where, Order, q?atoi(q+8):0);
+			}
+                }
+
 
 	Mode = QUERY;
 	RetCode = SQLExecDirectWithRetry ( hStmt, (unsigned char *) SQLStatement, SQL_NTS );
@@ -4220,7 +4229,7 @@ BOOL	Database :: QueryDistinct (	char	*Table,
         	}
         	if ( Order ) if ( Order[0] != '\0' ) // Add second if for DARWIN
         	{
-        		if ( strchr(Order, ',') )
+        		if ( strchr(Order, ',')==NULL )
                 	{
                 		strcat ( SQLStatement, " ORDER BY " );
                 		strcat ( SQLStatement, Order );
@@ -4252,7 +4261,7 @@ BOOL	Database :: QueryDistinct (	char	*Table,
         	}
         	if ( Order ) if ( Order[0] != '\0' ) // Add second if for DARWIN
         	{
-        		if ( strchr(Order, ',') )
+        		if ( strchr(Order, ',')==NULL )
                 	{
                 		strcat ( SQLStatement, " ORDER BY " );
                 		strcat ( SQLStatement, Order );
@@ -4284,7 +4293,7 @@ BOOL	Database :: QueryDistinct (	char	*Table,
         	}
         	if ( Order ) if ( Order[0] != '\0' ) // Add second if for DARWIN
         	{
-        		if ( strchr(Order, ',') )
+        		if ( strchr(Order, ',')==NULL )
                 	{
                 		strcat ( SQLStatement, " ORDER BY " );
                 		strcat ( SQLStatement, Order );
@@ -4316,7 +4325,7 @@ BOOL	Database :: QueryDistinct (	char	*Table,
 		}
 	if ( Order ) if ( Order[0] != '\0' )
 		{
-		if ( strchr(Order, ',') )
+		if ( strchr(Order, ',')==NULL )
 			{
 			strcat ( SQLStatement, " ORDER BY " );
 			strcat ( SQLStatement, Order );
@@ -4326,6 +4335,13 @@ BOOL	Database :: QueryDistinct (	char	*Table,
 			strcat ( SQLStatement, " ORDER BY (" );
 			strcat ( SQLStatement, Order );
 			strcat ( SQLStatement, ")" );
+			}
+		char *p = strstr(SQLStatement, " LIMIT ");             // sql server does not support LIMIT in the same way
+		if ( p )
+			{
+			char *q=strstr(p+1, " OFFSET ");
+                	sprintf (SQLStatement, "SET ROWCOUNT %d SELECT %s FROM %s WHERE %s ORDER BY %s OFFSET %d",
+				atoi(p+7), Columns, Table, Where, Order, q?atoi(q+8):0);
 			}
 		}
 

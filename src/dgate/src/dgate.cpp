@@ -1180,6 +1180,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220814	mvh	Added and use wadoparse server command in cgi exe mode, keep wadorequest
 20220815	mvh	Most output formats that recognise cgi now accept binary 
 20220816	mvh	Fix Serialize in dicomweb format for sequences; use uppercase FX for dicomweb
+20220818	mvh	Added e.g. scrub -Private,7FEO,00100020 (delete group,vr) or scrub +0010 (keep)
 
 ENDOFUPDATEHISTORY
 */
@@ -8943,6 +8944,7 @@ static time_t import_forward_PDU_time[MAXExportConverters][MAXExportConverters];
 static BOOL import_forward_active[MAXExportConverters][MAXExportConverters];
 static CRITICAL_SECTION count_critical;
 static CRITICAL_SECTION dolua_critical;
+extern int MaybeScrub(DICOMDataObject* pDDO, DICOMCommandObject* pDCO);
 
 static BOOL WINAPI import_forward_PDU_close_thread(char *folder)
 { while (TRUE)
@@ -10267,8 +10269,17 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
       if (N >= -1) SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
     }
 
-    /* converter: system (command line can be generated using all % tricks) */
+    /* converter: scrub */
+    else if (memicmp(line, "scrub ", 6)==0)
+    { DICOMCommandObject d;
+      VR *vr; 
+      SetStringVR(&vr, 0x9999, 0x0202, line+6); 
+      d.Push(vr);
+      MaybeScrub(DDO, &d);
+      if (N >= -1) SystemDebug.printf("%sconverter%d.%d: %s\n", ininame, N, part, line);
+    }
 
+    /* converter: system (command line can be generated using all % tricks) */
     else if (memicmp(line, "system ", 7)==0)
     { char cline[512];
       strcpy(cline, line+7);
@@ -10278,7 +10289,6 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
     }
 
     /* converter: mkdir (command line can be generated using all % tricks) */
-
     else if (memicmp(line, "mkdir ", 6)==0)
     { char cline[512], s[512];
       strcpy(cline, line+6);

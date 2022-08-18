@@ -272,6 +272,8 @@
 20210409        mvh     Blocked out IARQ for debugging outgoing association
 20210516        mvh     Blocked out recompressed message - disturbs cgi operation; 
 			Note need to accept e.g. 9999,0700 c-move/get commands in data as well as command
+20220818        mvh     9999,0202 scrubbing +7FE00010,0010 keeps element/group, -7FE00010,0002 removes those,
+                        -Private,7FE0 removed private and pixel data; Accept more move/get controls in query
 */
 
 //#define bool BOOL
@@ -528,7 +530,40 @@ BOOL	StandardRetrieveNKI	::	Read (
 		return ( TRUE );
 		}
 
+        // copy optional control codes from DDO to DCO where processed
+	vr = DDO.GetVR(0x9999, 0x0200);
+	if (vr) 
+	{ VR *vr2 = new VR(vr->Group, vr->Element, vr->Length, TRUE);
+	  memcpy(vr2->Data, vr->Data, vr->Length);
+	  DCO->Push(vr2);
+	}
+	vr = DDO.GetVR(0x9999, 0x0201);
+	if (vr) 
+	{ VR *vr2 = new VR(vr->Group, vr->Element, vr->Length, TRUE);
+	  memcpy(vr2->Data, vr->Data, vr->Length);
+	  DCO->Push(vr2);
+	}
+	vr = DDO.GetVR(0x9999, 0x0202);
+	if (vr) 
+	{ VR *vr2 = new VR(vr->Group, vr->Element, vr->Length, TRUE);
+	  memcpy(vr2->Data, vr->Data, vr->Length);
+	  DCO->Push(vr2);
+	}
+	vr = DDO.GetVR(0x9999, 0x0700);
+	if (vr) 
+	{ VR *vr2 = new VR(vr->Group, vr->Element, vr->Length, TRUE);
+	  memcpy(vr2->Data, vr->Data, vr->Length);
+	  DCO->Push(vr2);
+	}
+	vr = DDO.GetVR(0x9999, 0x0900);
+	if (vr) 
+	{ VR *vr2 = new VR(vr->Group, vr->Element, vr->Length, TRUE);
+	  memcpy(vr2->Data, vr->Data, vr->Length);
+	  DCO->Push(vr2);
+	}
+
 	vr = DCO->GetVR(0x9999, 0x0500);
+	if (!vr) vr = DDO.GetVR(0x9999, 0x0500);
 	if (vr && vr->Length) iVrSliceLimit = vr->GetUINT();
 
 	// optional split of move (enables downsizing or multithreaded forwarding) 
@@ -2467,6 +2502,50 @@ static int TestDownsize(DICOMDataObject* pDDO, DICOMCommandObject* pDCO, int siz
   return TRUE;				/* image would be downsized */
 }
 
+// scrub VR items using 9999,0202; use e.g. +00100010,0020000D to keep only those two; use e.g. -00100010,0020000D to delete those two
+// also accepts e.g. -0002 to delete/keep whole group
+int MaybeScrub(DICOMDataObject* pDDO, DICOMCommandObject* pDCO)
+{ 	DICOMObject	DO2;
+	VR		*vr;
+	char		item[10];
+	char		*list;
+	BOOL		priv=false;
+
+	vr = pDCO->GetVR(0x9999, 0x0202);
+	if (vr==NULL) return false;
+
+	list = (char *)malloc(vr->Length+4);
+	list[0]=((char *)(vr->Data))[0];
+	list[1]=',';
+	memcpy(list+2, ((char *)(vr->Data))+1, vr->Length-1);
+	list[vr->Length+1]=0;
+	if (list[vr->Length]==' ') list[vr->Length]=',';
+	else strcat(list, ",");
+	SystemDebug.printf("Scrubbing: %s\n", list);
+	
+	if (strstr(list, "priv")||strstr(list, "PRIV")||strstr(list, "Priv")) 
+		priv=true;
+
+	while((vr=pDDO->Pop()))
+		{
+		sprintf(item, ",%04X%04X,", vr->Group, vr->Element);
+		char *p=strstr(list, item);
+		sprintf(item, ",%04X,", vr->Group);
+		char *q=strstr(list, item);
+		BOOL odd=false;
+		if (priv && (vr->Group&1)) odd=true;
+	  	if ((list[0]=='-' && (p||q||odd)) || (list[0]=='+' && !(p||q||odd)))
+		  delete vr;
+		else 
+		  DO2.Push(vr);
+		}
+
+	pDDO->Reset();
+	while((vr=DO2.Pop())) pDDO->Push(vr);
+	return true;
+}
+
+
 BOOL ProcessDDO(DICOMDataObject** pDDO, DICOMCommandObject* pDCO, ExtendedPDU_Service *PDU)
 { VR  *pVR;
   int dum;
@@ -2477,12 +2556,14 @@ BOOL ProcessDDO(DICOMDataObject** pDDO, DICOMCommandObject* pDCO, ExtendedPDU_Se
        implemented for now.
     */
 
+    MaybeScrub(*pDDO, pDCO);                // filter VRs
+
     pVR = pDCO->GetVR(0x9999, 0x0200);	// MaxRowsColumns
     if (pVR)
     { if (TestDownsize(*pDDO, pDCO, 0))
       { DecompressImage(pDDO, &dum);	// will also decompress JPEG images
 
-        if (!MaybeDownsize(*pDDO, pDCO, 0))  // downsize
+	if (!MaybeDownsize(*pDDO, pDCO, 0))  // downsize
           return FALSE;
       }
     }

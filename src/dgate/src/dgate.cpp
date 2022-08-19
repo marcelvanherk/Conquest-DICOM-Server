@@ -1182,6 +1182,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220816	mvh	Fix Serialize in dicomweb format for sequences; use uppercase FX for dicomweb
 20220818	mvh	Added e.g. scrub -Private,7FEO,00100020 (delete group,vr) or scrub +0010 (keep)
 20220819	mvh	Code IS and DS as proper array in dicomweb mode; fixed AT
+20220819	mvh	Removed trailing space of ST items, encode OB if includepixeldata
+			If json format and not encodepixeldata do nothing (was taken as string)
+			Control OB OW and OF with includepixeldata
 
 ENDOFUPDATEHISTORY
 */
@@ -7741,10 +7744,14 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
-  	    else if (c2 == 'OF' && (!json && !dicomweb))
+
+  	    else if (c2 == 'OF' && vr->Length>0 && !includepixeldata && !json)
             { Index+=sprintf(result+Index, "%s%cnil --[[OF not serialized]],", name, eq);
 	    }
-	    else if (c2=='OF' && vr->Length>4 && includepixeldata)
+	    else if (c2=='OF' && vr->Length>0 && !includepixeldata)
+            { // do nothing
+	    }
+	    else if (c2=='OF' && vr->Length>0 && includepixeldata)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%f,", ((float *)(vr->Data))[i]);
@@ -7752,13 +7759,14 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
-	    else if (c2=='OF' && vr->Length>4 && !includepixeldata)
-            { 
-	    }
-  	    else if (c2 == 'OW' && !json)
+
+  	    else if (c2 == 'OW' && vr->Length>0 && !includepixeldata && !json)
             { Index+=sprintf(result+Index, "%s%cnil --[[OW not serialized]],", name, eq);
 	    }
-	    else if (c2=='OW' && vr->Length>2 && includepixeldata)
+  	    else if (c2 == 'OW' && vr->Length>0 && !includepixeldata)
+            { // do nothing
+	    }
+	    else if (c2=='OW' && vr->Length>0 && includepixeldata)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/2) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", ((short *)(vr->Data))[i]);
@@ -7766,6 +7774,22 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
+
+  	    else if (c2 == 'OB' && vr->Length>0 && includepixeldata && !json)
+            { Index+=sprintf(result+Index, "%s%cnil --[[OB not serialized]],", name, eq);
+	    }
+  	    else if (c2 == 'OB' && vr->Length>0 && !includepixeldata)
+            { // do nothing
+	    }
+	    else if (c2=='OB' && vr->Length>0 && includepixeldata)
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
+              for (i=0; (i<vr->Length) && (Index<MAXLEN/2); i++)
+                Index+=sprintf(result+Index, "%d,", ((BYTE *)(vr->Data))[i]);
+	      Index--;
+	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	    }
+
 	    else if (c2=='DS' && vr->Length>1 && dicomweb)
             { char *list = (char *)malloc(vr->Length+1);
               memcpy(list, vr->Data, vr->Length);
@@ -7840,6 +7864,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
               else if (c2 == 'PN' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
               else if (c2 == 'LT' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
               else if (c2 == 'UT' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
+              else if (c2 == 'ST' && ((unsigned char *)(vr->Data))[len-1]==' ') len--;
 
 	      if (len>MAXLEN/2) 
 	      { len = MAXLEN/2; // keep to safe limit

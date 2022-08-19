@@ -1,13 +1,15 @@
 <?php
   function processData($params, $tags, $query, $level) {
+    include 'config.php';
     foreach($tags as $element) {
       $opt = array($element=>"");
       $params = array_merge($opt, $params);
     };
     $params = array_merge($params, $query);
-      
+    $t = str_replace('"', $quote, json_encode($params));    
+ 
     ob_start();
-    passthru('servertask "--dolua:dofile([[rquery.lua]]);'.$level.'([[CONQUESTSRV1]],[[ ' . str_replace('"', '""', json_encode($params)). ' ]], true)"');
+    passthru($exe . ' "--dolua:dofile([[rquery.lua]]);'.$level.'([[CONQUESTSRV1]],[[ ' . $t . ' ]], true)"');
     $var = ob_get_contents();
     ob_end_clean();
    
@@ -50,8 +52,9 @@
   }
 
   function metadatastudy($st) {
+    include 'config.php';
     ob_start();
-    passthru('servertask "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']])"');
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']])"');
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Origin: *');
@@ -60,8 +63,9 @@
   }
 
   function metadataseries($st,$se) {
+    include 'config.php';
     ob_start();
-    passthru('servertask "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']],[['.$se.']])"');
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']],[['.$se.']])"');
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Origin: *');
@@ -69,12 +73,27 @@
     echo $var;
   }
 
-  function metadatasop($st,$se,$sop) {
+  function metadataimage($st,$se,$sop) {
+    include 'config.php';
     ob_start();
-    passthru('servertask "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']],[['.$se.']],[['.$sop.']])"');
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);metadata([[CONQUESTSRV1]],[['.$st.']],[['.$se.']],[['.$sop.']])"');
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Origin: *');
     header('Content-Type: application/json');
     echo $var;
   }
+
+  function getinstance($st,$se,$sop) {
+    include 'config.php';
+    ob_start();
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getinstance([[CONQUESTSRV1]],[['.$st.']],[['.$se.']],[['.$sop.']])"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    header('Access-Control-Allow-Headers: *');
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/dicom');
+    header('Content-Length: '.strlen($var));
+    echo $var;
+  }
+  

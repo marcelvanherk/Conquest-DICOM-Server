@@ -1181,7 +1181,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220815	mvh	Most output formats that recognise cgi now accept binary 
 20220816	mvh	Fix Serialize in dicomweb format for sequences; use uppercase FX for dicomweb
 20220818	mvh	Added e.g. scrub -Private,7FEO,00100020 (delete group,vr) or scrub +0010 (keep)
-20220819	mvh	Code IS and DS as proper array in dicomweb mode
+20220819	mvh	Code IS and DS as proper array in dicomweb mode; fixed AT
 
 ENDOFUPDATEHISTORY
 */
@@ -7770,7 +7770,6 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { char *list = (char *)malloc(vr->Length+1);
               memcpy(list, vr->Data, vr->Length);
 	      list[vr->Length]=0;
-	      float a[10];
 	      char *p=list-1;
               Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
 	      while(p)
@@ -7787,7 +7786,6 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { char *list = (char *)malloc(vr->Length+1);
               memcpy(list, vr->Data, vr->Length);
 	      list[vr->Length]=0;
-	      float a[10];
 	      char *p=list-1;
               Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
 	      while(p)
@@ -7799,6 +7797,14 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      Index--;
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	      free(list);
+	    }
+	    else if (c2=='AT' && vr->Length==4 && dicomweb)
+            { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
+	      int t[2];
+	      t[0]=((UINT16 *)(vr->Data))[0];
+	      t[1]=((UINT16 *)(vr->Data))[1];
+	      Index+=sprintf(result+Index, "\"%04X%04X\"", t[0], t[1]);
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
 	    else if (c2=='OW' && vr->Length>2 && !includepixeldata)
             { 

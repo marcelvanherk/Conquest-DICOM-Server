@@ -1181,6 +1181,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220815	mvh	Most output formats that recognise cgi now accept binary 
 20220816	mvh	Fix Serialize in dicomweb format for sequences; use uppercase FX for dicomweb
 20220818	mvh	Added e.g. scrub -Private,7FEO,00100020 (delete group,vr) or scrub +0010 (keep)
+20220819	mvh	Code IS and DS as proper array in dicomweb mode
 
 ENDOFUPDATEHISTORY
 */
@@ -7764,6 +7765,40 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	    }
+	    else if (c2=='DS' && vr->Length>1 && dicomweb)
+            { char *list = (char *)malloc(vr->Length+1);
+              memcpy(list, vr->Data, vr->Length);
+	      list[vr->Length]=0;
+	      float a[10];
+	      char *p=list-1;
+              Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
+	      while(p)
+	      {  float a;
+                 a = atof(p+1);
+		 Index+=sprintf(result+Index, "%f,", a);
+	         p=strchr(p+1, '\\');
+	      }
+	      Index--;
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	      free(list);
+	    }
+	    else if (c2=='IS' && vr->Length>1 && dicomweb)
+            { char *list = (char *)malloc(vr->Length+1);
+              memcpy(list, vr->Data, vr->Length);
+	      list[vr->Length]=0;
+	      float a[10];
+	      char *p=list-1;
+              Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
+	      while(p)
+	      {  int a;
+                 a = atoi(p+1);
+		 Index+=sprintf(result+Index, "%d,", a);
+	         p=strchr(p+1, '\\');
+	      }
+	      Index--;
+	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	      free(list);
 	    }
 	    else if (c2=='OW' && vr->Length>2 && !includepixeldata)
             { 

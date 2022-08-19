@@ -274,6 +274,7 @@
 			Note need to accept e.g. 9999,0700 c-move/get commands in data as well as command
 20220818        mvh     9999,0202 scrubbing +7FE00010,0010 keeps element/group, -7FE00010,0002 removes those,
                         -Private,7FE0 removed private and pixel data; Accept more move/get controls in query
+20220819        mvh     Fixed buffer overflow and leak in scrub code
 */
 
 //#define bool BOOL
@@ -2507,14 +2508,14 @@ static int TestDownsize(DICOMDataObject* pDDO, DICOMCommandObject* pDCO, int siz
 int MaybeScrub(DICOMDataObject* pDDO, DICOMCommandObject* pDCO)
 { 	DICOMObject	DO2;
 	VR		*vr;
-	char		item[10];
+	char		item[12];
 	char		*list;
 	BOOL		priv=false;
 
 	vr = pDCO->GetVR(0x9999, 0x0202);
 	if (vr==NULL) return false;
 
-	list = (char *)malloc(vr->Length+4);
+	list = (char *)malloc(vr->Length+6);
 	list[0]=((char *)(vr->Data))[0];
 	list[1]=',';
 	memcpy(list+2, ((char *)(vr->Data))+1, vr->Length-1);
@@ -2542,6 +2543,7 @@ int MaybeScrub(DICOMDataObject* pDDO, DICOMCommandObject* pDCO)
 
 	pDDO->Reset();
 	while((vr=DO2.Pop())) pDDO->Push(vr);
+	free(list);
 	return true;
 }
 

@@ -1186,6 +1186,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			If json format and not encodepixeldata do nothing (was taken as string)
 			Control OB OW and OF with includepixeldata
 20220820	mvh	Fixed bug in serialising empty object missing opening bracket, and empty DS and IS
+20220820	mvh	Fix when a sequence withjust OW data was serialized without includepixeldata
 
 ENDOFUPDATEHISTORY
 */
@@ -7666,10 +7667,10 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
           UINT16 c2 = VRType.RunTimeClass(vr->Group, vr->Element, s);
 	  if (c2==0) nUN++;
 	  if (Index>=MAXLEN/2) truncated=TRUE;
-	  count++;
 	  
 	  if (vr->Element!=0 && *s!=0 && c2!=0 && Index<MAXLEN/2)
-	  { char *name=s;
+	  { count++;
+            char *name=s;
               
             char tmp[128];
             if (json && !dicomweb) 

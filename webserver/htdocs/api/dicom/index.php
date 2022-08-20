@@ -27,7 +27,7 @@
     $router->options('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances/([0-9%.]+)$', function ($st, $se,$sop) {
        header('Access-Control-Allow-Headers: *');
        header('Access-Control-Allow-Origin: *');
-       header('Content-Type: application/dcim');
+       header('Content-Type: multipart/related');
     });
 
     $router->options('/.*', function () {

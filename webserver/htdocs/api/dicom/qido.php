@@ -5,6 +5,10 @@
       $opt = array($element=>"");
       $params = array_merge($opt, $params);
     };
+    foreach ($params as $key => $value) {
+      if ($key=='limit')  $params["99990C01"]=$value;
+      if ($key=='offset') $params["99990C02"]=$value;
+    };
     $params = array_merge($params, $query);
     $t = str_replace('"', $quote, json_encode($params));    
  
@@ -27,7 +31,7 @@
        "00080201", "00100010", "00100020",
        "00100030", "00100040", "0020000D",
        "00200010", "00201206", "00201208"];
-    processData($query, $defaultTags, array("99990C00"=>"StudyDate"), "studies");
+    processData($query, $defaultTags, array("99990C00"=>"PatientName"), "studies");
   }
 
   // http://127.0.0.1/api/dicom/rs/studies/1.2.840.113704.1.111.5068.1602767444.4/series
@@ -92,8 +96,12 @@
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
     header('Access-Control-Allow-Origin: *');
-    header('Content-Type: application/dicom');
-    header('Content-Length: '.strlen($var));
+    header('Content-Type: multipart/related; boundary=simpleconquestqidobridge3141592654');
+
+    echo("--simpleconquestqidobridge3141592654\r\n");
+    echo("Content-Type: application/dicom\r\n");
+    echo("Content-Transfer-Encoding: binary\r\n\r\n");
     echo $var;
+    echo("--simpleconquestqidobridge3141592654--\r\n\r\n");
   }
   

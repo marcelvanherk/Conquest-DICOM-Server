@@ -105,3 +105,19 @@
     echo("--simpleconquestqidobridge3141592654--\r\n\r\n");
   }
   
+  function getframe($st,$se,$sop,$fr) {
+    include 'config.php';
+    ob_start();
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getframe([[CONQUESTSRV1]],[['.$st.']],[['.$se.']],[['.$sop.']],'.$fr.')"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    header('Access-Control-Allow-Headers: *');
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: multipart/related; boundary=simpleconquestqidobridge3141592654');
+
+    echo("--simpleconquestqidobridge3141592654\r\n");
+    echo("Content-Type: application/dicom\r\n");
+    echo("Content-Transfer-Encoding: binary\r\n\r\n");
+    echo $var;
+    echo("--simpleconquestqidobridge3141592654--\r\n\r\n");
+  }

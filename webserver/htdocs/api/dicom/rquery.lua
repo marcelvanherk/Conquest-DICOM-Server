@@ -51,6 +51,27 @@ function getinstance(ae, st, se, sop)
  io.write(f)
 end
 
+function getframe(ae, st, se, sop, fr)
+  local remotecode = 
+[[
+  local ae=']]..(ae or servercommand('get_param:MyACRNema'))..[[';
+  local q2=DicomObject:new();
+  q2.QueryRetrieveLevel='IMAGE'
+  q2.StudyInstanceUID=']]..st..[['
+  q2.SeriesInstanceUID=']]..(se or '')..[['
+  q2.SOPInstanceUID=']]..(sop or '')..[['
+  local fr=]]..(fr or 1)..[[
+  local r = dicomget(ae, 'IMAGE', q2)
+  local s=tempfile('.txt') 
+  f = io.open(s, 'wb')
+  f:write(r[0]:GetImage(tonumber(fr)-1));
+  f:close()
+  returnfile=s
+]]
+ local f = servercommand('lua:'..remotecode, 'binary')
+ io.write(f)
+end
+
 function remotethumbs(ae, level, studyuid, serieuid, instuid, frame)
   local remotecode = 
 [[

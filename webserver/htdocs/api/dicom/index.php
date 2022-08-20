@@ -97,4 +97,9 @@
        getinstance($st,$se,$sop);
     });
 
+    $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances/([0-9%.]+)/frames/([0-9%.]+)$', function ($st,$se,$sop,$fr) {
+       include 'qido.php';
+       getframe($st,$se,$sop,$fr);
+    });
+
     $router->run();

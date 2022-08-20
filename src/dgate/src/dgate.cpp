@@ -1185,7 +1185,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220819	mvh	Removed trailing space of ST items, encode OB if includepixeldata
 			If json format and not encodepixeldata do nothing (was taken as string)
 			Control OB OW and OF with includepixeldata
-20220820	mvh	Fixed bug in serialising empty object missing opening bracket
+20220820	mvh	Fixed bug in serialising empty object missing opening bracket, and empty DS and IS
 
 ENDOFUPDATEHISTORY
 */
@@ -7799,13 +7799,15 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      list[vr->Length]=0;
 	      char *p=list-1;
               Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
+	      int count1=0;
 	      while(p)
 	      {  float a;
                  a = atof(p+1);
 		 Index+=sprintf(result+Index, "%f,", a);
 	         p=strchr(p+1, '\\');
+		 count1++;
 	      }
-	      Index--;
+	      if (count1) Index--;
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	      free(list);
 	    }
@@ -7815,13 +7817,15 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      list[vr->Length]=0;
 	      char *p=list-1;
               Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
+	      int count1=0;
 	      while(p)
 	      {  int a;
                  a = atoi(p+1);
 		 Index+=sprintf(result+Index, "%d,", a);
 	         p=strchr(p+1, '\\');
+		 count1++;
 	      }
-	      Index--;
+	      if (count1) Index--;
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	      free(list);
 	    }
@@ -7834,7 +7838,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
 	    else if (c2=='OW' && vr->Length>2 && !includepixeldata)
-            { 
+            { count--;
 	    }
   	    else if (c2 == 'SQ')
             { if (vr->SQObjectArray)

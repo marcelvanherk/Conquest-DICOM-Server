@@ -1185,6 +1185,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220819	mvh	Removed trailing space of ST items, encode OB if includepixeldata
 			If json format and not encodepixeldata do nothing (was taken as string)
 			Control OB OW and OF with includepixeldata
+20220820	mvh	Fixed bug in serialising empty object missing opening bracket
 
 ENDOFUPDATEHISTORY
 */
@@ -7659,11 +7660,13 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 		
 	Index+=sprintf(result+Index, "{");
 
+	int count=0;
 	while((vr=O->Pop()))
 	{ char s[128];
           UINT16 c2 = VRType.RunTimeClass(vr->Group, vr->Element, s);
 	  if (c2==0) nUN++;
 	  if (Index>=MAXLEN/2) truncated=TRUE;
+	  count++;
 	  
 	  if (vr->Element!=0 && *s!=0 && c2!=0 && Index<MAXLEN/2)
 	  { char *name=s;
@@ -7749,7 +7752,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { Index+=sprintf(result+Index, "%s%cnil --[[OF not serialized]],", name, eq);
 	    }
 	    else if (c2=='OF' && vr->Length>0 && !includepixeldata)
-            { // do nothing
+            { count--; // do nothing
 	    }
 	    else if (c2=='OF' && vr->Length>0 && includepixeldata)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
@@ -7764,7 +7767,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { Index+=sprintf(result+Index, "%s%cnil --[[OW not serialized]],", name, eq);
 	    }
   	    else if (c2 == 'OW' && vr->Length>0 && !includepixeldata)
-            { // do nothing
+            { count--; // do nothing
 	    }
 	    else if (c2=='OW' && vr->Length>0 && includepixeldata)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
@@ -7779,7 +7782,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { Index+=sprintf(result+Index, "%s%cnil --[[OB not serialized]],", name, eq);
 	    }
   	    else if (c2 == 'OB' && vr->Length>0 && !includepixeldata)
-            { // do nothing
+            { count--; // do nothing
 	    }
 	    else if (c2=='OB' && vr->Length>0 && includepixeldata)
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
@@ -7922,7 +7925,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	  }
 	  DO2.Push(vr);
 	}
-	Index--;
+	if (count) Index--;
 	Index+=sprintf(result+Index, "}");
 	O->Reset();
 	while((vr=DO2.Pop()))

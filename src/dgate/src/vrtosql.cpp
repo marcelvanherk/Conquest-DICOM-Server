@@ -80,6 +80,7 @@
 20200314	mvh	Implemented QueriesReturnISO_IR flag
 20220815        mvh     Implemented sorting for all queries except Modality, properly sort on Number fields
 20220817        mvh     Private tags for query limit (9999,0c01) and offset (9999,0c02), report sorting
+20220820        mvh     Overhaul of sorting code
 */
 
 #ifndef	WHEDGE
@@ -949,7 +950,30 @@ BOOL	QueryOnPatient (
 		++Index;++CCIndex;
 		}
 
-        if (Order[0])
+        sprintf(Tables, "%s",
+	  	PatientTableName);
+        
+	if (CountOnly)
+	  sprintf(ColumnString, "COUNT(1)");
+
+	while(SQLResultPatient.GetSize())
+		{
+		delete SQLResultPatient.Get(0);
+		SQLResultPatient.RemoveAt(0);
+		}
+
+	SortOrder[0]=0;
+	VRPatientName.Group = 0x0010;
+	VRPatientName.Element = 0x0010;
+	DBEntryPatientName = FindDBE(&VRPatientName);
+	if(DBEntryPatientName && DoSort)
+		{
+		sprintf(SortOrder, "%s.%s",
+			PatientTableName,
+			DBEntryPatientName->SQLColumn);
+		}
+
+	if (Order[0])
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
@@ -962,8 +986,9 @@ BOOL	QueryOnPatient (
 		strcat(ColumnString, PatientQuerySortOrder);
 		}
 
-        if (Order[0]) Sort = OrderCalc;
+	if (Order[0]) Sort = OrderCalc;
         else if (StudyQuerySortOrder[0]) Sort = StudyQuerySortOrder;
+        else if (SortOrder[0])           Sort = SortOrder;
 	if (CountOnly) Sort = NULL;
 
         sprintf(Tables, "%s",
@@ -978,23 +1003,6 @@ BOOL	QueryOnPatient (
 		SQLResultPatient.RemoveAt(0);
 		}
 
-	VRPatientName.Group = 0x0010;
-	VRPatientName.Element = 0x0010;
-	DBEntryPatientName = FindDBE(&VRPatientName);
-	if(DBEntryPatientName)
-		{
-		sprintf(SortOrder, "%s.%s",
-			PatientTableName,
-			DBEntryPatientName->SQLColumn);
-		if(DoSort)
-			Sorting = SortOrder;
-		else
-			Sorting = NULL;
-		}
-	else
-		Sorting = NULL;
-
-        Sort = Sorting;
         if (Order[0])
 		{
 		if(CCIndex)
@@ -1007,10 +1015,6 @@ BOOL	QueryOnPatient (
 			strcat(ColumnString, ", ");
 		strcat(ColumnString, PatientQuerySortOrder);
 		}
-
-        if (Order[0]) Sort = OrderCalc;
-        else if (StudyQuerySortOrder[0]) Sort = PatientQuerySortOrder;
-	if (CountOnly) Sort = NULL;
 
 	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
 	SystemDebug.printf("Values: %.1000s\n", SearchString);
@@ -1394,7 +1398,23 @@ BOOL	QueryOnStudy (
 		safestrcat(SearchString, TempString, sizeof(SearchString));
 		}
 
-        if (Order[0])
+	VRPatientName.Group = 0x0010;
+	VRPatientName.Element = 0x0010;
+	DBEntryPatientName = FindDBE(&VRPatientName);
+	SortOrder[0]=0;
+	if(DBEntryPatientName && DoSort)
+		{
+		if (DBEIndex(StudyDB, &VRPatientName))
+			sprintf(SortOrder, "%s.%s",
+				StudyTableName,
+				DBEntryPatientName->SQLColumn);
+		else
+			sprintf(SortOrder, "%s.%s",
+				PatientTableName,
+				DBEntryPatientName->SQLColumn);
+		}
+
+	if (Order[0])
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
@@ -1429,32 +1449,9 @@ BOOL	QueryOnStudy (
 		}
 
 	// Issue Query
-
-	VRPatientName.Group = 0x0010;
-	VRPatientName.Element = 0x0010;
-	DBEntryPatientName = FindDBE(&VRPatientName);
-	if(DBEntryPatientName)
-		{
-		// preferably sort on denormalized database entries
-		if (DBEIndex(StudyDB, &VRPatientName))
-			sprintf(SortOrder, "%s.%s",
-				StudyTableName,
-				DBEntryPatientName->SQLColumn);
-		else
-			sprintf(SortOrder, "%s.%s",
-				PatientTableName,
-				DBEntryPatientName->SQLColumn);
-		if(DoSort)
-			Sorting = SortOrder;
-		else
-			Sorting = NULL;
-		}
-	else
-		Sorting = NULL;
-
-        Sort = Sorting;
         if (Order[0]) Sort = OrderCalc;
         else if (StudyQuerySortOrder[0]) Sort = StudyQuerySortOrder;
+        else if (SortOrder[0])           Sort = SortOrder;
 	if (CountOnly) Sort = NULL;
 
 	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
@@ -1621,7 +1618,6 @@ BOOL	QueryOnSeries (
 	SQLLEN				*DBL;
 	VR				*vr;
 	BOOL				SendAE = FALSE;
-	char				SortOrder[128];
 	char				Order[128];
 	char				OrderCalc[128];
 	char				TempString [ 8192 ];
@@ -2068,7 +2064,6 @@ BOOL	QueryOnImage (
 	BOOL				SendAE = FALSE, SendObjectFile = FALSE;
 	char				*TempString;
 	char				*SearchString;
-	char				SortOrder[128];
 	char				Order [ 128 ];
 	char				OrderCalc[128];
 	char				ColumnString [ 4096 ];
@@ -2780,7 +2775,6 @@ BOOL	QueryOnModalityWorkList (
 	VR				*vr;// *vrs;
 	VR				VRPatientName;
 	DBENTRY				*DBEntryPatientName;
-	char				SortOrder[128];
 	char				*Sorting;
 	BOOL				DoSort;
 	BOOL				SendAE = FALSE;
@@ -2789,6 +2783,7 @@ BOOL	QueryOnModalityWorkList (
 	char				SearchString [ 8192 ];
 	char				ColumnString [ 4096 ];
 	char				Tables [ 256 ];
+	char				SortOrder [ 256 ];
         char				*Sort=NULL;
 	UINT16				mask = 0xffff;
 
@@ -2922,10 +2917,6 @@ BOOL	QueryOnModalityWorkList (
         sprintf(Tables, "%s",
 	  	WorkListTableName);
         
-	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
-	SystemDebug.printf("Values: %.1000s\n", SearchString);
-	SystemDebug.printf("Tables: %.1000s\n", Tables);
-
 	// Issue Query
 
 	// (optionally) control sorting
@@ -2946,8 +2937,10 @@ BOOL	QueryOnModalityWorkList (
 		Sorting = NULL;
 
         Sort = Sorting;
-
-	SystemDebug.printf("Sorting (%s) DoSort := %d\n", Sort, DoSort);
+	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
+	SystemDebug.printf("Values: %.1000s\n", SearchString);
+	SystemDebug.printf("Tables: %.1000s\n", Tables);
+	if (DoSort) SystemDebug.printf("Sort: %s", Sort);
 
 	if(strlen(SearchString))
 		{

@@ -275,6 +275,7 @@
 20220818        mvh     9999,0202 scrubbing +7FE00010,0010 keeps element/group, -7FE00010,0002 removes those,
                         -Private,7FE0 removed private and pixel data; Accept more move/get controls in query
 20220819        mvh     Fixed buffer overflow and leak in scrub code
+20220820        mvh     Also allow scrub on typecode e.g. -SQ,OB,OW,OF,0010,00080008
 */
 
 //#define bool BOOL
@@ -2511,6 +2512,7 @@ int MaybeScrub(DICOMDataObject* pDDO, DICOMCommandObject* pDCO)
 	char		item[12];
 	char		*list;
 	BOOL		priv=false;
+	char		s[256];
 
 	vr = pDCO->GetVR(0x9999, 0x0202);
 	if (vr==NULL) return false;
@@ -2533,9 +2535,15 @@ int MaybeScrub(DICOMDataObject* pDDO, DICOMCommandObject* pDCO)
 		char *p=strstr(list, item);
 		sprintf(item, ",%04X,", vr->Group);
 		char *q=strstr(list, item);
+		s[0] = '\0';
+		int TypeCode = VRType.RunTimeClass(vr->Group, vr->Element, s);
+		sprintf(item, ",%c%c,", TypeCode>>8, TypeCode&0x00ff);
+		char *r=strstr(list, item);
+
 		BOOL odd=false;
 		if (priv && (vr->Group&1)) odd=true;
-	  	if ((list[0]=='-' && (p||q||odd)) || (list[0]=='+' && !(p||q||odd)))
+
+	  	if ((list[0]=='-' && (p||q||r||odd)) || (list[0]=='+' && !(p||q||r||odd)))
 		  delete vr;
 		else 
 		  DO2.Push(vr);

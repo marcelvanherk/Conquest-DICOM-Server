@@ -1,0 +1,91 @@
+#!/bin/bash
+# mvh just compiles or recompiles sqlite and (re)install as service
+
+export CONQUEST=$(pwd)
+export CONQUESTTEMP=$CONQUEST/temp
+[ ! -d $CONQUESTTEMP ] && mkdir $CONQUESTTEMP
+chmod 777 $CONQUESTTEMP
+export IP=$(hostname -I | xargs)
+
+SRC=./src/dgate;
+CONF=./linux/conf;
+LINUX=./linux;
+#LUA="$SRC/lua.o $SRC/luasocket/luasocket.a";
+LUA=-llua5.1;
+#LUA="-llua5.1 $SRC/luasocket/luasocket.a";
+FLAGS="-std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DHAVE_LIBJPEG -DHAVE_LIBCHARLS -DHAVE_LIBOPENJPEG2 -Wno-write-strings -Wno-multichar -Wno-format-overflow -Wno-deprecated-declarations";
+INCS="-I$SRC/dicomlib -ljpeg -lpthread -ldl -I$SRC/src -I$SRC/jpeg-6c -L$SRC/jpeg-6c -I$SRC/lua_5.1.5 -I$SRC/openjpeg -I$SRC/charls";
+OBS="$SRC/charls.o $SRC/openjpeg.o";
+
+#sudo mkdir /usr/local/man.man1
+chmod 777 src/dgate/jpeg-6c/configure
+cd src/dgate/jpeg-6c
+./configure
+make
+echo "#### Please ignore the errors below"
+sudo make install
+echo "#### Please ignore the errors above"
+cd ../../..
+
+#chmod 777 src/dgate/luasocket/amake.sh;
+#cd src/dgate/luasocket;
+#./amake.sh;
+#cd ../../..
+
+#			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
+			gcc -c -DTHREADSAFE=1 -DHAVE_USLEEP $SRC/sqlite3/sqlite3.c -I$SRC/sqlite3 -o $SRC/sqlite3.o;
+			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations
+			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
+			g++ $FLAGS -DUSESQLITE $SRC/sqlite3.o $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I$SRC/sqlite3;
+			rm $SRC/sqlite3.o;
+
+	[ -f $SRC/lua.o ] && rm $SRC/lua.o;
+	[ -f $SRC/charls.o ] && rm $SRC/charls.o;
+	[ -f $SRC/openjpeg.o ] && rm $SRC/openjpeg.o;
+
+	sudo pkill -9 dgate;
+	sleep 0.2s;
+
+	[ -f dicom.ini ] && cp dicom.ini dicom.ini.bak
+	[ ! -f dicom.ini ] && envsubst < $CONF/dicom.ini.$opt > dicom.ini;
+	[ ! -f dicom.sql ] && cp $CONF/dicom.sql.$opt dicom.sql;
+
+	[ ! -f acrnema.map ] && cp $LINUX/acrnema.map acrnema.map;
+	[ ! -f dgatesop.lst ] && cp $LINUX/dgatesop.lst dgatesop.lst;
+
+	sudo cp ./dgate /usr/lib/cgi-bin/dgate ;
+	sudo cp ./dgate /usr/lib/cgi-bin/dgate.exe ;
+	sudo cp ./dicom.sql /usr/lib/cgi-bin/dicom.sql ;
+	sudo cp ./acrnema.map /usr/lib/cgi-bin/acrnema.map ;
+
+	[ ! -d /usr/lib/cgi-bin ] && sudo mkdir -p /usr/lib/cgi-bin ;
+	sudo chmod 777 /usr/lib/cgi-bin ;
+
+	sudo cp -r ./webserver/cgi-bin/* /usr/lib/cgi-bin;
+	sudo cp -r ./webserver/cgi-bin/.lua /usr/lib/cgi-bin;
+	sudo cp -r ./webserver/cgi-bin/.lua.linux /usr/lib/cgi-bin;
+	envsubst < ./webserver/cgi-bin/dicom.ini.linux > t.t;
+	sudo cp t.t /usr/lib/cgi-bin/dicom.ini;
+	envsubst < ./webserver/cgi-bin/newweb/dicom.ini.linux > t.t;
+	sudo cp t.t /usr/lib/cgi-bin/newweb/dicom.ini;
+	sudo cp /usr/lib/cgi-bin/.lua.linux /usr/lib/cgi-bin/.lua;
+	rm t.t
+
+	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate ;
+	sudo cp ./dgate /usr/lib/cgi-bin/newweb/dgate.exe ;
+	
+	sudo cp -r ./webserver/htdocs/* /var/www/html;
+	
+	[ ! -d data/dbase ] && mkdir data/dbase
+	
+	chmod 777 console.sh
+	chmod 777 webviewer.sh	
+	chmod 777 install/linux.sh
+	
+	envsubst <conquest.service >t.t
+		sudo systemctl stop conquest.service
+		sudo cp t.t /etc/systemd/system/conquest.service
+		sudo systemctl daemon-reload
+		sudo systemctl start conquest.service
+		sudo systemctl enable conquest.service
+	rm t.t

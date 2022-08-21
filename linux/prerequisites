@@ -1,0 +1,9 @@
+sudo apt update
+sudo apt -y install make sudo nano systemctl gettext-base git apache2 git g++ lua5.1 liblua5.1-0 lua-socket p7zip-full
+sudo a2enmod cgi
+sudo systemctl restart apache2
+[ ! -f /usr/lib/x86_64-linux-gnu/liblua5.1.so] && sudo ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so.0 /usr/lib/x86_64-linux-gnu/liblua5.1.so
+git clone https://github.com/marcelvanherk/Conquest-DICOM-Server
+cd Conquest-DICOM-Server
+chmod 777 maklinux
+chmod 777 linux/updatelinux

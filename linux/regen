@@ -1,0 +1,2 @@
+cp --force --backup=numbered data/dbase/conquest.db3 data/dbase/conquest.db3
+./dgate -v -r

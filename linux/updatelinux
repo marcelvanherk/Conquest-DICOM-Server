@@ -32,6 +32,8 @@ cd ../../..
 #./amake.sh;
 #cd ../../..
 
+export opt='sqlite'
+
 #			gcc -o $SRC/lua.o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
 			gcc -c -DTHREADSAFE=1 -DHAVE_USLEEP $SRC/sqlite3/sqlite3.c -I$SRC/sqlite3 -o $SRC/sqlite3.o;
 			g++ -std=c++11 -o $SRC/charls.o -c $SRC/charls/all.cpp -I$SRC/charls -Wno-deprecated-declarations

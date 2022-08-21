@@ -1,8 +1,0 @@
-# Auto detect text files and perform LF normalization
-* text=auto
-
-# binary (should be left untouched)
-*.dcm binary
-*.png binary
-*.jpg binary
-*.gif binary

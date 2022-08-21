@@ -1186,7 +1186,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			If json format and not encodepixeldata do nothing (was taken as string)
 			Control OB OW and OF with includepixeldata
 20220820	mvh	Fixed bug in serialising empty object missing opening bracket, and empty DS and IS
-20220820	mvh	Fix when a sequence withjust OW data was serialized without includepixeldata
+20220820	mvh	Fix when a sequence with just OW data was serialized without includepixeldata
+20220821        mvh     Added dicomread(query); local replacement for dicomget with scrub; bit slower though..
+			Another fix for empty US elements
 
 ENDOFUPDATEHISTORY
 */
@@ -6399,100 +6401,6 @@ int console;
     return 0;
   }
 
-  /*
-  static int luaservercommand2(lua_State *L)
-	{
-	PDU_Service		PDU;
-	DICOMCommandObject	DCO;
-	DICOMCommandObject	DCOR;
-	UID			uid;
-	VR			*vr;
-	LE_UINT16		command, datasettype, messageid;//, tuint16;
-	BYTE			SOP[64];
-	int			rc=0;
-
-	PDU.ClearAbstractSyntaxs();
-	PDU.SetLocalAddress(MYACRNEMA);
-	PDU.SetRemoteAddress(MYACRNEMA);
-	uid.Set("1.2.840.10008.3.1.1.1");	// Dicom APP
-	PDU.SetApplicationContext(uid);
-	uid.Set("1.2.840.10008.1.1");		// Verification
-	PDU.AddAbstractSyntax(uid);
-
-	if(!PDU.Connect((unsigned char *)ServerCommandAddress, Port))
-		return ( 1 );
-	
-	strcpy((char*) SOP, "1.2.840.10008.1.1"); // Verification
-	vr = new VR (0x0000, 0x0002, strlen((char*)SOP), (void*) SOP, FALSE);
-	DCO.Push(vr);
-
-	const char *c = lua_tostring(L,1);
-        vr = new VR (0x9999, 0x0400, strlen(c), c, FALSE);
-	DCO.Push(vr);
-
-	command = 0x0030;
-	vr = new VR (0x0000, 0x0100, 0x0002, &command, FALSE);
-	DCO.Push(vr);
-
-	datasettype = 0x0101;	
-	vr = new VR (0x0000, 0x0800, 0x0002, &datasettype, FALSE);
-	DCO.Push(vr);
-
-	messageid = 0x0001;
-	vr = new VR (0x0000, 0x0110, 0x0002, &messageid, FALSE);
-	DCO.Push(vr);
-
-	if (lua_isuserdata(L, 2)) 
-	      { lua_getmetatable(L, 1);
-	        lua_getfield(L, -1, "DDO");  
-                DICOMDataObject *pDDO = (DICOMDataObject *) 
-                lua_topointer(L, -1); 
-                lua_pop(L, 1);
-                lua_getfield(L, -1, "ADDO");  
-                Array < DICOMDataObject * > *A = (Array < DICOMDataObject * > *) lua_topointer(L, -1); 
-                lua_pop(L, 1);
-	        lua_pop(L, 1);
-		VR *newVR = new VR(0x0008, 0x3001, 0, (void *) NULL, FALSE);
-		Array < DICOMDataObject * > *ADDO = (Array<DICOMDataObject*>*) vr2->SQObjectArray;
-		Array < DICOMDataObject * > *SQE  = new Array <DICOMDataObject *>;
-		if (pDDO) 
-                	{
-                	DICOMDataObject *dd = MakeCopy(pDDO); 
-			SQE->Add(dd);
-                	}
-                if (A)
-                	{
-                        for (int j=0; j<A->GetSize(); j++)
-	                { DICOMDataObject *dd = MakeCopy(A->Get(j)); 
-	                  SQE->Add(dd);
-	                }
-
-		newVR->SQObjectArray = (void*) SQE;
-          	DCO.Push(vr);
-	      }
-	}
-
-	PDU.Write(&DCO, uid);
-
-	if(!PDU.Read(&DCOR))
-		return ( 0 );	// associate lost
-
-	while((vr = DCOR.Pop()))
-		{
-		if (vr->Group == 0x9999 && vr->Element == 0x0401)
-			{
-			int len=vr->Length;
-                        lua_pushlstring(L, (char *)(vr->Data), len);
-                        rc = -1;
-                        }
-		delete vr;
-		}
-
-	PDU.Close();
-	return ( 1 );
-	}
-  */
-
   static int luadictionary(lua_State *L)
   { if (lua_gettop(L)==2)
     { int g = lua_tointeger(L,1);
@@ -6756,6 +6664,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     else
       return 0;
   }
+
   static int luadicomquery2(lua_State *L)
   { const char *ae    = lua_tostring(L,1);
     const char *level = lua_tostring(L,2);
@@ -6776,6 +6685,37 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     return 0;
   }
   
+  static int luadicomread(lua_State *L)
+  { if (lua_isuserdata(L, 1)) 
+    { DICOMDataObject *O = NULL;
+      lua_getmetatable(L, 1);
+        lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+      Array < DICOMDataObject * > *A = new Array < DICOMDataObject * >;
+      if (O) 
+      { DICOMDataObject *P = MakeCopy(O);
+        VirtualQuery(P, "IMAGE", 0, A, (char *)MYACRNEMA);
+        delete P;
+        int N = A->GetSize();
+        for (int i=0; i<N; i++)
+        { char fn[100];
+          memset(fn , 0, 100);
+          fn[0]=':';
+	  VR *vr = A->Get(i)->GetVR(0x0008, 0x0018);
+	  memcpy(fn+1, (char *)vr->Data, vr->Length);
+	  DICOMDataObject *DDO = LoadForGUI(fn);
+	  MaybeScrub(DDO, (DICOMCommandObject *)O);
+          A->Add(DDO);
+        }
+        for (int i=0; i<N; i++)
+	  A->RemoveAt(0);
+        luaCreateObject(L, NULL, A, TRUE); 
+        return 1;
+      }
+    }
+    return 0;
+  }
+
   //int MakeListOfOldestPatientsOnDevice(char **PatientIDList, int Max, const char *Device, char *Sort);
   static int lualistoldestpatients(lua_State *L)
   { int max = lua_tointeger(L, 1);
@@ -6836,13 +6776,12 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       lua_getmetatable(L, 1);
         lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
       lua_pop(L, 1);
-      Array < DICOMDataObject * > *A = new Array < DICOMDataObject * >;
-      luaCreateObject(L, NULL, A, TRUE); 
       if (O) 
       { DICOMDataObject *P = MakeCopy(O);
 	RemoveFromPACS(P, FALSE);
         delete P;
       }
+      lua_pushboolean(L, true);
       return 1;
     }
     return 0;
@@ -7689,9 +7628,12 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", (int)((UINT32 *)(vr->Data))[i]);
-	      Index--;
+	      if (vr->Length) Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	    }
+	    else if (c2=='UL')
+	    { count--;
 	    }
 	    else if (c2=='US' && (vr->Length==2 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%d,", name, eq, ((UINT16 *)(vr->Data))[0]);
@@ -7700,9 +7642,12 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/2) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", ((UINT16 *)(vr->Data))[i]);
-	      Index--;
+	      if (vr->Length) Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	    }
+	    else if (c2=='US')
+	    { count--;
 	    }
 	    else if (c2=='SL' && (vr->Length==4 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%d,", name, eq, (int)((INT32 *)(vr->Data))[0]);
@@ -7711,9 +7656,12 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", (int)((INT32 *)(vr->Data))[i]);
-	      Index--;
+	      if (vr->Length) Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	    }
+	    else if (c2=='SL')
+	    { count--;
 	    }
 	    else if (c2=='SS' && (vr->Length==2 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%d,", name, eq, ((INT16 *)(vr->Data))[0]);
@@ -7722,9 +7670,12 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/2) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%d,", ((INT16 *)(vr->Data))[i]);
-	      Index--;
+	      if (vr->Length) Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	    }
+	    else if (c2=='SS')
+	    { count--;
 	    }
 	    else if (c2=='FD' && (vr->Length==8 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%f,", name, eq, ((double *)(vr->Data))[0]);
@@ -7733,9 +7684,12 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/8) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%f,", ((double *)(vr->Data))[i]);
-	      Index--;
+	      if (vr->Length) Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	    }
+	    else if (c2=='FD')
+	    { count--;
 	    }
 	    else if (c2=='FL' && (vr->Length==4 && !dicomweb))
             { Index+=sprintf(result+Index, "%s%c%f,", name, eq, ((float *)(vr->Data))[0]);
@@ -7744,9 +7698,12 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
             { Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
               for (i=0; (i<vr->Length/4) && (Index<MAXLEN/2); i++)
                 Index+=sprintf(result+Index, "%f,", ((float *)(vr->Data))[i]);
-	      Index--;
+	      if (vr->Length) Index--;
 	      if (Index>=MAXLEN/2 && !json) Index+=sprintf(result+Index, " --[[truncated]] ");
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
+	    }
+	    else if (c2=='FL')
+	    { count--;
 	    }
 
   	    else if (c2 == 'OF' && vr->Length>0 && !includepixeldata && !json)
@@ -7838,9 +7795,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      Index+=sprintf(result+Index, "\"%04X%04X\"", t[0], t[1]);
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
 	    }
-	    else if (c2=='OW' && vr->Length>2 && !includepixeldata)
-            { count--;
-	    }
+
   	    else if (c2 == 'SQ')
             { if (vr->SQObjectArray)
 	      { lua_getglobal(L, "serialize");
@@ -8903,6 +8858,7 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     lua_register      (*L, "serialize",     luaserialize);
     lua_register      (*L, "dicomprint",    luadicomprint);
     lua_register      (*L, "dicomget",      luadicomget);
+    lua_register      (*L, "dicomread",     luadicomread);
     lua_register      (*L, "dicomstore",    luadicomstore);
     lua_register      (*L, "dicomecho",     luadicomecho);
     lua_register      (*L, "tickcount",     luatickcount);

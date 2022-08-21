@@ -276,6 +276,7 @@
                         -Private,7FE0 removed private and pixel data; Accept more move/get controls in query
 20220819        mvh     Fixed buffer overflow and leak in scrub code
 20220820        mvh     Also allow scrub on typecode e.g. -SQ,OB,OW,OF,0010,00080008
+20220821        mvh     Optimized scrub a bit; do not test on unused features
 */
 
 //#define bool BOOL
@@ -2529,16 +2530,36 @@ int MaybeScrub(DICOMDataObject* pDDO, DICOMCommandObject* pDCO)
 	if (strstr(list, "priv")||strstr(list, "PRIV")||strstr(list, "Priv")) 
 		priv=true;
 
+	BOOL has2=false, has4=false, has8=false;
+	int n=-1;
+	for (int i=0; i<strlen(list); i++)
+	{ if (list[i]==',')
+	  { if (n>=0) 
+	    { if (i-n==9) has8=true;
+	      if (i-n==5) has4=true;
+	      if (i-n==3) has2=true;
+	    }
+            n=i;
+	  }
+	}
+
 	while((vr=pDDO->Pop()))
 		{
-		sprintf(item, ",%04X%04X,", vr->Group, vr->Element);
-		char *p=strstr(list, item);
-		sprintf(item, ",%04X,", vr->Group);
-		char *q=strstr(list, item);
-		s[0] = '\0';
-		int TypeCode = VRType.RunTimeClass(vr->Group, vr->Element, s);
-		sprintf(item, ",%c%c,", TypeCode>>8, TypeCode&0x00ff);
-		char *r=strstr(list, item);
+		char *p=NULL, *q=NULL, *r=NULL;
+		if (has8)
+		{ sprintf(item, ",%04X%04X,", vr->Group, vr->Element);
+		  p=strstr(list, item);
+		}
+		if (has4)
+		{ sprintf(item, ",%04X,", vr->Group);
+		  q=strstr(list, item);
+		}
+		if (has2)
+		{ s[0] = '\0';
+		  int TypeCode = VRType.RunTimeClass(vr->Group, vr->Element, s);
+		  sprintf(item, ",%c%c,", TypeCode>>8, TypeCode&0x00ff);
+		  r=strstr(list, item);
+		}
 
 		BOOL odd=false;
 		if (priv && (vr->Group&1)) odd=true;

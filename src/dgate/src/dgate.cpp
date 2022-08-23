@@ -25096,6 +25096,8 @@ static int CGI(char *out, const char *name, const char *def)
 	  post_len = flen;
 
 	  NewTempFile(uploadedfile, ext);
+	  if (strchr(uploadedfile, '\\')==NULL) 
+            sprintf(uploadedfile, "/tmp/%d%s", rand(), ext);
 	  FILE *g = fopen(uploadedfile, "wb");
           fwrite(fstart, flen, 1, g);
           fclose(g);
@@ -25121,6 +25123,8 @@ static int CGI(char *out, const char *name, const char *def)
     }
     else if (*uploadedfile==0 && post_len>0 && p[0]=='<')      // xml
     { NewTempFile(uploadedfile, ".xml");
+      if (strchr(uploadedfile, '\\')==NULL) 
+        sprintf(uploadedfile, "/tmp/%d%s", rand(), ".xml");
       post_file = post_buf;
       FILE *g = fopen(uploadedfile, "wb");
       fwrite(p, post_len, 1, g);
@@ -25129,6 +25133,8 @@ static int CGI(char *out, const char *name, const char *def)
     }
     else if (*uploadedfile==0 && post_len>0)      		// any other type
     { NewTempFile(uploadedfile, ".dat");
+      if (strchr(uploadedfile, '\\')==NULL) 
+        sprintf(uploadedfile, "/tmp/%d%s", rand(), ".dat");
       post_file = post_buf;
       FILE *g = fopen(uploadedfile, "wb");
       fwrite(p, post_len, 1, g);

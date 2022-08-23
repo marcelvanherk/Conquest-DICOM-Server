@@ -188,6 +188,12 @@ function fileexists(f)
   'if h then h:close() return 1 else return 0 end')=="1" and true or false
 end
 
+function safetempfile(ext)
+  local f = servercommand('lua:return tempfile("'..ext..'")')
+  if string.find(f, '\\') then return f end  -- windows
+  return '/tmp/' .. math.floor(1000000*math.random()) .. ext -- linux
+end
+
 function copyfile(f, g)
     servercommand('lua:'..
     'local h=io.open([['..f..']], [[rb]]) '..
@@ -281,7 +287,7 @@ if CGI('parameter')=='swupdate' then
   local n, ds, web, cgi = '', '/'
   local fn = CGI('filename', 'x.x')
   local project = CGI('project', 'inholland')
-  local n = servercommand('lua:return tempfile(".sw")')
+  local n = safetempfile(".sw")
   if CGI('_passfile_', '')~='' then
     n = CGI('_passfile_', '')
   else
@@ -397,7 +403,7 @@ end
 
 if CGI('parameter')=='uploadsql' then
   local n=0
-  local fn = servercommand('lua:return tempfile(".pdf")')
+  local fn = safetempfile(".sql")
   if CGI('_passfile_', '')~='' then
     fn = CGI('_passfile_', '')
   else
@@ -428,7 +434,7 @@ end
 if CGI('parameter')=='uploadinfo' then
   local web
   local ds='/'
-  local fn = servercommand('lua:return tempfile(".pdf")')
+  local fn = safetempfile(".pdf")
   if CGI('_passfile_', '')~='' then
     fn = CGI('_passfile_', '')
   else
@@ -456,7 +462,7 @@ end
 if CGI('parameter')=='uploadtable' then
   local ds = '/'
   local g = servercommand('lua:return Global.basedir')
-  local fn = servercommand('lua:return tempfile(".csv")')
+  local fn = safetempfile(".csv")
   if CGI('_passfile_', '')~='' then
     fn = CGI('_passfile_', '')
   else
@@ -487,7 +493,8 @@ if CGI('parameter')=='uploadtable' then
 end
 
 if CGI('parameter')=='uploadfile' then
-  local fn = servercommand('lua:return tempfile(".tmp")')
+  local fn = safetempfile(".tmp")
+  fn = '/tmp/'..CGI('filename', 't.tmp')
   if CGI('_passfile_', '')~='' then
     fn = CGI('_passfile_', '')
   else

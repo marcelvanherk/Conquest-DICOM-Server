@@ -1,3 +1,66 @@
+
+function getframe(ae, bd, st, se, sop, fr)
+  local remotecode = 
+[[
+  local ae=']]..(ae or servercommand('get_param:MyACRNema'))..[[';
+  local q2=DicomObject:new();
+  q2.QueryRetrieveLevel='IMAGE'
+  q2.StudyInstanceUID=']]..st..[['
+  q2.SeriesInstanceUID=']]..(se or '')..[['
+  q2.SOPInstanceUID=']]..(sop or '')..[['
+  local fr=]]..(fr or 1)..[[
+  local r = dicomget(ae, 'IMAGE', q2)
+  local s=tempfile('.txt') 
+  f = io.open(s, 'wb')
+  f:write(r[0]:GetImage(tonumber(fr)-1));
+  f:close()
+  returnfile=s
+]]
+local f = servercommand('lua:'..remotecode, 'binary')
+io.write("--"..bd.."\r\n")
+io.write("Content-Type: application/dicom\r\n");
+io.write("Content-Transfer-Encoding: binary\r\n\r\n")
+io.write(f)
+io.write("--"..bd.."--\r\n\r\n")
+end
+
+
+
+function getinstance(ae, bd, st, se, sop)
+  local remotecode = 
+    [[
+      local ae=']]..(ae or servercommand('get_param:MyACRNema'))..[[';
+      local obd=']]..bd..[['
+      local q2=DicomObject:new();
+      q2.QueryRetrieveLevel='IMAGE'
+      q2.StudyInstanceUID=']]..st..[['
+      q2.SeriesInstanceUID=']]..(se or '')..[['
+      q2.SOPInstanceUID=']]..(sop or '')..[['
+      local r = dicomget(ae, 'IMAGE', q2)
+      local s=tempfile('.txt')
+      local t=tempfile('.txt')
+      f = io.open(s, "wb")
+      for i=0, #r-1 do
+        r[i]:Write(t)
+        f:write("--"..obd.."\r\n")
+        f:write("Content-Type: application/dicom\r\n")
+        f:write("Content-Transfer-Encoding: binary\r\n\r\n")
+        g = io.open(t, "rb")
+        f:write(g:read('*a'))
+        g:close()
+      end
+      f:write("--"..obd.."--\r\n\r\n")
+      f:close()
+      os.remove(t)
+      returnfile=s
+    ]]
+     local f = servercommand('lua:'..remotecode, 'binary')
+     io.write(f)
+end
+
+
+
+
 function readinstance(studyuid,seriesuid,SOPInstanceUID)
   local imagelocation = studyuid..'\\\\'..seriesuid..'\\\\'..SOPInstanceUID
   local remotecode =
@@ -12,6 +75,7 @@ function readinstance(studyuid,seriesuid,SOPInstanceUID)
   b=servercommand('lua:'..remotecode,'binary')
   io.write(b or '')
 end
+
 
 function readframe(studyInstanceUid,seriesInstanceUid,sopInstanceUid,frame)
   local imagelocation = studyInstanceUid..'\\\\'..seriesInstanceUid..'\\\\'..sopInstanceUid
@@ -83,58 +147,65 @@ function converteslice(pgraphic,psize,pslice)
   io.write(b or '')
 end
 
-function remotemetadata(ae, level, st)
+
+function remotethumbs(ae, level, studyuid, serieuid, instuid, frame)
+  local remotecode = 
+[[
+local oframe=']]..frame..[[';  
+local ae=']]..ae..[[';
+local level=']]..level..[[';
+q=DicomObject:new()
+q.SeriesInstanceUID=']]..serieuid..[['
+q.StudyInstanceUID=']]..studyuid..[['
+q.SOPInstanceUID=']]..instuid..[['
+q.QueryRetrieveLevel=level
+q["9999,0c00"]='ImageNumber' -- database field name to sort
+r=dicomquery(ae, level, q)
+n=math.floor(#r/2)
+-- generate thumbnail
+x=DicomObject:new()
+outfile = tempfile('.jpg')
+x:Read(':'..r[n].SOPInstanceUID)
+if (oframe) then
+    x:Script('save jpg frame '..oframe..' to '..outfile)
+else 
+    x:script('save jpg to '..outfile)
+end    
+returnfile = outfile
+]]
+b=servercommand('lua:'..remotecode,'binary')
+io.write(b or '')
+end;
+
+function thumbs(server,studyuid, serieuid, instuid, frame)
+  local ae = server or servercommand('get_param:MyACRNema')
+  remotethumbs(ae,'IMAGE',studyuid or '', serieuid or '', instuid or '', frame or '0');
+end
+
+
+function remotemetadata(ae, level, st, se, sop)
   local remotecode = 
 [[
   local ae=']]..ae..[[';
   local level=']]..level..[[';
   local q2=DicomObject:new();
   q2.QueryRetrieveLevel='IMAGE'
-  q2.SeriesInstanceUID=''
   q2.StudyInstanceUID=']]..st..[['
-  q2.InstanceNumber=''
-  q2.Rows=''
-  q2.Columns=''
-  q2.PatientID=''
-  q2.PatientName=''
-  q2.SOPInstanceUID=''
-  q2.NumberOfFrames=''
-  q2.BitsStored=''
-  q2.SamplesPerPixel=''
-  q2.SOPClassUID=''
-  q2.SliceLocation=''
-  q2.Modality=''
-  q2.FrameOfReferenceUID=''
-  q2.PatientPosition=''
-  local r = dicomquery(ae, 'IMAGE', q2)
-  local d = DicomObject:new()
-  d:Read(':'..r[0].SOPInstanceUID)
-  for i=0, #r-1 do 
-    r[i].WindowCenter=d.WindowCenter 
-    r[i].WindowWidth=d.WindowWidth
-    r[i].RescaleIntercept=d.RescaleIntercept
-    r[i].RescaleSlope=d.RescaleSlope
-    r[i].HighBit=d.HighBit
-    r[i].PixelRepresentation=d.PixelRepresentation
-    r[i].BitsAllocated=d.BitsAllocated
-    r[i].PixelSpacing=d.PixelSpacing
-    r[i].PhotometricInterpretation = d.PhotometricInterpretation
-    r[i].ImageOrientationPatient = d.ImageOrientationPatient
-    r[i].ImagePositionPatient = d.ImagePositionPatient
-    r[i].SliceThickness = d.SliceThickness
-  end
+  q2.SeriesInstanceUID=']]..(se or '')..[['
+  q2.SOPInstanceUID=']]..(sop or '')..[['
+  q2['9999,0202']='-Private,7FE0,30060039'
+  local r = dicomget(ae, 'IMAGE', q2)
   r = r:Serialize(true,false,true)
-  local s=tempfile('txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close()
+  local s=tempfile('.txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close()
 ]]
  local f = servercommand('lua:'..remotecode)
  return f
-end;
+end
 
-
-function metadata(server, st)
+function metadata(server, level, st, se, sop)
   local ae = server or servercommand('get_param:MyACRNema')
-  b=remotemetadata(ae, 'STUDY', st);
-  io.write(b)
+  b=remotemetadata(ae, level, st, se, sop);
+  io.write(b or '')
 end
 
 

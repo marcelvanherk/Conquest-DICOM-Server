@@ -1189,6 +1189,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220820	mvh	Fix when a sequence with just OW data was serialized without includepixeldata
 20220821        mvh     Added dicomread(query); local replacement for dicomget with scrub; bit slower though..
 			Another fix for empty US elements
+20220823        mvh     CGI("_filename_) to get uploaded file name; protect writes there
 
 ENDOFUPDATEHISTORY
 */
@@ -25039,7 +25040,7 @@ static int CGI(char *out, const char *name, const char *def)
   int  i, j;
   char *fstart=NULL;
   int flen=0;
-
+  
 //FILE *g = fopen("c:\\temp\\postbuf.txt", "wt");
 //fprintf(g, "%s\n%s\n%s\n", p,q,r);
 //fclose(g);
@@ -25096,12 +25097,17 @@ static int CGI(char *out, const char *name, const char *def)
 	  post_len = flen;
 
 	  NewTempFile(uploadedfile, ext);
-	  if (strchr(uploadedfile, '\\')==NULL) 
-            sprintf(uploadedfile, "/tmp/%d%s", rand(), ext);
 	  FILE *g = fopen(uploadedfile, "wb");
-          fwrite(fstart, flen, 1, g);
-          fclose(g);
+          if (g) 
+	  { fwrite(fstart, flen, 1, g);
+            fclose(g);
+	  }
         }
+      }
+
+      if (strcmp(name, "_filename_")==0 && uploadedfile[0])
+      { strcpy(out, uploadedfile);
+        return 0;
       }
 
       strcpy(tmp, "name=\"");
@@ -25123,22 +25129,22 @@ static int CGI(char *out, const char *name, const char *def)
     }
     else if (*uploadedfile==0 && post_len>0 && p[0]=='<')      // xml
     { NewTempFile(uploadedfile, ".xml");
-      if (strchr(uploadedfile, '\\')==NULL) 
-        sprintf(uploadedfile, "/tmp/%d%s", rand(), ".xml");
       post_file = post_buf;
       FILE *g = fopen(uploadedfile, "wb");
-      fwrite(p, post_len, 1, g);
-      fclose(g);
+      if (g)
+      { fwrite(p, post_len, 1, g);
+        fclose(g);
+      }
       p = global_query_string; //getenv( "QUERY_STRING" );
     }
     else if (*uploadedfile==0 && post_len>0)      		// any other type
     { NewTempFile(uploadedfile, ".dat");
-      if (strchr(uploadedfile, '\\')==NULL) 
-        sprintf(uploadedfile, "/tmp/%d%s", rand(), ".dat");
       post_file = post_buf;
       FILE *g = fopen(uploadedfile, "wb");
-      fwrite(p, post_len, 1, g);
-      fclose(g);
+      if (g)
+      { fwrite(p, post_len, 1, g);
+        fclose(g);
+      }
       p = global_query_string; //getenv( "QUERY_STRING" );
     }
     else

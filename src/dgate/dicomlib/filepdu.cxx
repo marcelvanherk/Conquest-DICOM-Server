@@ -15,6 +15,7 @@
 20100726	mvh	Merged
 20100823	mvh	Merged small comment fix
 20130508        lsp     Fixed problem in SaveDicomDataObject() indicated by Klocwork
+20220824    	mvh	Added LoadDICOMDataObjectTrunc
 */
 
 /****************************************************************************
@@ -157,7 +158,41 @@ PDU_Service	::	LoadDICOMDataObject	(
 	return ( DDO );
 	}
 
-
+DICOMDataObject	*
+PDU_Service	::	LoadDICOMDataObjectTrunc	(
+	char	*filename, 	UINT	trunc )
+	{
+	FileBuffer		IOBuffer;
+	FILE			*fp;
+	char			s[256];
+	DICOMDataObject		*DDO;
+	UINT			Mode;
+	UINT			CheckOffset;
+	fp = fopen(filename, "rb");
+	if(!fp)	return ( NULL );
+	fseek(fp, 128, SEEK_SET);
+	fread(s, 1, 4, fp);
+	s[4] = '\0';
+	if(strcmp(s, "DICM"))
+		{
+		CheckOffset = 0;
+		fseek(fp, 0, SEEK_SET);
+		}
+	else
+		CheckOffset = 128+4;
+	fread(s,1,6,fp);
+	if(s[5]>10) Mode = TSA_EXPLICIT_LITTLE_ENDIAN;
+	else Mode = TSA_IMPLICIT_LITTLE_ENDIAN;
+	fseek(fp, CheckOffset, SEEK_SET);
+	IOBuffer.fp = fp;
+	IOBuffer.SetBreakSize(trunc);
+	IOBuffer.Buffer :: Fill(trunc);
+	DDO = new DICOMDataObject;
+	Dynamic_ParseRawVRIntoDCM(IOBuffer, DDO, Mode);
+	IOBuffer.Close();
+	return ( DDO );
+	}
+	
 #	define	_LittleEndianUID	"1.2.840.10008.1.2"
 //#	define	_ImplementationUID	"none yet"
 //#	define	_ImplementationVersion	"0.1AlphaUCDMC "

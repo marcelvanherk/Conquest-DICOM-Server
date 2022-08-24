@@ -19,6 +19,7 @@
 20140607    mvh    Added PDU_Service::Write(DICOMCommandObject	*DCMObject, UID	&uid, BYTE PCid)
 20140610    mvh    Merged
 20160827    mvh    PDU size configurable 
+20220824    mvh    Added LoadDICOMDataObjectTrunc
 */
 
 /****************************************************************************
@@ -205,6 +206,7 @@ class	PDU_Service	:
 
 		virtual	BOOL	MakeChapter10(DICOMDataObject *,const char* pszTransferSyntaxUID = "1.2.840.10008.1.2");
 		DICOMDataObject	*LoadDICOMDataObject ( char	* );
+		DICOMDataObject	*LoadDICOMDataObjectTrunc ( char	*,  UINT );
 		BOOL	SaveDICOMDataObject ( char	*, UINT, DICOMDataObject	* );
 		BOOL	ClearAbstractSyntaxs();
 		virtual	BOOL	AddAbstractSyntax(UID &);

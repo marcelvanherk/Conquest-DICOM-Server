@@ -1190,6 +1190,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220821        mvh     Added dicomread(query); local replacement for dicomget with scrub; bit slower though..
 			Another fix for empty US elements
 20220823        mvh     CGI("_filename_) to get uploaded file name; protect writes there
+20220824    	mvh	Second parameter of dicomread allows header truncation
 
 ENDOFUPDATEHISTORY
 */
@@ -2516,7 +2517,7 @@ static int DcmMove(const char *patid, char* pszSourceAE, char* pszDestinationAE,
 		    const char *sop, const char *imagetype, const char *seriesdesc, int id, char *script, int Thread);
 
 // Load DICOM object for GUI given with filename or patientID|sopInstanceUID or studyInstanceUID\seriesInstanceUID\sopInstanceUID
-DICOMDataObject *LoadForGUI(char *filename)
+DICOMDataObject *LoadForGUI(char *filename, UINT trunc=0)
 	{
 	char FullFilename[1024], Filename[1024];
 	char Device[32];
@@ -2556,6 +2557,7 @@ DICOMDataObject *LoadForGUI(char *filename)
 
 		delete vr;
 		if (*TestMode) strcat(FullFilename, TestMode);
+		if (trunc) return PDU.LoadDICOMDataObjectTrunc(FullFilename, trunc);
 		return PDU.LoadDICOMDataObject(FullFilename);
 		}
 
@@ -6688,7 +6690,8 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
   
   static int luadicomread(lua_State *L)
   { if (lua_isuserdata(L, 1)) 
-    { DICOMDataObject *O = NULL;
+    { int limit=lua_tointeger(L, 2);
+      DICOMDataObject *O = NULL;
       lua_getmetatable(L, 1);
         lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
       lua_pop(L, 1);
@@ -6704,7 +6707,11 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
           fn[0]=':';
 	  VR *vr = A->Get(i)->GetVR(0x0008, 0x0018);
 	  memcpy(fn+1, (char *)vr->Data, vr->Length);
-	  DICOMDataObject *DDO = LoadForGUI(fn);
+	  DICOMDataObject *DDO = LoadForGUI(fn, limit);
+	  if (limit && !DDO->GetUINT16(0x0028, 0x0010)) // only limit images, check or Rows
+	  { delete DDO;
+            DDO = LoadForGUI(fn);
+	  }
 	  MaybeScrub(DDO, (DICOMCommandObject *)O);
           A->Add(DDO);
         }

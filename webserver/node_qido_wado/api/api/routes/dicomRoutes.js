@@ -36,21 +36,36 @@ const express = require("express");
 const fs = require("fs");
 const router = express.Router();
 const path = require("path");
+const crypto = require("crypto");
 const { exec, spawn } = require("child_process");
 const { tagsForLevel } = require("../../helpers/dicom/tags");
 const url = require("url");
+const os = require("os");
+
 /* memory buffer used to get images*/
 const MAX_BUFFER = 30000 * 1024;
-
-/*------------------------------------------------------
-PACS config - The develpoper needs to configure this data
-Other option is take this data from DB query
---------------------------------------------------------*/
+const QPARAMS = [
+  "includefield",
+  "limit",
+  "offset",
+  "fuzzymatching",
+  "viewport",
+  "window",
+  "accept",
+  "annotation",
+  "charset",
+  "quality",
+  "iccprofile",
+];
 
 /* used to cache the response if dicom conquest PACS is alive*/
 let CQDICOMISALIVE = false;
 
-/*It needs to be configured with your data*/
+/*------------------------------------------------------
+PACS config - The develpoper needs to configure this data
+Other option is take this data from DB query
+It needs to be configured with your data
+--------------------------------------------------------*/
 let CQPORT = process.env.CQPORT || "5678";
 let CQIP = process.env.CQIP || "127.0.0.1";
 let CQAE = process.env.CQAE || "CONQUESTSRV1";
@@ -59,6 +74,10 @@ let APIFOLDER = `${global.appRoot}/api/dgate`;
 let dgateSpawn = "servertask";
 let dgateEx = `${dgateSpawn} -p${CQPORT} -h${CQAE} -q${CQIP} -w${APIFOLDER}`;
 let dgateExBin = `${dgateEx}  -$`;
+
+const isWin = () => {
+  return os.platform() === "win32";
+};
 
 /*------------------------------------------------------------------
 Execute dgate commands using 'spawn' and promises.
@@ -102,7 +121,7 @@ const checkDicomIsAlive = async (req, res, next) => {
   if (CQDICOMISALIVE) {
     return next();
   }
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);echo([[${CQAE}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);echo([[${CQAE}]])`;
   const os = new os_func_spawn();
   try {
     const dados = await os.execCommand(cmd);
@@ -116,9 +135,10 @@ const checkDicomIsAlive = async (req, res, next) => {
       });
     }
   } catch (error) {
+    console.log(error);
     console.log("Maybe Conquest is not running");
     return res.status(400).send({
-      message: "Image server is not available",
+      message: "PACS server is not available",
     });
   }
 };
@@ -138,9 +158,7 @@ const getParams = (params, tags, query) => {
 
   // take query tags and add to params
   Object.keys(query || {}).forEach((propName) => {
-    if (
-      !["includefield", "limit", "offset", "fuzzymatching"].includes(propName)
-    ) {
+    if (!QPARAMS.includes(propName)) {
       let v = query[propName];
       if (typeof v === "string" || v instanceof String) {
         v = v.replace(/,/g, "\\\\");
@@ -158,7 +176,7 @@ const getParams = (params, tags, query) => {
 const getDefaultTags = (level, query) => {
   let tags = [];
   let incfields = query?.includefield;
-  if (incfields) {
+  if (incfields && incfields !== "all") {
     if (typeof incfields === "string" || incfields instanceof String) {
       incfields = incfields.split(",");
     }
@@ -178,37 +196,38 @@ All studies
 /studies{?search*}
 ------------------------------------------------------------------*/
 router.get("/rs/studies", async (req, res) => {
-  // res.send(ddd);
+  // const query = req.query;
   const query = url.parse(req.url, true).query;
   let params = { QueryRetrieveLevel: "STUDY" };
   let tags = getDefaultTags("STUDY", query);
   const tparams = getParams(params, tags, query);
-  params = JSON.stringify(tparams);
   const offset = query?.offset ? parseInt(query.offset, 10) : 0;
-  const limit = query?.limit ? parseInt(query.limit, 10) : 0;
+  const limit = query?.limit ? parseInt(query.limit, 10) : 200;
+
+  if (limit) tparams["99990C01"] = limit;
+  if (offset) tparams["99990C02"] = offset;
+  tparams["99990C00"] = "StudyDate"; // sort study date
+  params = JSON.stringify(tparams);
+
   const dicomweb = true; // indicate json format
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);studies([[${CQAE}]],[[${params}]],[[${dicomweb}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);studies([[${CQAE}]],[[${params}]],[[${dicomweb}]])`;
   try {
     let temp = [];
     const os = new os_func_spawn();
     const dados = await os.execCommand(cmd);
     temp = JSON.parse(dados);
-    //  StudyDate: item['00080020']?.Value?.[0],
-    if (temp && temp.length > 0) {
-      temp.sort((a, b) => {
-        if (a["00080020"]?.Value?.[0] == b["00080020"]?.Value?.[0]) return 0;
-        if (a["00080020"]?.Value?.[0] < b["00080020"]?.Value?.[0]) return -1;
-        if (a["00080020"]?.Value?.[0] > b["00080020"]?.Value?.[0]) return 1;
-      });
-    }
-    if (limit) temp = temp.slice(offset, offset + limit);
-    else temp = temp.slice(offset);
+    // StudyDate: item['00080020']?.Value?.[0],
+    // if (temp && temp.length > 0) {
+    //   temp.sort((a, b) => {
+    //     if (a["00080020"]?.Value?.[0] == b["00080020"]?.Value?.[0]) return 0;
+    //     if (a["00080020"]?.Value?.[0] < b["00080020"]?.Value?.[0]) return -1;
+    //     if (a["00080020"]?.Value?.[0] > b["00080020"]?.Value?.[0]) return 1;
+    //   });
+    // }
+    // if (limit) temp = temp.slice(offset, offset + limit);
+    // else temp = temp.slice(offset);
     res.set("Content-Type", "application/json");
-    if (temp.length > 0) {
-      res.send(temp);
-    } else {
-      res.status(204).send();
-    }
+    res.status(temp.length > 0 ? 200 : 204).send(temp);
   } catch (error) {
     console.log(error);
     return res.status(400).send({
@@ -218,79 +237,38 @@ router.get("/rs/studies", async (req, res) => {
 });
 
 /*-------------------------QIDO API--------------------------------
-study
-metadata
-------------------------------------------------------------------*/
-
-router.get("/rs/studies/:studyInstanceUids/metadata", async (req, res) => {
-  const StudyInstanceUID = req.params.studyInstanceUids;
-  let params = StudyInstanceUID;
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);metadata([[${CQAE}]],[[${params}]])`;
-  try {
-    const os = new os_func_spawn();
-    const dados = await os.execCommand(cmd);
-    try {
-      temp = JSON.parse(dados);
-      // if (temp && temp.length > 0) {
-      //   temp.sort((a, b) => {
-      //     if (a["00080021"]?.Value?.[0] == b["00080021"]?.Value?.[0]) return 0;
-      //     if (a["00080021"]?.Value?.[0] < b["00080021"]?.Value?.[0]) return -1;
-      //     if (a["00080021"]?.Value?.[0] > b["00080021"]?.Value?.[0]) return 1;
-      //   });
-      // }
-    } catch (error) {
-      console.log(error);
-      temp = [];
-    }
-    res.set("Content-Type", "application/json");
-    if (temp.length > 0) {
-      res.send(temp);
-    } else res.status(204).send(temp);
-  } catch (error) {
-    console.log(error);
-    return res.status(400).send({
-      message: "Error finding series",
-    });
-  }
-});
-
-/*-------------------------QIDO API--------------------------------
  Study's Series
 /studies/{study}/series{?search*}
 ------------------------------------------------------------------*/
-router.get("/rs/studies/:studyInstanceUid/series", async (req, res) => {
-  const StudyInstanceUID = req.params.studyInstanceUid;
+router.get("/rs/studies/:study/series", async (req, res) => {
+  const { study } = req.params;
+  if (!study) {
+    return res.status(400).send("Invalid study.");
+  }
   const query = url.parse(req.url, true).query;
-  let params = { QueryRetrieveLevel: "SERIES", StudyInstanceUID };
+  let params = { QueryRetrieveLevel: "SERIES", StudyInstanceUID: study };
   let tags = getDefaultTags("SERIES", query);
   const tparams = getParams(params, tags, query);
-  params = JSON.stringify(tparams);
+
   const offset = query?.offset ? parseInt(query.offset, 10) : 0;
-  const limit = query?.limit ? parseInt(query.limit, 10) : 0;
+  const limit = query?.limit ? parseInt(query.limit, 10) : 200;
+  if (limit) tparams["99990C01"] = limit;
+  if (offset) tparams["99990C02"] = offset;
+  tparams["99990C00"] = "SeriesDate"; // sort series date  tag 00080021
+  params = JSON.stringify(tparams);
   const dicomweb = true; // indicate json format
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);series([[${CQAE}]],[[${params}]],[[${dicomweb}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);series([[${CQAE}]],[[${params}]],[[${dicomweb}]])`;
   try {
     const os = new os_func_spawn();
     const dados = await os.execCommand(cmd);
     try {
       temp = JSON.parse(dados);
-      if (temp && temp.length > 0) {
-        temp.sort((a, b) => {
-          if (a["00080021"]?.Value?.[0] == b["00080021"]?.Value?.[0]) return 0;
-          if (a["00080021"]?.Value?.[0] < b["00080021"]?.Value?.[0]) return -1;
-          if (a["00080021"]?.Value?.[0] > b["00080021"]?.Value?.[0]) return 1;
-        });
-      }
-      if (limit) temp = temp.slice(offset, offset + limit);
-      else temp = temp.slice(offset);
     } catch (error) {
       console.log(error);
       temp = [];
     }
     res.set("Content-Type", "application/json");
-    if (temp.length > 0) {
-      res.send(temp);
-    } else res.status(204).send(temp);
+    res.status(temp.length > 0 ? 200 : 204).send(temp);
   } catch (error) {
     console.log(error);
     return res.status(400).send({
@@ -303,67 +281,58 @@ router.get("/rs/studies/:studyInstanceUid/series", async (req, res) => {
  Study's Series' Instances
 /studies/{study}/series/{series}/instances{?search*}
 ------------------------------------------------------------------*/
-router.get(
-  "/rs/studies/:studyInstanceUid/series/:seriesInstanceUid/instances",
-  async (req, res) => {
-    const query = url.parse(req.url, true).query;
-
-    const StudyInstanceUID = req.params.studyInstanceUid;
-    const SeriesInstanceUID = req.params.seriesInstanceUid;
-    let params = {
-      QueryRetrieveLevel: "IMAGE",
-      StudyInstanceUID,
-      SeriesInstanceUID,
-    };
-    let tags = getDefaultTags("IMAGE", query);
-    const tparams = getParams(params, tags, query);
-    params = JSON.stringify(tparams);
-    const offset = query?.offset ? parseInt(query.offset, 10) : 0;
-    const limit = query?.limit ? parseInt(query.limit, 10) : 0;
-    const dicomweb = true; // indicate json format
-    const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);images([[${CQAE}]],[[${params}]],[[${dicomweb}]])`;
-    try {
-      const os = new os_func_spawn();
-      const dados = await os.execCommand(cmd);
-      let fson = JSON.parse(dados);
-      if (fson && fson.length > 0) {
-        fson.sort((a, b) => {
-          if (+a["00200013"]?.Value?.[0] == +b["00200013"]?.Value?.[0])
-            return 0;
-          if (+a["00200013"]?.Value?.[0] < +b["00200013"]?.Value?.[0])
-            return -1;
-          if (+a["00200013"]?.Value?.[0] > +b["00200013"]?.Value?.[0]) return 1;
-        });
-      }
-      if (limit) fson = fson.slice(offset, offset + limit);
-      else fson = fson.slice(offset);
-      res.set("Content-Type", "application/json");
-      if (fson.length > 0) {
-        res.send(fson);
-      } else res.status(204).send(fson);
-    } catch (error) {
-      console.log(error);
-      return res.status(400).send({
-        message: "Error finding images.",
-      });
-    }
+router.get("/rs/studies/:study/series/:series/instances", async (req, res) => {
+  const query = url.parse(req.url, true).query;
+  const { study, series } = req.params;
+  if (!study || !series) {
+    return res.status(400).send("Invalid study or series.");
   }
-);
+  let params = {
+    QueryRetrieveLevel: "IMAGE",
+    StudyInstanceUID: study,
+    SeriesInstanceUID: series,
+  };
+  let tags = getDefaultTags("IMAGE", query);
+  const tparams = getParams(params, tags, query);
+
+  const offset = query?.offset ? parseInt(query.offset, 10) : 0;
+  const limit = query?.limit ? parseInt(query.limit, 10) : 200;
+  if (limit) tparams["99990C01"] = limit;
+  if (offset) tparams["99990C02"] = offset;
+  tparams["99990C00"] = "ImageNumber"; // sort image number tag 00200013
+  params = JSON.stringify(tparams);
+
+  const dicomweb = true; // indicate json format
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);images([[${CQAE}]],[[${params}]],[[${dicomweb}]])`;
+  try {
+    const os = new os_func_spawn();
+    const dados = await os.execCommand(cmd);
+    let temp = JSON.parse(dados);
+    res.set("Content-Type", "application/json");
+    res.status(temp.length > 0 ? 200 : 204).send(temp);
+  } catch (error) {
+    console.log(error);
+    return res.status(400).send({
+      message: "Error finding instances.",
+    });
+  }
+});
 
 /*-------------------------QIDO API--------------------------------
  get a frame
 ------------------------------------------------------------------*/
-// https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs/studies/
-// 1.3.6.1.4.1.9590.100.1.2.85935434310203356712688695661986996009
-//   / series / 1.3.6.1.4.1.9590.100.1.2.374115997511889073021386151921807063992 /
-//     instances / 1.3.6.1.4.1.9590.100.1.2.289923739312470966435676008311959891294 / frames / 1
-
 router.get(
-  "/rs/studies/:studyInstanceUid/series/:seriesInstanceUid/instances/:sopInstanceUid/frames/:frame",
+  "/rs/studies/:study/series/:series/instances/:instance/frames/:frame",
   async (req, res) => {
-    const { studyInstanceUid, seriesInstanceUid, sopInstanceUid, frame } =
-      req.params;
-    const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);readframe([[${studyInstanceUid}]], [[${seriesInstanceUid}]], [[${sopInstanceUid}]],[[${frame}]])`;
+    const { study, series, instance, frame } = req.params;
+    if (!study || !series || !instance || !frame) {
+      return res
+        .status(400)
+        .send("Invalid study or series or instance or frame.");
+    }
+    const boundary =
+      "simpleconquestqidobridge" + crypto.randomBytes(16).toString("hex");
+    const cmd = `--dolua:dofile([[./queryfunctions.lua]]);getframe([[${CQAE}]],[[${boundary}]],[[${study}]], [[${series}]], [[${instance}]],[[${frame}]])`;
     exec(
       `${dgateExBin}  "${cmd}" `,
       { encoding: "binary", maxBuffer: MAX_BUFFER, cwd: APIFOLDER },
@@ -371,10 +340,337 @@ router.get(
         if (stderr) {
           console.log(stderr);
           return res.status(400).send({
-            message: "Error finding slice.",
+            message: "Error finding frame.",
           });
         } else {
-          res.set("Content-Type", "application/dicom");
+          const contentType = `multipart/related; boundary=${boundary}`;
+          res.set("Content-Type", contentType);
+          res.end(Buffer.from(stdout, "binary"));
+        }
+      }
+    );
+  }
+);
+
+/*-------------------------QIDO API METADATA-----------------------
+Study Metadata
+/studies/{study}/metadata
+------------------------------------------------------------------*/
+router.get("/rs/studies/:study/metadata", async (req, res) => {
+  const { study } = req.params;
+  if (!study) {
+    return res.status(400).send("Invalid study.");
+  }
+  const level = "STUDY";
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);metadata([[${CQAE}]],[[${level}]],[[${study}]],[[]],[[]])`;
+  try {
+    const os = new os_func_spawn();
+    const dados = await os.execCommand(cmd);
+    // fs.writeFileSync("../json.txt", dados, "utf8");
+    try {
+      temp = JSON.parse(dados);
+    } catch (error) {
+      console.log(error);
+      temp = [];
+    }
+    res.set("Content-Type", "application/json");
+    res.status(temp.length > 0 ? 200 : 204).send(temp);
+  } catch (error) {
+    console.log(error);
+    return res.status(400).send({
+      message: "Error finding study metadata",
+    });
+  }
+});
+
+/*-------------------------QIDO API METADATA------------------------
+Series Metadata
+/studies/{study}/series/{series}/metadata
+------------------------------------------------------------------*/
+router.get("/rs/studies/:study/series/:series/metadata", async (req, res) => {
+  const { study, series } = req.params;
+  if (!study || !series) {
+    return res.status(400).send("Invalid study or series.");
+  }
+  const level = "SERIES";
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);metadata([[${CQAE}]],[[${level}]],[[${study}]],[[${series}]],[[]])`;
+  try {
+    const os = new os_func_spawn();
+    const dados = await os.execCommand(cmd);
+    try {
+      temp = JSON.parse(dados);
+    } catch (error) {
+      console.log(error);
+      temp = [];
+    }
+    res.set("Content-Type", "application/json");
+    res.status(temp.length > 0 ? 200 : 204).send(temp);
+  } catch (error) {
+    console.log(error);
+    return res.status(400).send({
+      message: "Error finding series metadata",
+    });
+  }
+});
+
+/*-------------------------QIDO API METADATA-----------------------
+Instance Metadata
+/studies/{study}/series/{series}/instances/{instance}/metadata
+------------------------------------------------------------------*/
+router.get(
+  "/rs/studies/:study/series/:series/instances/:instance/metadata",
+  async (req, res) => {
+    const { study, series, instance } = req.params;
+    if (!study || !series || !instance) {
+      return res.status(400).send("Invalid study or series or instance.");
+    }
+    const level = "IMAGE";
+    const cmd = `--dolua:dofile([[./queryfunctions.lua]]);metadata([[${CQAE}]],[[${level}]],[[${study}]],[[${series}]],[[${instance}]])`;
+    try {
+      const os = new os_func_spawn();
+      const dados = await os.execCommand(cmd);
+      try {
+        temp = JSON.parse(dados);
+      } catch (error) {
+        console.log(error);
+        temp = [];
+      }
+      res.set("Content-Type", "application/json");
+      res.status(temp.length > 0 ? 200 : 204).send(temp);
+    } catch (error) {
+      console.log(error);
+      return res.status(400).send({
+        message: "Error finding instance metadata",
+      });
+    }
+  }
+);
+
+/*-------------------------DICOM objects (Thumbnail)--------------------------------
+Study Thumbnail
+/studies/{study}/thumbnail
+-----------------------------------------------------------------------------------------*/
+router.get("/rs/studies/:study/thumbnail", async (req, res) => {
+  const { study } = req.params;
+  if (!study) {
+    return res.status(400).send("Invalid study");
+  }
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);thumbs([[${CQAE}]],[[${study}]],[[]],[[]],[[]])`;
+  exec(
+    `${dgateExBin}  "${cmd}" `,
+    { encoding: "binary", maxBuffer: MAX_BUFFER, cwd: APIFOLDER },
+    function (error, stdout, stderr) {
+      if (stderr) {
+        console.log("erro", stderr);
+        return res.status(400).send({
+          message: "Error finding study thumbnail.",
+        });
+      } else {
+        res.set("Content-Type", "image/jpeg"); // contentType
+        res.end(Buffer.from(stdout, "binary"));
+      }
+    }
+  );
+});
+
+/*-------------------------DICOM objects (Thumbnail)--------------------------------
+Series Thumbnail
+/studies/{study}/series/{series}/thumbnail
+http://localhost:3002/api/dicom/rs/studies/2.16.840.1.113669.632.20.121711.10000161048/1.3.46.670589.11.17521.5.0.3124.2008081915302126599/thumbnail
+-----------------------------------------------------------------------------------------*/
+router.get("/rs/studies/:study/series/:series/thumbnail", async (req, res) => {
+  const { study, series } = req.params;
+  if (!study || !series) {
+    return res.status(400).send("Invalid study or series.");
+  }
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);thumbs([[${CQAE}]],[[${study}]],[[${series}]],[[]],[[]])`;
+  exec(
+    `${dgateExBin}  "${cmd}" `,
+    { encoding: "binary", maxBuffer: MAX_BUFFER, cwd: APIFOLDER },
+    function (error, stdout, stderr) {
+      if (stderr) {
+        console.log("erro", stderr);
+        return res.status(400).send({
+          message: "Error finding series thumbnail.",
+        });
+      } else {
+        res.set("Content-Type", "image/jpeg"); // contentType
+        res.end(Buffer.from(stdout, "binary"));
+      }
+    }
+  );
+});
+
+/*-------------------------DICOM objects (Thumbnail)--------------------------------
+Instance Thumbnail
+/studies/{study}/series/{series}/instances/{instance}/thumbnail
+// http://localhost:3002/api/dicom/rs/studies/1.3.46.670589.5.2.10.2156913941.892665384.993397/series/1.3.46.670589.5.2.10.2156913941.892665339.860724/thumbnail?viewport=256%2C256
+-----------------------------------------------------------------------------------------*/
+
+router.get(
+  "/rs/studies/:study/series/:series/instances/:instance/thumbnail",
+  async (req, res) => {
+    // const query = url.parse(req.url, true).query || {};
+    const { study, series, instance } = req.params;
+    if (!study || !series || !instance) {
+      return res.status(400).send("Invalid study or series or instance.");
+    }
+    const cmd = `--dolua:dofile([[./queryfunctions.lua]]);thumbs([[${CQAE}]],[[${study}]],[[${series}]],[[${instance}]],[[]])`;
+    exec(
+      `${dgateExBin}  "${cmd}" `,
+      { encoding: "binary", maxBuffer: MAX_BUFFER, cwd: APIFOLDER },
+      function (error, stdout, stderr) {
+        if (stderr) {
+          console.log("erro", stderr);
+          return res.status(400).send({
+            message: "Error finding instance thumbnail.",
+          });
+        } else {
+          res.set("Content-Type", "image/jpeg"); // contentType
+          res.end(Buffer.from(stdout, "binary"));
+        }
+      }
+    );
+  }
+);
+
+/*-------------------------DICOM objects (Thumbnail)--------------------------------
+Frame Thumbnail
+/studies/{study}/series/{series}/instances/{instance}/frames/{frames}/thumbnail
+// http://localhost:3002/api/dicom/rs/studies/1.3.46.670589.5.2.10.2156913941.892665384.993397/series/1.3.46.670589.5.2.10.2156913941.892665339.860724/thumbnail?viewport=256%2C256
+-----------------------------------------------------------------------------------------*/
+
+router.get(
+  "/rs/studies/:study/series/:series/instances/:instance/frames/:frames/thumbnail",
+  async (req, res) => {
+    // const query = url.parse(req.url, true).query || {};
+    const { study, series, instance, frames } = req.params;
+    if (!study || !series || !instance || !frames) {
+      return res
+        .status(400)
+        .send("Invalid study or series or instance or frame.");
+    }
+    const cmd = `--dolua:dofile([[./queryfunctions.lua]]);thumbs([[${CQAE}]],[[${study}]],[[${series}]],[[${instance}]],[[${frames}]])`;
+    exec(
+      `${dgateExBin}  "${cmd}" `,
+      { encoding: "binary", maxBuffer: MAX_BUFFER, cwd: APIFOLDER },
+      function (error, stdout, stderr) {
+        if (stderr) {
+          console.log("erro", stderr);
+          return res.status(400).send({
+            message: "Error finding frame thumbnail.",
+          });
+        } else {
+          res.set("Content-Type", "image/jpeg"); // contentType
+          res.end(Buffer.from(stdout, "binary"));
+        }
+      }
+    );
+  }
+);
+
+/*-------------------------Retrieve DICOM objects (WADO-RS)--------------------------------
+/studies/{study}
+-----------------------------------------------------------------------------------------*/
+router.get("/rs/studies/:study", async (req, res) => {
+  const { study } = req.params;
+  if (!study) {
+    return res.status(400).send("Invalid study.");
+  }
+  const query = url.parse(req.url, true).query;
+  let params = { QueryRetrieveLevel: "SERIES", StudyInstanceUID: study };
+  const tparams = getParams(params, tags, query);
+  const offset = query?.offset ? parseInt(query.offset, 10) : 0;
+  const limit = query?.limit ? parseInt(query.limit, 10) : 200;
+  if (limit) tparams["99990C01"] = limit;
+  if (offset) tparams["99990C02"] = offset;
+  tparams["99990C00"] = "SeriesDate"; // sort series tag 00080020
+  params = JSON.stringify(tparams);
+
+  const dicomweb = true; // indicate json format
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);series([[${CQAE}]],[[${params}]],[[${dicomweb}]])`;
+  try {
+    let temp = [];
+    const os = new os_func_spawn();
+    const dados = await os.execCommand(cmd);
+    temp = JSON.parse(dados);
+    res.set("Content-Type", "application/json");
+    res.status(temp.length > 0 ? 200 : 204).send(temp);
+  } catch (error) {
+    console.log(error);
+    return res.status(400).send({
+      message: "Error finding studies",
+    });
+  }
+});
+
+/*-------------------------Retrieve DICOM objects (WADO-RS)--------------------------------
+/studies/{study}/series/{series}
+-----------------------------------------------------------------------------------------*/
+router.get("/rs/studies/:study/series/:series", async (req, res) => {
+  const query = url.parse(req.url, true).query;
+  const { study, series } = req.params;
+  if (!study || !series) {
+    return res.status(400).send("Invalid study or series.");
+  }
+  let params = {
+    QueryRetrieveLevel: "IMAGE",
+    StudyInstanceUID: study,
+    SeriesInstanceUID: series,
+    SOPInstanceUID: "",
+  };
+  let tags = getDefaultTags("IMAGE", query);
+  const tparams = getParams(params, tags, query);
+  const offset = query?.offset ? parseInt(query.offset, 10) : 0;
+  const limit = query?.limit ? parseInt(query.limit, 10) : 200;
+  if (limit) tparams["99990C01"] = limit;
+  if (offset) tparams["99990C02"] = offset;
+  tparams["99990C00"] = "ImageNumber";
+  params = JSON.stringify(tparams);
+
+  const dicomweb = true; // indicate json format
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);images([[${CQAE}]],[[${params}]],[[${dicomweb}]])`;
+  try {
+    const os = new os_func_spawn();
+    const dados = await os.execCommand(cmd);
+    let temp = JSON.parse(dados);
+    res.set("Content-Type", "application/json");
+    res.status(temp.length > 0 ? 200 : 204).send(temp);
+  } catch (error) {
+    console.log(error);
+    return res.status(400).send({
+      message: "Error finding images.",
+    });
+  }
+});
+
+/*-------------------------Retrieve DICOM objects (WADO-RS)--------------------------------
+/studies/{study}/series/{series}/instances/{instance}
+-----------------------------------------------------------------------------------------*/
+router.get(
+  "/rs/studies/:study/series/:series/instances/:instance",
+  async (req, res) => {
+    const { study, series, instance } = req.params;
+    if (!study || !series || !instance) {
+      return res
+        .status(400)
+        .send("Invalid study or series or instance or frame.");
+    }
+    const boundary =
+      "simpleconquestqidobridge" + crypto.randomBytes(16).toString("hex");
+    const cmd = `--dolua:dofile([[./queryfunctions.lua]]);getinstance([[${CQAE}]],[[${boundary}]],[[${study}]], [[${series}]], [[${instance}]])`;
+    exec(
+      `${dgateExBin}  "${cmd}" `,
+      { encoding: "binary", maxBuffer: MAX_BUFFER, cwd: APIFOLDER },
+      function (error, stdout, stderr) {
+        if (stderr) {
+          console.log(stderr);
+          return res.status(400).send({
+            message: "Error finding instance.",
+          });
+        } else {
+          const contentType = `multipart/related; boundary=${boundary}`;
+          res.set("Content-Type", contentType);
           res.end(Buffer.from(stdout, "binary"));
         }
       }
@@ -386,6 +682,48 @@ router.get(
   WADO URI  GET
 ------------------------------------------------------------------*/
 router.get("/wadouri", async (req, res) => {
+  const query = url.parse(req.url, true).query;
+  const {
+    requestType,
+    contentType = "image/jpeg",
+    studyUID,
+    seriesUID,
+    objectUID,
+  } = query;
+  if (requestType !== "WADO") {
+    return res.status(400).send({
+      message: "Invalid Request Type",
+    });
+  }
+  if (!studyUID || !seriesUID || !objectUID) {
+    return res.status(400).send("Invalid studyUID, serieUID or objectUID.");
+  }
+  const params = new URLSearchParams(query);
+  let str = params.toString();
+  const quote = isWin() ? '""' : '\\"';
+  str = str.replace(/"/g, quote);
+  const cmd = `--wadoparse:${str}`;
+  exec(
+    `${dgateExBin}  "${cmd}" `,
+    { encoding: "binary", maxBuffer: MAX_BUFFER, cwd: APIFOLDER },
+    function (error, stdout, stderr) {
+      if (stderr) {
+        console.log("erro", stderr);
+        return res.status(400).send({
+          message: "Error finding slice.",
+        });
+      } else {
+        const i = stdout.indexOf("\n\n");
+        const s = stdout.substring(i + 2);
+        res.set("Content-Type", contentType);
+        res.end(Buffer.from(s, "binary"));
+      }
+    }
+  );
+});
+
+// second option
+router.get("/wadouri_alt", async (req, res) => {
   const query = url.parse(req.url, true).query;
   const {
     studyUID,
@@ -450,7 +788,7 @@ router.get("/wadouri", async (req, res) => {
     "presentationUID=" +
     `'${presentationUID}'` +
     "}";
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);wadouri([[${t}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);wadouri([[${t}]])`;
 
   exec(
     `${dgateExBin}  "${cmd}" `,
@@ -545,7 +883,7 @@ router.get("/wadocgi", async (req, res) => {
     "presentationUID=" +
     `'${presentationUID}'` +
     "}";
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);wadocgi([[${t}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);wadocgi([[${t}]])`;
   exec(
     `${dgateExBin}  "${cmd}" `,
     { encoding: "binary", maxBuffer: MAX_BUFFER, cwd: APIFOLDER },
@@ -572,7 +910,7 @@ router.get("/wadocgi", async (req, res) => {
 ------------------------------------------------------------------*/
 router.get("/dicomSlice/:slice", async (req, res) => {
   const slice = req.params.slice;
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);readslice([[${slice}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);readslice([[${slice}]])`;
   if (!slice) {
     return res.status(400).send({
       message: "Invalid slice",
@@ -614,7 +952,7 @@ router.get("/dicomConverter/:graphic/:size/:slice", async (req, res) => {
     return res.status(400).send({ message: "Invalid slice." });
   }
 
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);converteslice([[${graph}]],[[${size}]],[[${slice}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);converteslice([[${graph}]],[[${size}]],[[${slice}]])`;
   exec(
     `${dgateExBin}  "${cmd}" `,
     { encoding: "binary", maxBuffer: MAX_BUFFER, cwd: APIFOLDER },
@@ -649,7 +987,7 @@ router.post("/dicomPatients", async (req, res) => {
     PatientSex: PatientSex || "",
     PatientBirthDate: PatientBirthDate || "",
   });
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);patients([[${CQAE}]],[[${params}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);patients([[${CQAE}]],[[${params}]])`;
 
   try {
     const os = new os_func_spawn();
@@ -690,7 +1028,7 @@ router.post("/dicomStudies", async (req, res) => {
     StudyDate: StudyDate || "", // '19000101-20221231'
     StudyTime: StudyTime,
   });
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);studies([[${CQAE}]],[[${params}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);studies([[${CQAE}]],[[${params}]])`;
   try {
     const os = new os_func_spawn();
     const dados = await os.execCommand(cmd);
@@ -732,7 +1070,7 @@ router.post("/dicomSeries", async (req, res) => {
     SeriesDate: "",
     SeriesTime: "",
   });
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);series([[${CQAE}]],[[${params}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);series([[${CQAE}]],[[${params}]])`;
   try {
     const os = new os_func_spawn();
     const dados = await os.execCommand(cmd);
@@ -777,7 +1115,7 @@ router.post("/dicomImages", async (req, res) => {
     SOPInstanceUID: "",
     NumberOfFrames: "",
   });
-  const cmd = `--dolua:dofile([[${APIFOLDER}/queryfunctions.lua]]);images([[${CQAE}]],[[${params}]])`;
+  const cmd = `--dolua:dofile([[./queryfunctions.lua]]);images([[${CQAE}]],[[${params}]])`;
   try {
     const os = new os_func_spawn();
     const dados = await os.execCommand(cmd);

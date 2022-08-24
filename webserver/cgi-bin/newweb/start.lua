@@ -39,6 +39,8 @@
 -- mvh 20210204: Pass CGI('newname') to anonymize_script in zipanonymized
 -- mvh 20210208: Fixed that
 -- mvh 20220329: Upload now uses start/uploadfile command (works through php interface)
+-- mvh 20220823: Added upload() function that communicates with server with a dicomecho
+-- mvh 20220824: Hopefully finished upload stuff
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -189,9 +191,9 @@ function fileexists(f)
 end
 
 function safetempfile(ext)
-  local f = servercommand('lua:return tempfile("'..ext..'")')
-  if string.find(f, '\\') then return f end  -- windows
-  return '/tmp/' .. math.floor(1000000*math.random()) .. ext -- linux
+  local f = servercommand('lua:return tempfile("' .. ext .. '")')
+  if string.find(f, '\\') then return f end 
+  return '/tmp/' .. math.floor(1000000*math.random()) .. ext
 end
 
 function copyfile(f, g)
@@ -207,6 +209,28 @@ function copyfile(f, g)
     '')
     if fileexists(f)==false then error('nothing to copy') end
     if fileexists(g)==false then error('failed copy '..f..' to '..g) end
+end
+
+-- if filename given, save data there on server side
+-- if script given run the script at the end
+-- script can use filename, data, returnvalue
+function upload(filename, data, script)
+  local remotecode =
+  [[local a =Command:GetVR(0x9999, 0x401, true)
+    local p = string.find(a, '\n')
+    local filename = string.sub(a, 1, p-1)
+    local data = string.sub(a, p+1)
+    if filename~='' then
+      local f=io.open(filename, 'wb')
+      f:write(data)
+      f:close();
+    end
+  ]] .. script .. [[; Command:SetVR(0x9999,0x403,returnvalue or '1') ]]
+  local x=DicomObject:new()
+  x:SetVR(0x9999, 0x400, 'lua:'..remotecode)
+  x:SetVR(0x9999, 0x401, filename .. '\n' .. data)
+  local a = dicomecho(CGI('ip','127.0.0.1')..':'..CGI('port',5678), x)
+  return string.format('"processed: %s (sent %d bytes)"', a:GetVR(0x9999,0x401,true), #data)
 end
 
 if CGI('parameter')=='test' then
@@ -402,47 +426,42 @@ if CGI('parameter')=='swupdate' then
 end
 
 if CGI('parameter')=='uploadsql' then
-  local n=0
-  local fn = safetempfile(".sql")
-  if CGI('_passfile_', '')~='' then
-    fn = CGI('_passfile_', '')
-  else
-    local f=io.open(fn, 'wb')
-    f:write(CGI())
-    f:close()
-  end
-  HTML('Content-type: application/json\n\n')
   if CGI('ref')~='' then
     servercommand("lua:sql([[delete from UIDMODS where Stage like '"..CGI('ref').."%']])")
-    changeuid('') -- clear UID cache
+    servercommand("lua:changeuid('')") -- clear UID cache
   end
-  
+  local fn = safetempfile(".sql")
+  local a
+  if CGI('_passfile_', '')~='' then
+    fn = CGI('_passfile_', '')
+    local f=io.open(fn, 'rb')
+    a = f:read('*a')
+    f:close()
+  else
+    a = CGI()
+  end
   --for v in io.lines(fn) do
   --  n= n+tonumber(servercommand("lua:return sql([["..v.."]])") or 0)
   --end
   --print(n)
-  
-  -- this is more efficient and does not run out of resources
-  -- but requires passing 65536 to mysql_real_connect in odbci.cpp
-  -- and setting max_allowed_packet=16M in my.ini
-  local g = servercommand('lua:h=io.open([['..fn..']], "r") t=h:read([[*all]]) h:close() return sql(t)')
-  print(g)
-  
-  return
+  --need setting max_allowed_packet=16M in my.ini
+  HTML('Content-type: application/json\n\n')
+  print (upload('', a, 'returnvalue = sql(data)'))
 end
 
 if CGI('parameter')=='uploadinfo' then
   local web
   local ds='/'
   local fn = safetempfile(".pdf")
+  local a
   if CGI('_passfile_', '')~='' then
     fn = CGI('_passfile_', '')
-  else
-    local f=io.open(fn, 'wb')
-    f:write(CGI())
+    local f=io.open(fn, 'rb')
+    a = f:read('*a')
     f:close()
+  else
+    a = CGI()
   end
-
   if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
     ds = '\\'
     web = 'c:\\xampp\\htdocs\\'
@@ -455,25 +474,25 @@ if CGI('parameter')=='uploadinfo' then
   end
   copyfile(fn, web..project..ds..'info'..ds..CGI('filename')) 
   HTML('Content-type: application/json\n\n')
-  print(1)
-  return
+  print (upload(web..project..ds.."info"..ds..CGI('filename'), a, 'returnvalue=filename'))
 end
 
 if CGI('parameter')=='uploadtable' then
   local ds = '/'
   local g = servercommand('lua:return Global.basedir')
   local fn = safetempfile(".csv")
+  local a
   if CGI('_passfile_', '')~='' then
     fn = CGI('_passfile_', '')
-  else
-    local f=io.open(fn, 'wb')
-    f:write(CGI())
+    local f=io.open(fn, 'rb')
+    a = f:read('*a')
     f:close()
+  else
+    a = CGI()
   end
   if string.find(os.getenv('SCRIPT_FILENAME'), ':') then
     ds = '\\'
   end
-  HTML('Content-type: application/json\n\n')
   if not fileexists(g.."tables"..ds..CGI('filename')) then
     servercommand("lua:DicomObject:new():Script([[mkdir "..g.."tables]])")
   end
@@ -481,34 +500,30 @@ if CGI('parameter')=='uploadtable' then
     for i=1,1000 do
       if not fileexists(g.."tables"..ds..CGI('filename')..'.'..i) then
         copyfile(g.."tables"..ds..CGI('filename'), g.."tables"..ds..CGI('filename')..'.'..i)
-	break
+        break
       end
     end
   end
-  -- local s=CGI()
-  --servercommand('lua:local s=[['..s..']]; f = io.open([['..g..'tables]]..[['..ds..CGI('filename', 'ignore')..']], [[wt]]); f:write(s); f:close()')
-  copyfile(fn, g.."tables"..ds..CGI('filename')) 
-  print(1)
-  return
+  HTML('Content-type: application/json\n\n')
+  print (upload(g.."tables"..ds..CGI('filename'), a, 'returnvalue=filename'))
 end
 
 if CGI('parameter')=='uploadfile' then
   local fn = safetempfile(".tmp")
-  fn = '/tmp/'..CGI('filename', 't.tmp')
+  local a
   if CGI('_passfile_', '')~='' then
     fn = CGI('_passfile_', '')
-  else
-    local f=io.open(fn, 'wb')
-    f:write(CGI())
+    local f=io.open(fn, 'rb')
+    a = f:read('*a')
     f:close()
+  else
+    a = CGI()
   end
-
+  if string.byte(a, 1)==string.byte('P') and string.byte(a, 2)==string.byte('K') then fn = fn .. '.zip' end
+  if string.byte(a, 1)==0 and string.byte(a, 2)==0 then fn = fn .. '.dcm' end
   local script = CGI('script', '')
   HTML('Content-type: application/json\n\n')
-  print(servercommand('lua:local filename=[['..fn..']]\n'..script))
-  os.remove(fn);
-  print('"OK"')
-
+  print (upload(fn, a, CGI('script', '') .. ';os.remove(filename); returnvalue=filename'))
   return
 end
 

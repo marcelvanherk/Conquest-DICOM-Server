@@ -1,0 +1,4 @@
+#!/bin/bash
+systemctl restart apache2
+systemctl restart conquest.service
+bash

@@ -1,5 +1,5 @@
 <?php
-  $folder = 'c:\\dicomserver\\webserver\\htdocs\\app\\newweb';	// where are the newweb files
+  $folder = '.';				// where are the newweb files
   $exe    = 'dgate';				// communication with DICOM server
   $quote  = '""';				// quotes in command line
 

@@ -26,6 +26,7 @@
 // 20210117  mvh  Added missing ; on newcgi if
 // 20210516  mvh  Use smaller substring for header handling; note use PHP7 for fast passthru
 // 20210913  mvh  Put wordpress login test here as option
+// 20220823  mvh  Added optional CORS headers
 // 20220827  mvh  Use configuration, stopped supporting old cgi interface
 
 include 'config.php';
@@ -125,6 +126,12 @@ $t = explode("\n", substr($s, 0, $m));
 
 foreach ($t as $value)
   header($value);
+
+if ($cors) {
+  header('Access-Control-Allow-Headers: *');
+  header('Access-Control-Allow-Origin: *');
+}
+
 echo substr($var, $m+2);
 
 // Add display of logged in user and logout function to selected pages

@@ -43,6 +43,7 @@
 -- mvh 20220824: Hopefully finished upload stuff
 -- mvh 20220827: Made dgate extension more generic, allows deployment as app; 
 --               No longer accept cgi port and address, fix unused default in remotemove function
+-- mvh 20220827: Escape \ to \\ in returned filename of upload; fix uploading even and odd data
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -221,19 +222,30 @@ function upload(filename, data, script)
   local remotecode =
   [[local a =Command:GetVR(0x9999, 0x401, true)
     local p = string.find(a, '\n')
-    local filename = string.sub(a, 1, p-1)
-    local data = string.sub(a, p+1)
+    local filename = string.sub(a, 2, p-1)
+    local data
+    if string.sub(a, 1, 1)=='0' then 
+      data = string.sub(a, p+1) 
+    else 
+      data = string.sub(a, p+1, -2) 
+    end
     if filename~='' then
       local f=io.open(filename, 'wb')
       f:write(data)
       f:close();
     end
-  ]] .. script .. [[; Command:SetVR(0x9999,0x403,returnvalue or '1') ]]
+    local __n=#data
+  ]] .. script .. [[; Command:SetVR(0x9999,0x403,__n..' bytes of file '..tostring(returnvalue)) ]]
   local x=DicomObject:new()
   x:SetVR(0x9999, 0x400, 'lua:'..remotecode)
-  x:SetVR(0x9999, 0x401, filename .. '\n' .. data)
+  local n=#filename+#data
+  if n%2 == 0 then
+    x:SetVR(0x9999, 0x401, '0' .. filename .. '\n' .. data)
+  else
+    x:SetVR(0x9999, 0x401, '1' .. filename .. '\n' .. data)
+  end
   local a = dicomecho(ip..':'..port, x)
-  return string.format('"processed: %s (sent %d bytes)"', a:GetVR(0x9999,0x401,true), #data)
+  return string.format('"processed: %s (sent %d bytes)"', string.gsub(a:GetVR(0x9999,0x401,true) or '', [[\]], [[\\]]), #data)
 end
 
 if CGI('parameter')=='test' then

@@ -26,12 +26,9 @@
 // 20210117  mvh  Added missing ; on newcgi if
 // 20210516  mvh  Use smaller substring for header handling; note use PHP7 for fast passthru
 // 20210913  mvh  Put wordpress login test here as option
+// 20220827  mvh  Use configuration, stopped supporting old cgi interface
 
-$folder    = "c:\\dicomserver\\webserver\\cgi-bin\\newweb";	// point to servers newweb folder
-$exe       = "dgate.exe";					// use "dgate" for linux
-$userlogin = false;						// uses single file login system
-$wplogin   = false;						// uses wordpress login system
-$newcgi    = true;						// for conquest 1.5.0b up
+include 'config.php';
 
 if ($wplogin) {
   if (!defined("DISABLE_WP_CRON")) define( 'DISABLE_WP_CRON', true );
@@ -109,17 +106,11 @@ if(!empty($_SERVER["CONTENT_LENGTH"])) {
 // pass parameters to cgi application
 putenv("SCRIPT_NAME=".$_SERVER["SCRIPT_NAME"]);
 putenv("SCRIPT_FILENAME=".$_SERVER["SCRIPT_FILENAME"]);
-if ($newcgi==false)
-   putenv("QUERY_STRING=".http_build_query($output));
 
 // Run the cgi executable
 header_remove();
 ob_start();
-if ($newcgi==false)
-  passthru($exe);
-else
-  passthru($exe . ' "-y' . http_build_query($output) . '"');
-
+passthru($exe . ' "-y' . http_build_query($output) . '"');
 $var = ob_get_contents();
 ob_end_clean();
 

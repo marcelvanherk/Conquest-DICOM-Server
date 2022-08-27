@@ -8,8 +8,6 @@ ACRNemaMap               = acrnema.map
 Dictionary               = dgate.dic
 WebServerFor             = 127.0.0.1
 TCPPort                  = 5678
-WebScriptAddress         = /app/newweb
-WebCodeBase              = /
 TempDir                  = ${CONQUESTTEMP}
 
 [webdefaults]

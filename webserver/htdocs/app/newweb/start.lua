@@ -232,7 +232,7 @@ function upload(filename, data, script)
   local x=DicomObject:new()
   x:SetVR(0x9999, 0x400, 'lua:'..remotecode)
   x:SetVR(0x9999, 0x401, filename .. '\n' .. data)
-  local a = dicomecho(port..':'..ip, x)
+  local a = dicomecho(ip..':'..port, x)
   return string.format('"processed: %s (sent %d bytes)"', a:GetVR(0x9999,0x401,true), #data)
 end
 

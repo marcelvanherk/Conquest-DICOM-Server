@@ -8,9 +8,11 @@
 -- 20190112   mvh   Use | to separate items to help with special characters in patientID
 -- 20200307   mvh   Avoid query with '***'
 -- 20201025   mvh   Standardised header
+-- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
+if not ex then ex='' else ex='dgate'..ex end
 local query_pid = '';
 local query_pna = '';
 local query_pst = '';
@@ -247,10 +249,10 @@ print("<TR><TD>Patient ID<TD>Name<TD>Study Date<TD>Study description<TD>Study mo
 
 for i=1,#pats do
   
-  t = string.format("<A HREF=dgate%s?%s&mode=listseries&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.studyinsta+=+'%s' title='Click to see series'>%s</A>", ex, extra, tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),mc(pats[i].PatientID));
+  t = string.format("<A HREF=%s?%s&mode=listseries&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.studyinsta+=+'%s' title='Click to see series'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),mc(pats[i].PatientID));
   
   --if (studyviewer ~= '') then
-  -- u = string.format("<A HREF=dgate%s?%s&mode=%s&study=%s:%s&size=%s>View study</A>", ex, tostring(extra or ''), tostring(studyviewer or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),size); 
+  -- u = string.format("<A HREF=%s?%s&mode=%s&study=%s:%s&size=%s>View study</A>", ex, '', tostring(studyviewer or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),size); 
   --else
   --  u = 'No studyviewer'
   --end

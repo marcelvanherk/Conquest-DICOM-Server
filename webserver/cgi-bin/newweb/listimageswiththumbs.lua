@@ -6,9 +6,11 @@
 -- 20200127   mvh   List ImageID instead of PatientName; fix sort if no InstanceNumber
 -- 20200307   mvh   Avoid query with '***'
 -- 20201025   mvh   Standardised header
+-- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
+if not ex then ex='' else ex='dgate'..ex end
 
 local query_pid = '';
 local query_pna = '';
@@ -309,7 +311,7 @@ for i=1,#pats do
 	
   t = url_img..string.format("%s</A>",mcoalesce(pats[i].PatientID));
 						   
-  v = string.format("<IMG SRC=dgate%s?%s&mode=slice&slice=%s:%s&size=%s&graphic=%s width='100%%' height='%s' alt='' title='Click to see header'></A>", ex, extra,string.gsub(pats[i].PatientID, ' ', '+'),  mcoalesce(pats[i].SOPInstanceUID),iconsize, graphic, iconsize);
+  v = string.format("<IMG SRC=%s?%s&mode=slice&slice=%s:%s&size=%s&graphic=%s width='100%%' height='%s' alt='' title='Click to see header'></A>", ex, '', string.gsub(pats[i].PatientID, ' ', '+'),  mcoalesce(pats[i].SOPInstanceUID),iconsize, graphic, iconsize);
   v = url_header..v
  
   s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s</TR>",t,mcoalesce(pats[i].ImageID), mcoalesce(pats[i].ImageDate),mcoalesce(pats[i].InstanceNumber), mcoalesce(pats[i].SliceLocation),v);

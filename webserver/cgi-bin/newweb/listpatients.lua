@@ -14,10 +14,12 @@
 -- 20200113   mvh   Small fix in that
 -- 20200307   mvh   Avoid query with '***'
 -- 20200618   mvh   Fixed hardcoded CONQUESTSRV1 in 'deleter'
+-- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 version = version  or ''
 local ex = string.match(webscriptaddress, 'dgate(.*)')
+if not ex then ex='' else ex='dgate'..ex end
 local query_pid = '';
 local query_pna = '';
 local query_pst = '';
@@ -464,7 +466,7 @@ function dropdown(i, item)
 end
 
 for i=1,#pats do
-  t = string.format("<A HREF=dgate%s?%s&mode=liststudies&key=%s&query=patientid+=+'%s' title='Click to see studies'>%s</A>", ex, extra, tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].PatientID));
+  t = string.format("<A HREF=%s?%s&mode=liststudies&key=%s&query=patientid+=+'%s' title='Click to see studies'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].PatientID));
   s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,mc(pats[i].PatientName),mc(pats[i].PatientSex),mc(pats[i].PatientBirthDate), dropdown(i, pats[i].PatientID));
   print(s)
 end

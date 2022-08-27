@@ -10,9 +10,11 @@
 -- 20190112   mvh   Use | to separate items to help with special characters in patientID
 -- 20200307   mvh   Avoid query with '***'
 -- 20201025   mvh   Standardised header
+-- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
+if not ex then ex='' else ex='dgate'..ex end
 local query_pid = '';
 local query_pna = '';
 local query_pst = '';
@@ -234,16 +236,16 @@ HTML("<Caption>List of series (%s) on local server</caption>", #pats);
 HTML("<TR><TD>Patient ID<TD>Name<TD>Series date<TD>Series time<TD>Series description<TD>Modality<TD>Thumbs<TD>Menu</TR>");
 	
 for i=1,#pats do
-  t = string.format("<A HREF=dgate%s?%s&mode=listimages&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s' title='Click to see images'>%s</A>", ex, extra, tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),mc(pats[i].PatientID));
-  v = string.format("<A HREF=dgate%s?%s&mode=listimageswiththumbs&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s'&size=%s>Thumbs</A>", 
-       ex, tostring(extra or ''), string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size); 
+  t = string.format("<A HREF=%s?%s&mode=listimages&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s' title='Click to see images'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),mc(pats[i].PatientID));
+  v = string.format("<A HREF=%s?%s&mode=listimageswiththumbs&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s'&size=%s>Thumbs</A>", 
+       ex, '', string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size); 
   --if (viewer ~= '') then
-  -- u = string.format("<A HREF=dgate%s?%s&mode=%s&series=%s:%s&size=%s>View series</A>", ex, tostring(extra or ''), tostring(viewer or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size); 
+  -- u = string.format("<A HREF=%s?%s&mode=%s&series=%s:%s&size=%s>View series</A>", ex, '', tostring(viewer or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size); 
   --else
   -- u='no viewer'
   --end
 
---  r = string.format("<A HREF=dgate%s?%s&mode=renderseries&series=%s:%s&size=%s>Render series</A>", ex, tostring(extra or ''), string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size); 
+--  r = string.format("<A HREF=%s?%s&mode=renderseries&series=%s:%s&size=%s>Render series</A>", ex, '', string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size); 
 
   s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,mc(pats[i].PatientName),
     mc(pats[i].SeriesDate),mc(pats[i].SeriesTime), mc(pats[i].SeriesDescription),mc(pats[i].Modality),v,

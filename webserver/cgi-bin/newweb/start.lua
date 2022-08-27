@@ -41,9 +41,12 @@
 -- mvh 20220329: Upload now uses start/uploadfile command (works through php interface)
 -- mvh 20220823: Added upload() function that communicates with server with a dicomecho
 -- mvh 20220824: Hopefully finished upload stuff
+-- mvh 20220827: Made dgate extension more generic, allows deployment as app; 
+--               No longer accept cgi port and address, fix unused default in remotemove function
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
+if not ex then ex='' else ex='dgate'..ex end
 local readOnly = gpps('webdefaults', 'readOnly', '0')~='0'
 
 function tempfile()
@@ -167,7 +170,7 @@ function remotequery(ae, level, q, jsn)
 end
 
 function remotemove(from, to, q, xtra)
-  if extra=='' then extra='{}' end
+  if xtra=='' then xtra='{}' end
   local remotecode =
 [[
   local from=']]..from..[[';
@@ -229,7 +232,7 @@ function upload(filename, data, script)
   local x=DicomObject:new()
   x:SetVR(0x9999, 0x400, 'lua:'..remotecode)
   x:SetVR(0x9999, 0x401, filename .. '\n' .. data)
-  local a = dicomecho(CGI('ip','127.0.0.1')..':'..CGI('port',5678), x)
+  local a = dicomecho(port..':'..ip, x)
   return string.format('"processed: %s (sent %d bytes)"', a:GetVR(0x9999,0x401,true), #data)
 end
 
@@ -624,10 +627,8 @@ HTML("<HR>");
 HTML("<table>");
 key=''  	
 HTML("<tr>");
-HTML("<FORM ACTION=\"dgate%s\"   onSubmit=\"if (this.patientnamematch.value == '' && this.patientidmatch.value == '') {alert('Please, fill the entry fields');return false;}\">", ex);
+HTML("<FORM ACTION=\"%s\"   onSubmit=\"if (this.patientnamematch.value == '' && this.patientidmatch.value == '') {alert('Please, fill the entry fields');return false;}\">", ex);
 HTML("<INPUT NAME=mode    TYPE=HIDDEN VALUE=listpatients>");
-HTML("<INPUT NAME=port    TYPE=HIDDEN VALUE=%s>", port);
-HTML("<INPUT NAME=address TYPE=HIDDEN VALUE=%s>", address);
 HTML("<INPUT NAME=key     TYPE=HIDDEN VALUE=%s>", key);
 HTML("<td>Local Patient List");
 HTML("<td>Patient ID: <INPUT NAME=patientidmatch TYPE=Text VALUE=>");
@@ -638,10 +639,8 @@ HTML("</FORM>");
 HTML("</tr>");	
 
 HTML("<tr>");
-HTML("<FORM ACTION=\"dgate%s\" onSubmit=\"if (this.patientnamematch.value == '' && this.patientidmatch.value == '' && this.studydatematch.value == '') {alert('Please, fill the entry fields');return false;}\">", ex);
+HTML("<FORM ACTION=\"%s\" onSubmit=\"if (this.patientnamematch.value == '' && this.patientidmatch.value == '' && this.studydatematch.value == '') {alert('Please, fill the entry fields');return false;}\">", ex);
 HTML("<INPUT NAME=mode    TYPE=HIDDEN VALUE=liststudies>");
-HTML("<INPUT NAME=port    TYPE=HIDDEN VALUE=%s>", port);
-HTML("<INPUT NAME=address TYPE=HIDDEN VALUE=%s>", address);
 HTML("<INPUT NAME=key     TYPE=HIDDEN VALUE=%s>", key);
 HTML("<td>Local Studies List");
 HTML("<td>Patient ID: <INPUT NAME=patientidmatch TYPE=Text VALUE=>");
@@ -657,10 +656,8 @@ HTML("</tr>");
 
 if counttrials()>0 then
   HTML("<tr>");
-  HTML("<FORM ACTION=\"dgate%s\">", ex);
+  HTML("<FORM ACTION=\"%s\">", ex);
   HTML("<INPUT NAME=mode    TYPE=HIDDEN VALUE=listtrials>");
-  HTML("<INPUT NAME=port    TYPE=HIDDEN VALUE=%s>", port);
-  HTML("<INPUT NAME=address TYPE=HIDDEN VALUE=%s>", address);
   HTML("<INPUT NAME=key     TYPE=HIDDEN VALUE=%s>", key);
   HTML("<td>Local Trial List");
   HTML("<td>Trial ID: <INPUT NAME=trialmatch TYPE=Text VALUE=>");
@@ -673,12 +670,10 @@ end
 
 HTML("</table>");
 
-HTML("<FORM ACTION=\"dgate%s\" METHOD=POST ENCTYPE=\"multipart/form-data\">", ex);
+HTML("<FORM ACTION=\"%s\" METHOD=POST ENCTYPE=\"multipart/form-data\">", ex);
 HTML("<INPUT NAME=mode      TYPE=HIDDEN VALUE=start>");
 HTML("<INPUT NAME=parameter TYPE=HIDDEN VALUE=uploadfile>");
 HTML("<INPUT NAME=script    TYPE=HIDDEN VALUE=servercommand('addimagefile:'..filename)>");
-HTML("<INPUT NAME=port      TYPE=HIDDEN VALUE=%s>", port);
-HTML("<INPUT NAME=address   TYPE=HIDDEN VALUE=%s>", address);
 HTML("Upload file to enter into server (dcm/v2/HL7/zip/7z/gz/tar): <INPUT NAME=filetoupload SIZE=40 TYPE=file VALUE=>");
 HTML("<INPUT TYPE=SUBMIT VALUE=Go>");
 HTML("</FORM>");

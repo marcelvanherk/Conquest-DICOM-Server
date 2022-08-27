@@ -1,7 +1,10 @@
 -- mvh 20160124: created
 -- mvh 20200112: Skip (empty) as possible trial name, count all others
+-- 20220827   mvh   Made dgate extension more generic, allows deployment as app
+
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
+if not ex then ex='' else ex='dgate'..ex end
 local query_pid = '';
 local query_pna = '';
 local query_pst = '';
@@ -133,7 +136,7 @@ HTML("<caption>list of all trials (%s) on anonymization system</caption>", #tria
 print("<tr><td>trials id<td>patients</tr>"); 
 
 for i=1,#trials do
-  t = string.format("<a href=dgate%s?%s&mode=listtrialpatients&key=%s&trial=%s title='click to see trial patients'>%s</a>", ex, extra, tostring(key or ''),trials[i],trials[i]);
+  t = string.format("<a href=%s?%s&mode=listtrialpatients&key=%s&trial=%s title='click to see trial patients'>%s</a>", ex, '', tostring(key or ''),trials[i],trials[i]);
   if trials[i]~='(empty)' then
     s = string.format("<tr><td>%s<td>%s</tr>",t,counttrialpatients(trials[i]));
     print(s)

@@ -56,4 +56,3 @@ export opt='sqlite'
 			gcc -o $SRC/openjpeg.o -c $SRC/openjpeg/all.c -I$SRC/openjpeg
 			g++ $FLAGS -DUSESQLITE $SRC/sqlite3.o $OBS -o dgate $SRC/src/total.cpp $LUA $INCS -I$SRC/sqlite3;
 			rm $SRC/sqlite3.o;
-			break;

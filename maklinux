@@ -143,8 +143,8 @@ then
 	
 	[ ! -d data/dbase ] && mkdir data/dbase
 	
-	chmod 777 console.sh
-	chmod 777 webviewer.sh	
+	chmod 777 linux/console.sh
+	chmod 777 linux/webviewer.sh	
 	chmod 777 linux/restart
 	chmod 777 linux/regen
 	chmod 777 linux/updatelinux

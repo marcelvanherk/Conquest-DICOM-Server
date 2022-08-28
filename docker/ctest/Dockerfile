@@ -37,9 +37,9 @@ RUN git clone https://github.com/marcelvanherk/Conquest-DICOM-Server
 #COPY Conquest-DICOM-Server Conquest-DICOM-Server
 
 #mark scripts as executable
+RUN cd Conquest-DICOM-Server && chmod 777 maklinux
 RUN cd Conquest-DICOM-Server && chmod 777 linux/regen
 RUN cd Conquest-DICOM-Server && chmod 777 linux/updatelinux
-RUN cd Conquest-DICOM-Server && chmod 777 maklinux
 RUN cd Conquest-DICOM-Server && chmod 777 linux/restart
 
 #compile, update dicom.ini if next to Dockerfile, and regenerate the SQLite database

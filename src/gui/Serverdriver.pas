@@ -685,6 +685,7 @@ When            Who     What
 20211010        mvh     Merged Luiz extra controls for move to MAGx (but simplified)
 20220828        mvh     Fix run webviewer from browser; write port into 3 config.php
                         file at install; copy dgate.exe to newweb app; update build date
+                        change case of Logs folder to logs
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -3043,8 +3044,8 @@ begin
     MagDeviceList[0] := DataDir + '\';
     if not SysUtils.DirectoryExists(DataDir) then
       Mkdir(DataDir);
-    if not SysUtils.DirectoryExists(Curdir + '\Logs') then
-      Mkdir(Curdir + '\Logs');
+    if not SysUtils.DirectoryExists(Curdir + '\logs') then
+      Mkdir(Curdir + '\logs');
     Label10.Caption := DataDir;
 {$I+}
   end

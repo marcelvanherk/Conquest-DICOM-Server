@@ -530,16 +530,16 @@ export default {
   padding-left: 5px;
 }
 
-::v-deep .dstudies {
-  max-height: 200px;
-  overflow-y: auto;
-}
-::v-deep .dserie {
-  max-height: 200px;
-  overflow-y: auto;
-}
-::v-deep .dimage {
-  max-height: 300px;
-  overflow-y: auto;
-}
+//::v-deep .dstudies {
+//  max-height: 200px;
+//  overflow-y: auto;
+//}
+//::v-deep .dserie {
+//  max-height: 200px;
+//  overflow-y: auto;
+//}
+//::v-deep .dimage {
+//  max-height: 300px;
+//  overflow-y: auto;
+//}
 </style>

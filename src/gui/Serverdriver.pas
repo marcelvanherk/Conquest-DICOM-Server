@@ -683,6 +683,8 @@ When            Who     What
 20210630        mvh     No missing \ alert on linux, GetTempDir adjusted for linux (wip)
 20211003        mvh     Added GuiToServerFilename to enable mix OS running (wip)
 20211010        mvh     Merged Luiz extra controls for move to MAGx (but simplified)
+20220828        mvh     Fix run webviewer from browser; write port into 3 config.php
+                        file at install; copy dgate.exe to newweb app; update build date
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -719,7 +721,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0c';
-const BUILDDATE = '20210621';
+const BUILDDATE = '20220828';
 const testmode = 0;
 
 {************************************************************************}
@@ -4276,10 +4278,10 @@ end;
 
 procedure TForm1.SaveConfigButtonClick(Sender: TObject);
 var f: TextFile;
-    p, c, i, resp: integer;
+    p, c, i, j, resp: integer;
     UseDBFWithoutODBC, changepage: boolean;
     i_f: TInifile;
-    amap: TStringList;
+    amap, php: TStringList;
 begin
   UseDBFWithoutODBC := false;
   if FileExists(curdir + '\USEDBASEIIIWITHOUTODBC') then UseDBFWithoutODBC := true;
@@ -4811,7 +4813,7 @@ begin
     CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\acrnema.map'), false);
   end;
 
-  // Update newweb interface with executables and ini file settings
+  // Update newweb cgi interface with executables and ini file settings
   if fileExists(curdir + '\webserver\cgi-bin\newweb\dicom.ini') then
   begin
     if not FileExists(curdir + '\webserver\cgi-bin\newweb\dgate.exe') then
@@ -4823,6 +4825,71 @@ begin
     i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
     i_f.Free;
 //    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
+  end;
+
+  // Update newweb app with executables and ini file settings
+  if fileExists(curdir + '\webserver\htdocs\app\newweb\dicom.ini') then
+  begin
+    if not FileExists(curdir + '\webserver\htdocs\app\newweb\dgate.exe') then
+      CopyFile(PChar(curdir + '\install32\dgate.exe'), PChar(curdir + '\webserver\htdocs\app\newweb\dgate.exe'), false);
+    if not FileExists(curdir + '\webserver\htdocs\app\newweb\lua5.1.dll') then
+      CopyFile(PChar(curdir + '\install32\lua5.1.dll'), PChar(curdir + '\webserver\htdocs\app\newweb\lua5.1.dll'), false);
+    i_f := TIniFile.Create(curdir + '\webserver\htdocs\app\newweb\dicom.ini');
+//    i_f.WriteString('sscscp', 'ACRNemaMap', ' acrnema.map');
+    i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
+    i_f.Free;
+//    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
+  end;
+
+  // Update config.php putting PORT of server in $exe line
+  if FileExists(curdir+'\webserver\htdocs\api\dicom\config.php') then
+  begin
+    php := TStringList.Create;
+    php.LoadFromFile(curdir+'\webserver\htdocs\api\dicom\config.php');
+    for i := 0 to php.Count-1 do
+    begin
+      if (pos('$exe', php[i])>1) and (pos('-p', php[i])>1) then
+      begin
+        j := pos('-p', php[i]);
+        php[i] := copy(php[i], 1, j+1)+trim(TCPIPport.text)+' -q127.0.0.1'';';
+        break;
+      end;
+    end;
+    php.SaveToFile(curdir+'\webserver\htdocs\api\dicom\config.php');
+  end;
+
+  // Update config.php putting PORT of server in $exe line
+  if FileExists(curdir+'\webserver\htdocs\app\newweb\config.php') then
+  begin
+    php := TStringList.Create;
+    php.LoadFromFile(curdir+'\webserver\htdocs\app\newweb\config.php');
+    for i := 0 to php.Count-1 do
+    begin
+      if (pos('$exe', php[i])>1) and (pos('-p', php[i])>1) then
+      begin
+        j := pos('-p', php[i]);
+        php[i] := copy(php[i], 1, j+1)+trim(TCPIPport.text)+' -q127.0.0.1'';';
+        break;
+      end;
+    end;
+    php.SaveToFile(curdir+'\webserver\htdocs\app\newweb\config.php');
+  end;
+
+  // Update config.php putting PORT of server in $exe line
+  if FileExists(curdir+'\webserver\htdocs\config.php') then
+  begin
+    php := TStringList.Create;
+    php.LoadFromFile(curdir+'\webserver\htdocs\config.php');
+    for i := 0 to php.Count-1 do
+    begin
+      if (pos('$exe', php[i])>1) and (pos('-p', php[i])>1) then
+      begin
+        j := pos('-p', php[i]);
+        php[i] := copy(php[i], 1, j+1)+trim(TCPIPport.text)+' -q127.0.0.1'';';
+        break;
+      end;
+    end;
+    php.SaveToFile(curdir+'\webserver\htdocs\config.php');
   end;
 
   if FileExists(//ExtractFileDir(ParamStr(0))
@@ -6741,7 +6808,7 @@ begin
 {$ELSE}
   webaddress := 'http://127.0.0.1:'+LadlePort+'/dgate.exe?mode=wadoseriesviewer&series=' +
                  Table1.FieldByName('PATIENTID').AsString+':'+Table3.FieldByName('SERIESINST').AsString;
-  ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];do(fileGlobal.Basedir..[[lua/ladle.lua]])');
+  ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];dofile(Global.Basedir..[[lua/ladle.lua]])');
   ShellExecute(0, 'open', PWideChar(webaddress), nil, nil, SW_SHOWNORMAL);
 {$ENDIF KPACS}
 end;

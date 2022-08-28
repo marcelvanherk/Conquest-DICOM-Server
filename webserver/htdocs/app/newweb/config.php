@@ -1,6 +1,6 @@
 <?php
   $folder = '.';				// where are the newweb files
-  $exe    = 'dgate';				// communication with DICOM server
+  $exe    = 'dgate -p5678 -q127.0.0.1';		// communication with DICOM server
   $quote  = '""';				// quotes in command line
 
   if (PHP_OS_FAMILY != 'Windows') {		// On Linux:

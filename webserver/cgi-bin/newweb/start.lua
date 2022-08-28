@@ -44,6 +44,7 @@
 -- mvh 20220827: Made dgate extension more generic, allows deployment as app; 
 --               No longer accept cgi port and address, fix unused default in remotemove function
 -- mvh 20220827: Escape \ to \\ in returned filename of upload; fix uploading even and odd data
+-- mvh 20220828: Use global port and address, can come from command line
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -88,8 +89,6 @@ function errorpage(s)
 end
 
 local s    = servercommand('get_param:MyACRNema')
-local port = gpps('sscscp', 'TCPPort', '');
-local ip   = gpps('sscscp', 'WebServerFor', '')
 local found= false
 
 function counttrials()
@@ -244,7 +243,7 @@ function upload(filename, data, script)
   else
     x:SetVR(0x9999, 0x401, '1' .. filename .. '\n' .. data)
   end
-  local a = dicomecho(ip..':'..port, x)
+  local a = dicomecho(address..':'..port, x)
   return string.format('"processed: %s (sent %d bytes)"', string.gsub(a:GetVR(0x9999,0x401,true) or '', [[\]], [[\\]]), #data)
 end
 

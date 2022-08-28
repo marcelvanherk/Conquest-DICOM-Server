@@ -15,6 +15,9 @@
 -- mvh 20181115 Fix default of BaseDir
 -- mvh 20181117 Use / in folder for linux compatibility
 -- mvh 20181218 Added loadstring and DicomObject for new serialized data
+-- mvh 20220828 Added dicomecho as trusted function; move used newweb source to htdocs/app
+-- mvh 20220828 Note: does not support POST multipart; cannot upload yet
+
 -----------------------------------------------------
 
 -- lfs = require('lfs')
@@ -438,6 +441,7 @@ function dgatecgi.handler(request, client, config)
   Env.Global = Global
   Env.servercommand = servercommand
   Env.DicomObject = DicomObject
+  Env.dicomecho = dicomecho
 
   Env.print = function(...) 
     Env.write(...) 
@@ -517,7 +521,7 @@ else
 	config = {
 	["hostname"] = "*",
 	["port"] = 8086,
-	["webroot"] = (servercommand('lua:return Global.BaseDir') or '../')..[[webserver/cgi-bin/newweb/]],
+	["webroot"] = (servercommand('lua:return Global.BaseDir') or '../')..[[webserver/htdocs/app/newweb/]],
   }
 end
 

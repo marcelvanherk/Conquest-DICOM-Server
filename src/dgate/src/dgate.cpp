@@ -1191,6 +1191,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			Another fix for empty US elements
 20220823        mvh     CGI("_filename_) to get uploaded file name; protect writes there
 20220824    	mvh	Second parameter of dicomread allows header truncation
+20220828    	mvh	CGI allows dgate -pPORT -qIP -hAE -ycommand (with -y last!)
 
 ENDOFUPDATEHISTORY
 */
@@ -24125,7 +24126,7 @@ void ConfigDgate(void)
 	}
 
 // main as console app or child process
-static void DgateCgi(char *ext, char *argv0); // forward reference
+static void DgateCgi(char *ext, char *argv0, int argc, char **argv); // forward reference
 static char global_query_string[2048];
 
 int
@@ -24159,11 +24160,25 @@ main ( int	argc, char	*argv[] )
 #endif
 	global_query_string[sizeof(global_query_string)-1]=0;
 
-	if (argc==2 && argv[1][0]=='-' && argv[1][1]=='y')
-		{
-		strncpy(global_query_string, argv[1]+2, sizeof(global_query_string)-1);
-		DgateCgi(ext, argv[0]);
-		exit(0);
+//	if (argc==2 && argv[1][0]=='-' && argv[1][1]=='y')
+//		{
+//		strncpy(global_query_string, argv[1]+2, sizeof(global_query_string)-1);
+//		DgateCgi(ext, argv[0], argc, argv);
+//		exit(0);
+//		}
+
+	// CGI allows dgate -ycommand (with -y at any place)
+	for (int i=1; i<argc; i++)
+		{ 
+		if (argv[i][0]=='-')
+			{
+			if (argv[i][1]=='y') 
+				{
+				strncpy(global_query_string, argv[i]+2, sizeof(global_query_string)-1);
+				DgateCgi(ext, argv[0], argc, argv);
+				exit(0);
+				}
+			}
 		}
 		
 	char *cl = getenv( "CONTENT_LENGTH" );
@@ -24173,14 +24188,14 @@ main ( int	argc, char	*argv[] )
 		{
 		if (query_string) 
 			strncpy(global_query_string, query_string, sizeof(global_query_string)-1); 
-		DgateCgi(ext, argv[0]);
+		DgateCgi(ext, argv[0], argc, argv);
 		exit(0);
 		}
 
 	if (query_string && argc==1) 
 		{
 		strncpy(global_query_string, query_string, sizeof(global_query_string)-1); 
-		DgateCgi(ext, argv[0]);
+		DgateCgi(ext, argv[0], argc, argv);
 		exit(0);
 		}
 		
@@ -25278,9 +25293,9 @@ static void replace(char *string, const char *key, const char *value)
   strcpy(q, temp);
 }
 
-static BOOL DgateWADO(void);
+static BOOL DgateWADO(int arg, char **argv);
 
-static void DgateCgi(char *ext, char *argv0)
+static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 { char mode[512], command[8192], size[32], dsize[32], iconsize[32], slice[512], slice2[512], query[512], buf[512], 
        patientidmatch[512], patientnamematch[512], studydatematch[512], startdatematch[512], 
        db[256], series[512], study[512], compress[64], WebScriptAddress[256], WebMAG0Address[256], 
@@ -25302,7 +25317,7 @@ static void DgateCgi(char *ext, char *argv0)
   }
   
   *uploadedfile=0;
-  if (DgateWADO()) return;
+  if (DgateWADO(argc, argv)) return;
 
   BOOL ReadOnly=FALSE;
   BOOL WebPush=TRUE;
@@ -25319,7 +25334,7 @@ static void DgateCgi(char *ext, char *argv0)
 
   ConfigMicroPACS();
   LoadKFactorFile((char*)KFACTORFILE);
-
+  
   MyGetPrivateProfileString ( RootConfig, "MicroPACS", RootConfig, RootSC, 64, ConfigFile);
   MyGetPrivateProfileString ( RootSC, "Dictionary", "", Temp, 64, ConfigFile);
   if (Temp[0]) 
@@ -25371,8 +25386,8 @@ static void DgateCgi(char *ext, char *argv0)
 
   MyGetPrivateProfileString ( "webdefaults", "port", (char *)Port, (char*)Port,       256, ConfigFile);
 
-  CGI((char *)Port,         "port",    (char *)Port);	// allow serving any server
-  CGI(ServerCommandAddress, "address", ServerCommandAddress);
+  //CGI((char *)Port,         "port",    (char *)Port);	// allow serving any server
+  //CGI(ServerCommandAddress, "address", ServerCommandAddress);
 
   CGI(mode,    "mode",     "");		// web page
   char mode2[256];
@@ -25427,7 +25442,18 @@ static void DgateCgi(char *ext, char *argv0)
   CGI(patientnamematch, "patientnamematch", "");
   CGI(studydatematch,   "studydatematch",   "");
   CGI(startdatematch,   "startdatematch",   "");
-
+  
+  // allow overrule of port, ip and AE in dicom.ini from command line (e.g. in php or node.js)
+  for (i=1; i<argc; i++)
+	{ 
+	if (argv[i][0]=='-')
+		{
+		if (argv[i][1]=='h') strcpy((char *)MYACRNEMA, argv[i]+2);
+		else if (argv[i][1]=='p') strcpy((char *)Port, argv[i]+2);
+		else if (argv[i][1]=='q') strcpy(ServerCommandAddress, argv[i]+2);
+		}
+	}
+  
   sprintf(extra, "port=%s&address=%s", Port, ServerCommandAddress);
 
   if (patientidmatch[0]!=0)
@@ -27200,7 +27226,7 @@ control 	<- 	webserver <- dicomserver	dicom data
 
 */
 
-static BOOL DgateWADO()
+static BOOL DgateWADO(int argc, char **argv)
 { char requestType[256];
   CGI(requestType,   "requestType",    "");		// is this a WADO request?
   if (strcmp(requestType, "WADO")!=0) return FALSE;
@@ -27220,6 +27246,17 @@ static BOOL DgateWADO()
   MyGetPrivateProfileString ( RootSC,        "WebServerFor", WebServerFor, WebServerFor, 256, ConfigFile);
   MyGetPrivateProfileString ( "webdefaults", "address",      WebServerFor, WebServerFor, 256, ConfigFile);
   strcpy(ServerCommandAddress, WebServerFor);
+
+  // allow overrule of port, ip and AE in dicom.ini from command line (e.g. in php or node.js)
+  for (int i=1; i<argc; i++)
+	{ 
+	if (argv[i][0]=='-')
+		{
+		if (argv[i][1]=='h') strcpy((char *)MYACRNEMA, argv[i]+2);
+		else if (argv[i][1]=='p') strcpy((char *)Port, argv[i]+2);
+		else if (argv[i][1]=='q') strcpy(ServerCommandAddress, argv[i]+2);
+		}
+	}
 
   char command[1024];
   sprintf(command, "wadoparse:%s", global_query_string);

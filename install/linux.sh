@@ -58,4 +58,4 @@ sudo cp dicom.ini $CGI/service;
 sudo mkdir -p $CGI/newweb;
 sudo chmod 777 $CGI/newweb;
 
-sensible-browser http://$IP/cgi-bin/service/dgate?temp=$CONQUESTTEMP;
+sensible-browser http://localhost/cgi-bin/service/dgate?temp=$CONQUESTTEMP;

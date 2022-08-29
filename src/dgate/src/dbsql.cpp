@@ -242,6 +242,7 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20201110	mvh	Also added mods_back index for de-anonymise
 20210930        mvh     Added joint indices e.g. idx_patientid_studyinsta; Stage #xx uses 112 bits MD5 dbUIDPrefix[0,24]+MD5(dbUIDPrefix+Stage+UID)
 20220625        mvh     Fix joint indices code; passed wrong table names for Series and Image
+20220829        mvh     Fix joint indices; passed UniqueLink instead of UniqueKey
 */
 
 #define NCACHE 256
@@ -3816,9 +3817,9 @@ InitializeTables(int mode)
 		DB.CreateIndex ( StudyTableName, "study_lnk",     UniqueLink(StudyDB));
 		DB.CreateIndex ( StudyTableName, "idx_patientid", UniqueLink(PatientDB));
 		char joint[80];
-		strcpy(joint, UniqueLink(PatientDB));
+		strcpy(joint, UniqueKey(PatientDB));
 		strcat(joint, ", ");
-		strcat(joint, UniqueLink(StudyDB));
+		strcat(joint, UniqueKey(StudyDB));
 		DB.CreateIndex ( StudyTableName, "idx_patientid_studyinsta", joint);
 		}
 		
@@ -3835,9 +3836,9 @@ InitializeTables(int mode)
 		if (strstr(s, " SeriesPat "))
 			DB.CreateIndex ( SeriesTableName, "series_pat", "SeriesPat");
 		char joint[80];
-		strcpy(joint, UniqueLink(StudyDB));
+		strcpy(joint, UniqueKey(StudyDB));
 		strcat(joint, ", ");
-		strcat(joint, UniqueLink(SeriesDB));
+		strcat(joint, UniqueKey(SeriesDB));
 		DB.CreateIndex ( SeriesTableName, "idx_studyinsta_seriesinst", joint);
 		}
 
@@ -3866,9 +3867,9 @@ InitializeTables(int mode)
 		if (strstr(s, " ImagePat "))
 			DB.CreateIndex ( ImageTableName, "images_pat", "ImagePat");
 		char joint[80];
-		strcpy(joint, UniqueLink(SeriesDB));
+		strcpy(joint, UniqueKey(SeriesDB));
 		strcat(joint, ", ");
-		strcat(joint, UniqueLink(ImageDB));
+		strcat(joint, UniqueKey(ImageDB));
 		DB.CreateIndex ( ImageTableName, "idx_seriesinst_sopinstanc", joint);
 		}
 

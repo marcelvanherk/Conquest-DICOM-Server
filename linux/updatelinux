@@ -75,6 +75,7 @@ export opt='sqlite'
 
         cp dgate webserver/htdocs/app/newweb;
 	cp src/servertask/servertask webserver/htdocs/api/dicom/servertask;
+	chmod 777 webserver/htdocs/api/dicom/servertask;
 	sudo cp -r webserver/htdocs/* /var/www/html;
 	
 	[ ! -d data/dbase ] && mkdir data/dbase

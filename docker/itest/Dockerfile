@@ -25,6 +25,7 @@ FROM debian
 RUN apt update
 RUN apt -y install make sudo nano systemctl gettext-base git apache2 php libapache2-mod-php git g++ lua5.1 liblua5.1-0 lua-socket p7zip-full
 RUN ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so.0 /usr/lib/x86_64-linux-gnu/liblua5.1.so
+#RUN ln -s /usr/lib/aarch64-linux-gnu/liblua5.1.so.0 /usr/lib/aarch64-linux-gnu/liblua5.1.so
 
 #configure apache and restart it
 RUN a2enmod rewrite

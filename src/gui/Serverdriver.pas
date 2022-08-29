@@ -686,6 +686,7 @@ When            Who     What
 20220828        mvh     Fix run webviewer from browser; write port into 3 config.php
                         file at install; copy dgate.exe to newweb app; update build date
                         change case of Logs folder to logs
+20220829        mvh     Allow threshold and treshhold in config files, write with correct spelling
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -722,7 +723,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0c';
-const BUILDDATE = '20220828';
+const BUILDDATE = '20220829';
 const testmode = 0;
 
 {************************************************************************}
@@ -1343,7 +1344,7 @@ var JukeboxDevices: integer;
 var MirrorDeviceList: array[0..9] of string;
 var MirrorDevices: integer;
 var IgnoreMAGDeviceThreshold: string = '0';
-var MAGDeviceFullThreshHold: string = '30';
+var MAGDeviceFullThreshold: string = '30';
 
 var VirtualServerForList: array[0..9] of string;
 var VirtualPerSeries: array[0..9] of integer;
@@ -3417,17 +3418,27 @@ begin
 
     if Copy(s, 0, length('magdevicethreshhold')) = 'magdevicethreshhold' then
       MagThreshold.text := GetData(s);
+    if Copy(s, 0, length('magdevicethreshold')) = 'magdevicethreshold' then
+      MagThreshold.text := GetData(s);
 
     if Copy(s, 0, length('magdevicefullthreshhold')) = 'magdevicefullthreshhold' then
-      MAGDeviceFullThreshHold := GetData(s);
+      MAGDeviceFullThreshold := GetData(s);
+    if Copy(s, 0, length('magdevicefullthreshold')) = 'magdevicefullthreshold' then
+      MAGDeviceFullThreshold := GetData(s);
 
+    if Copy(s, 0, length('ignoremagdevicethreshhold')) = 'ignoremagdevicethreshhold' then
+      IgnoreMagDeviceThreshold := GetData(s);
     if Copy(s, 0, length('ignoremagdevicethreshold')) = 'ignoremagdevicethreshold' then
       IgnoreMagDeviceThreshold := GetData(s);
 
     if Copy(s, 0, length('nightlycleanthreshhold')) = 'nightlycleanthreshhold' then
       NightlyTreshold.text := GetData(s);
+    if Copy(s, 0, length('nightlycleanthreshold')) = 'nightlycleanthreshold' then
+      NightlyTreshold.text := GetData(s);
 
     if Copy(s, 0, length('nightlymovethreshhold')) = 'nightlymovethreshhold' then
+      EditNightlyMoveTreshold.text := GetData(s);
+    if Copy(s, 0, length('nightlymovethreshold')) = 'nightlymovethreshold' then
       EditNightlyMoveTreshold.text := GetData(s);
 
     if Copy(s, 0, length('nightlymovetarget')) = 'nightlymovetarget' then
@@ -4619,8 +4630,8 @@ begin
   end;
   writeln(f, '# Configuration of disk(s) to store images');
   if trim(MagThreshold.text)<>'0' then
-    writeln(f, 'MAGDeviceThreshhold      = ' + trim(MagThreshold.text));
-  writeln(f, 'MAGDeviceFullThreshHold  = ' + trim(MAGDeviceFullThreshHold));
+    writeln(f, 'MAGDeviceThreshold      = ' + trim(MagThreshold.text));
+  writeln(f, 'MAGDeviceFullThreshold  = ' + trim(MAGDeviceFullThreshold));
   if trim(IgnoreMAGDeviceThreshold)<>'0' then
     writeln(f, 'IgnoreMAGDeviceThreshold = ' + trim(IgnoreMAGDeviceThreshold));
   writeln(f, 'MAGDevices               = ' + IntToStr(MagDevices));
@@ -4628,11 +4639,11 @@ begin
   for i:=1 to MagDevices-1 do
     writeln(f, 'MAGDevice'+IntToStr(i)+'               = ' + MagDeviceList[i]);
   if trim(NightlyTreshold.text)<>'0' then
-    writeln(f, 'NightlyCleanThreshhold   = ' + trim(NightlyTreshold.text));
+    writeln(f, 'NightlyCleanThreshold   = ' + trim(NightlyTreshold.text));
 
   if ComboBoxMoveTarget.Enabled then
   begin
-    writeln(f, 'NightlyMoveThreshhold    = ' + trim(EditNightlyMoveTreshold.text));
+    writeln(f, 'NightlyMoveThreshold    = ' + trim(EditNightlyMoveTreshold.text));
     writeln(f, 'NightlyMoveTarget        = ' + trim(ComboBoxMoveTarget.text));
     // Luiz added at Sept 19 2021
     writeln(f, 'NightlyStrTimeToMove     = ' + trim(NightlyStrTimeToMoveText.text));

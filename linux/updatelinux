@@ -1,5 +1,6 @@
 #!/bin/bash
 # mvh just compiles or recompiles sqlite and (re)install as service; uses newweb as html not cgi-bin
+# mvh 20220829 Compile servertask here and copy to web
 
 export CONQUEST=$(pwd)
 export CONQUESTTEMP=$CONQUEST/temp
@@ -31,6 +32,11 @@ cd ../../..
 #cd src/dgate/luasocket;
 #./amake.sh;
 #cd ../../..
+
+chmod 777 src/servertask/make.sh;
+cd src/servertask;
+./make.sh;
+cd ../..
 
 export opt='sqlite'
 
@@ -67,13 +73,15 @@ export opt='sqlite'
 #	sudo cp /usr/lib/cgi-bin/.lua.linux /usr/lib/cgi-bin/.lua;
 #	rm t.t
 
-        cp ./dgate ./webserver/htdocs/app/newweb
-	sudo cp -r ./webserver/htdocs/* /var/www/html;
+        cp dgate webserver/htdocs/app/newweb;
+	cp src/servertask/servertask webserver/htdocs/api/dicom/servertask;
+	sudo cp -r webserver/htdocs/* /var/www/html;
 	
 	[ ! -d data/dbase ] && mkdir data/dbase
+	[ ! -d data/incoming ] && mkdir data/incoming
 	
-	chmod 777 console.sh
-	chmod 777 webviewer.sh	
+	chmod 777 linux/console.sh
+	chmod 777 linux/webviewer.sh	
 	chmod 777 linux/restart
 	chmod 777 linux/regen
 	chmod 777 linux/updatelinux

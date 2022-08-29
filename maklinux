@@ -16,6 +16,7 @@
 # mvh 20200310 Do overwrite dicom.ini, but make backup first
 # mvh 20200311 Lost mariadb change, use mariadb and mysql include folders for ubuntu14 compatibility
 # mvh 20220827 Better warning, add linux scripts
+# mvh 20220829 Compile servertask here and copy to web
 
 export CONQUEST=$(pwd)
 export CONQUESTTEMP=$CONQUEST/temp
@@ -47,6 +48,11 @@ cd ../../..
 #cd src/dgate/luasocket;
 #./amake.sh;
 #cd ../../..
+
+chmod 777 src/servertask/make.sh;
+cd src/servertask;
+./make.sh;
+cd ../..
 
 echo "Please choose DB type";
 
@@ -111,15 +117,15 @@ then
 	[ -f $SRC/charls.o ] && rm $SRC/charls.o;
 	[ -f $SRC/openjpeg.o ] && rm $SRC/openjpeg.o;
 
-	pkill -9 dgate;
+	sudo pkill -9 dgate;
 	sleep 0.2s;
 
 	[ -f dicom.ini ] && cp dicom.ini dicom.ini.bak
-	envsubst < $CONF/dicom.ini.$opt > dicom.ini;
-	cp $CONF/dicom.sql.$opt dicom.sql;
+	[ ! -f dicom.ini ] && envsubst < $CONF/dicom.ini.$opt > dicom.ini;
+	[ ! -f dicom.sql ] && cp $CONF/dicom.sql.$opt dicom.sql;
 
 	[ ! -f acrnema.map ] && cp $LINUX/acrnema.map acrnema.map;
-	cp $LINUX/dgatesop.lst dgatesop.lst;
+	[ ! -f dgatesop.lst ] && cp $LINUX/dgatesop.lst dgatesop.lst;
 
 #	[ ! -d /usr/lib/cgi-bin ] && sudo mkdir -p /usr/lib/cgi-bin ;
 #	sudo chmod 777 /usr/lib/cgi-bin ;
@@ -138,10 +144,12 @@ then
 #	sudo cp /usr/lib/cgi-bin/.lua.linux /usr/lib/cgi-bin/.lua;
 #	rm t.t
 	
-        cp ./dgate ./webserver/htdocs/app/newweb;
-	sudo cp -r ./webserver/htdocs/* /var/www/html;
+        cp dgate webserver/htdocs/app/newweb;
+	cp src/servertask/servertask webserver/htdocs/api/dicom/servertask;
+	sudo cp -r webserver/htdocs/* /var/www/html;
 	
 	[ ! -d data/dbase ] && mkdir data/dbase
+	[ ! -d data/incoming ] && mkdir data/incoming
 	
 	chmod 777 linux/console.sh
 	chmod 777 linux/webviewer.sh	

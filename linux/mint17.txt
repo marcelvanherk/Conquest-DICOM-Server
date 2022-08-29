@@ -1,4 +1,7 @@
-steps to make conquest compile on mint17.2
+steps to make conquest compile on mint17.2 or other debian-based distros
+
+#Minimal toolchain (usually installed):
+#sudo apt-get install systemctl nano gettext-base
 
 sudo apt-get update
 sudo apt-get install g++

@@ -1192,6 +1192,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220823        mvh     CGI("_filename_) to get uploaded file name; protect writes there
 20220824    	mvh	Second parameter of dicomread allows header truncation
 20220828    	mvh	CGI allows dgate -pPORT -qIP -hAE -ycommand (with -y last!)
+20220830        mvh     Reject __MACOSX folder, and files starting with ._ in LoadAndDeleteDir; 
+			pass DB to LoadAndDeleteDir to avoid DB activity each second in monitorthread
+20220830        mvh     ---- RELEASE 1.5.0c -----
 
 ENDOFUPDATEHISTORY
 */
@@ -3199,7 +3202,7 @@ MergeUIDofDDO(DICOMDataObject *pDDO, const char *type, const char *Reason)
 
 // forward references
 int
-SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, ExtendedPDU_Service *PDU, int Syntax=0, BOOL nopreget=FALSE);
+SaveToDisk(Database	*DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, ExtendedPDU_Service *PDU, int Syntax=0, BOOL nopreget=FALSE);
 
 void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU);
 void TestForward(char *filename, const char *mode, char *server, ExtendedPDU_Service *PDU);
@@ -3229,19 +3232,12 @@ extern "C" void lua_setvar(ExtendedPDU_Service *pdu, char *name, char *value);
 BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Service *PDU);
 
 #ifdef WIN32
-BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int Thread, char *script=NULL)
+BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int Thread, char *script, Database *DB)
 	{
 	HANDLE		fdHandle;
 	WIN32_FIND_DATA	FileData;
 	char		TempPath[512];
 	int             count=0;
-        Database        DB;
-
-        if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
-		{
-		OperatorConsole.printf("***Error Connecting to SQL\n");
-		return ( FALSE );
-		}
 
 	strcpy(TempPath, dir);
 	strcat(TempPath, "*.*");
@@ -3267,13 +3263,20 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 				strcpy(TempPath, dir);
 				strcat(TempPath, FileData.cFileName);
 				strcat(TempPath, "\\");
-				LoadAndDeleteDir(TempPath, NewPatid, PDU, Thread==0?0:Thread+1, script);
+				LoadAndDeleteDir(TempPath, NewPatid, PDU, Thread==0?0:Thread+1, script, DB);
 				rmdir(TempPath);
 				}
 			}
 		else
 			{
-			if (strstr(FileData.cFileName, ".partial") == NULL)
+			if (memcmp(FileData.cFileName, "._", 2) == 0)
+				{
+			  	strcpy(TempPath, dir);
+				strcat(TempPath, FileData.cFileName);
+				unlink(TempPath);
+				}
+
+			else if (strstr(FileData.cFileName, ".partial") == NULL)
 				{
 			  	strcpy(TempPath, dir);
 				strcat(TempPath, FileData.cFileName);
@@ -3293,13 +3296,13 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 									break;
 								}
 						}
-					else if (!AddImageFile (TempPath, NewPatid, PDU, &DB))
+					else if (!AddImageFile (TempPath, NewPatid, PDU, DB))
 						{
 						BOOL success = FALSE;
 						for (int i=0; i<3; i++)
 							{ 
 							Sleep(5000);
-							if (AddImageFile (TempPath, NewPatid, PDU, &DB)) 
+							if (AddImageFile (TempPath, NewPatid, PDU, DB)) 
 								{ 
 								success = TRUE;
 								break;
@@ -3329,20 +3332,13 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 	}
 
 #else
-BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int Thread, char *script=NULL)
+BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int Thread, char *script, Database *DB)
       {
       DIR             *dird;
       dirent          *diren;
 
       char            TempPath[PATH_MAX];
       char            *n;
-      Database        DB;
-
-      if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
-		{
-		OperatorConsole.printf("***Error Connecting to SQL\n");
-		return ( FALSE );
-		}
 
       strcpy(TempPath, dir);
       TempPath[strlen(TempPath)-1]=0;
@@ -3368,7 +3364,8 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
                         (       
                         strcmp (n, "."            ) != 0 &&
                         strcmp (n, ".."           ) != 0 &&
-                        strstr (n, ".partial"     ) == NULL
+                        strstr (n, ".partial"     ) == NULL &&
+			memcmp (n, "._", 2        ) != 0
 #ifdef DARWIN //A Macintosh OS X file.
                         && stricmp(n, ".DS_Store"    ) != 0
 #endif //DARWIN
@@ -3377,26 +3374,31 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
                               long length=strlen(TempPath);
                               TempPath[length] = PATHSEPCHAR;
                               TempPath[length+1] = '\0';
-                              LoadAndDeleteDir(TempPath, NewPatid, PDU, Thread==0?0:Thread+1, script);
+                              LoadAndDeleteDir(TempPath, NewPatid, PDU, Thread==0?0:Thread+1, script, DB);
                               rmdir(TempPath);
                               }
                         }
                   else
                         {
-                        if (strstr (n, ".partial"     ) == NULL)
+                        if (memcmp(n, "._", 2) == 0)
+				{
+				unlink(TempPath);
+				}
+			
+			else if (strstr (n, ".partial"     ) == NULL)
 				{
 				if (script)
 					{
 					char dum[1024];
 					AttachFile(TempPath, script, dum, PDU);
 					}
-				else if (!AddImageFile (TempPath, NewPatid, PDU, &DB))
+				else if (!AddImageFile (TempPath, NewPatid, PDU, DB))
                                     { 
 			            BOOL success = FALSE;
                                     for (int i=0; i<30; i++)
                                           { 
 				          Sleep(5000);
-                                          if (AddImageFile (TempPath, NewPatid, PDU, &DB)) 
+                                          if (AddImageFile (TempPath, NewPatid, PDU, DB)) 
                                               { success = TRUE;
                                                 break;
                                               }
@@ -3556,7 +3558,7 @@ AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU, Database	
 		system(line);
 		strcat(dir, "/");
 #endif
-		LoadAndDeleteDir(dir, NewPatid, PDU, 0);
+		LoadAndDeleteDir(dir, NewPatid, PDU, 0, NULL, pDB);
 		rmdir(dir);
 
 		return TRUE;
@@ -3597,7 +3599,7 @@ AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU, Database	
         rc = TRUE;	// failed compression leaves original object
 
 	// if ((rc == FALSE) || (!SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"dropped", (unsigned char *)"dropped", 0, !atoi(szTemp))))
-	if ((rc == FALSE) || (!SaveToDisk(*pDB, NULL, pDDO, rFilename, TRUE, PDU, 0, !atoi(szTemp))))
+	if ((rc == FALSE) || (!SaveToDisk(pDB, NULL, pDDO, rFilename, TRUE, PDU, 0, !atoi(szTemp))))
 		{
 		OperatorConsole.printf("***[AddImageFile] Error entering object into server: %s\n", filename);
 //		if (pDDO)
@@ -3753,7 +3755,7 @@ ModifyPATIDofImageFile(char *filename, char *NewPATID, BOOL DelFile, char *scrip
 
 	// add the image in memory to the server, also makes a copy of the image
 	// if (!SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"modpatid", (unsigned char *)"modpatid", 0, 1))
-	if (!SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, 0, 1))
+	if (!SaveToDisk(&DB, NULL, pDDO, rFilename, TRUE, PDU, 0, 1))
 		{
 		//delete pDDO;
 		OperatorConsole.printf("***Error entering object into server: %s\n", filename);
@@ -3904,6 +3906,12 @@ BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Servi
 	int			rc;
 	char			*p;
 
+	if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+		{
+		OperatorConsole.printf("***Error Connecting to SQL\n");
+		return ( FALSE );
+		}
+
 	// compressed file support using 7za.exe
 	p = strrchr(filename, '.');
 	if (p && strstr(".gz.GZ.zip.ZIP.tar.TAR.7z.7Z", p))
@@ -3922,16 +3930,10 @@ BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Servi
 		system(line);
 		strcat(dir, "/");
 #endif
-		LoadAndDeleteDir(dir, NULL, PDU, 0, script);
+		LoadAndDeleteDir(dir, NULL, PDU, 0, script, &DB);
 		rmdir(dir);
 
 		return TRUE;
-		}
-
-	if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
-		{
-		OperatorConsole.printf("***Error Connecting to SQL\n");
-		return ( FALSE );
 		}
 
 	// load image into memory
@@ -3952,7 +3954,7 @@ BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Servi
 		}
 
 	//if (!SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"AttachFile", (unsigned char *)"AttachFile", 0, 1))
-	if (!SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, 0, 1))
+	if (!SaveToDisk(&DB, NULL, pDDO, rFilename, TRUE, PDU, 0, 1))
 		{
 		//delete pDDO;
 		OperatorConsole.printf("***[AttachFile] Error entering object into server: %s\n", filename);
@@ -4193,7 +4195,7 @@ MergeUIDofImageFile(char *filename, BOOL DelFile, const char *type, char *script
 
 	// add the image in memory to the server, also makes a copy of the image
 	//if (!SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"merging", (unsigned char *)"merging", 0, 1))
-	if (!SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, 0, 1))
+	if (!SaveToDisk(&DB, NULL, pDDO, rFilename, TRUE, PDU, 0, 1))
 		{
 		//delete pDDO;
 		OperatorConsole.printf("***Error entering object into server: %s\n", filename);
@@ -8104,7 +8106,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
         }
 
         DICOMDataObject *P = MakeCopy(O);
-	int rc = SaveToDisk(DB, NULL, P, rFilename, TRUE, &PDU, 0, TRUE);
+	int rc = SaveToDisk(&DB, NULL, P, rFilename, TRUE, &PDU, 0, TRUE);
 	if (!rc)
 	{ OperatorConsole.printf("***[lua addimage] Error entering object into server%s\n", DataHost);
 	}
@@ -12577,7 +12579,7 @@ BOOL ApplyWorklist(DICOMDataObject *DDOPtr, Database *DB)
 BOOL    NewDeleteSopFromDB(char *pat, char *study, char *series, char *sop, Database &aDB);
 
 int
-SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, ExtendedPDU_Service *PDU, int Syntax, BOOL nopreget)
+SaveToDisk(Database	*DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 	*Filename, BOOL NoKill, ExtendedPDU_Service *PDU, int Syntax, BOOL nopreget)
 	{
 //	FILE		*fp;
 	DICOMDataObject	DDO;
@@ -12615,10 +12617,10 @@ SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 	//PDU.AttachRTC(&VRType);
 
 	if (WorkListMode==1) 			// optionally update information from worklist db
-		ApplyWorklist(DDOPtr, &DB);
+		ApplyWorklist(DDOPtr, DB);
 	else if (WorkListMode==2) 		// compulsory update information from worklist db
 		{
-		if (!ApplyWorklist(DDOPtr, &DB)) 
+		if (!ApplyWorklist(DDOPtr, DB)) 
 			{
 			OperatorConsole.printf("***[WorkListMode 2] Worklist entry (AccessionNumber) not found; object not saved\n");
 			//return FALSE;
@@ -12626,7 +12628,7 @@ SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 			int rc = CallImportConverterN(DCO, DDOPtr, 2200, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 			if (rc==7)	// retry command
 				{
-				if (!ApplyWorklist(DDOPtr, &DB)) 
+				if (!ApplyWorklist(DDOPtr, DB)) 
 					{
 					OperatorConsole.printf("***[WorkListMode 2] Worklist entry (AccessionNumber) not found on retry; object not saved\n");
 					return FALSE;
@@ -12684,7 +12686,7 @@ SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 
 	// make a filename for the new object; note: rRoot (patient directory part of rFilename) is not used any longer
 	*rRoot=1;
-	if (!GenerateFileName(DDOPtr, Device, rRoot, rFilename, NoKill, Syntax, (char *)called, (char *)calling, &DB))
+	if (!GenerateFileName(DDOPtr, Device, rRoot, rFilename, NoKill, Syntax, (char *)called, (char *)calling, DB))
         	{  
 		//OperatorConsole.printf("***Failed to create filename for DICOM object (is it a slice ?)\n");
 #ifdef FAILSAFE_STORAGE
@@ -12733,14 +12735,14 @@ SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 	}
 
 	// try to enter object into database (object is not saved when this fails)
-	if(!SaveToDataBase(DB, DDOPtr, rFilename, Device2, *rRoot))
+	if(!SaveToDataBase(*DB, DDOPtr, rFilename, Device2, *rRoot))
 		{
 		OperatorConsole.printf("***Error saving to SQL: %s\n", rFilename);
 #ifndef FAILSAFE_STORAGE
 		int rc = CallImportConverterN(DCO, DDOPtr, 2100, NULL, NULL, NULL, NULL, PDU, NULL, NULL);
 		if (rc==7)	// retry command
 			{
-			if(!SaveToDataBase(DB, DDOPtr, rFilename, Device2, *rRoot))
+			if(!SaveToDataBase(*DB, DDOPtr, rFilename, Device2, *rRoot))
 				{
 				OperatorConsole.printf("***Error saving to SQL on retry: %s\n", rFilename);
 				}
@@ -12852,7 +12854,7 @@ SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 	if (DFileSize(Filename)==0)
 		{
 		OperatorConsole.printf("***Error writing file: %s\n", Filename);
-		NewDeleteSopFromDB(patid, szStudy, szSeries, szSop, DB);
+		NewDeleteSopFromDB(patid, szStudy, szSeries, szSop, *DB);
 		return FALSE;
 		}
 
@@ -12891,13 +12893,21 @@ SaveToDisk(Database	&DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 	}
 
 static BOOL WINAPI monitorthread(char *folder)
-{ ExtendedPDU_Service PDU; // for script context of monitoring thread
+{ Database DB;
+  ExtendedPDU_Service PDU; // for script context of monitoring thread
   PDU.SetLocalAddress ( (BYTE *)"monitor" );
   PDU.SetRemoteAddress ( (BYTE *)"monitor" );
+  if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+	{
+	OperatorConsole.printf("***Error Connecting to SQL\n");
+	return ( FALSE );
+	}
+
   while (TRUE)
-  { LoadAndDeleteDir(folder, NULL, &PDU, 0);
+  { LoadAndDeleteDir(folder, NULL, &PDU, 0, NULL, &DB);
     Sleep(1000);
   }
+
   return TRUE;
 }
 
@@ -14716,7 +14726,7 @@ class	MyUnknownStorage	:	public UnknownStorage
 
 			// NOTE: NOT THREAD SAFE - IF ONE THREAD HANDLES READS AND WRITES THIS OPERATION CAN FAIL DUE TO DB SHARING:
 
-			rc = SaveToDisk(*DB, DCO, DDO, Filename, FALSE, (ExtendedPDU_Service *)PDU, 0, nopreget);
+			rc = SaveToDisk(DB, DCO, DDO, Filename, FALSE, (ExtendedPDU_Service *)PDU, 0, nopreget);
 			//delete DDO;
 			//rc = TRUE;
 			//strcpy(Filename, "");
@@ -19446,7 +19456,7 @@ void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU)
     vr = new VR(0x0020, 0x0013, strlen(rFilename), (void*)rFilename, (BOOL) FALSE );
     pDDO->ReplaceVR(vr); delete vr;
     //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testcompress", (unsigned char *)"testcompress", syntax);
-    SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
+    SaveToDisk(&DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
     pDDO = PDU->LoadDICOMDataObject(rFilename);
     OperatorConsole.printf("Added file: %s (filename syntax %d)\n", rFilename, syntax);
 
@@ -19457,7 +19467,7 @@ void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU)
     vr = new VR(0x0020, 0x0013, strlen(rFilename), (void*)rFilename, (BOOL) FALSE );
     pDDO->ReplaceVR(vr); delete vr;
     //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testcompress", (unsigned char *)"testcompress", syntax);
-    SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
+    SaveToDisk(&DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
     pDDO = PDU->LoadDICOMDataObject(rFilename);
     OperatorConsole.printf("Added file: %s (compression %s, syntax %d)\n", rFilename, mode, syntax);
 
@@ -19468,7 +19478,7 @@ void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU)
     vr = new VR(0x0020, 0x0013, strlen(rFilename), (void*)rFilename, (BOOL) FALSE );
     pDDO->ReplaceVR(vr);  delete vr;
     //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testcompress", (unsigned char *)"testcompress", syntax);
-    SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
+    SaveToDisk(&DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
     pDDO = PDU->LoadDICOMDataObject(rFilename);
     OperatorConsole.printf("Added file: %s (compression %s_un, syntax %d)\n", rFilename, mode, syntax);
 
@@ -19479,7 +19489,7 @@ void TestCompress(char *filename, const char *modes, ExtendedPDU_Service *PDU)
     vr = new VR(0x0020, 0x0013, strlen(rFilename), (void*)rFilename, (BOOL) FALSE );
     pDDO->ReplaceVR(vr); delete vr;
     //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testcompress", (unsigned char *)"testcompress", syntax);
-    SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
+    SaveToDisk(&DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
     pDDO = PDU->LoadDICOMDataObject(rFilename);
     OperatorConsole.printf("Added file: %s (compression %s_un_%s, syntax %d)\n", rFilename, mode, mode, syntax);
   }
@@ -19606,7 +19616,7 @@ void TestSyntax(char *filename, int syntax, ExtendedPDU_Service *PDU)
   pDDO->ReplaceVR(vr);  delete vr;
 
   //SaveToDisk(DB, pDDO, rFilename, TRUE, (unsigned char *)"testsyntax", (unsigned char *)"testsyntax", syntax);
-  SaveToDisk(DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
+  SaveToDisk(&DB, NULL, pDDO, rFilename, TRUE, PDU, syntax);
 }
 
 static BOOL WINAPI testsavethread(char *filename)
@@ -21426,9 +21436,15 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 
 	else if (memcmp(SilentText, "loadanddeletedir:", 17)==0)
 		{
+		Database DB;
+		if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
+			{
+			OperatorConsole.printf("***Error Connecting to SQL\n");
+			return;
+			}
 		p = CommaInFilenameWorkAround(SilentText);
 		if (p) *p++ = 0;
-		LoadAndDeleteDir(SilentText+17, p, &PDU, Thread);
+		LoadAndDeleteDir(SilentText+17, p, &PDU, Thread, NULL, &DB);
 		}
 
 	else if (memcmp(SilentText, "modifypatid:", 12)==0 && p)

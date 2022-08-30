@@ -15,6 +15,7 @@
 -- 20200307   mvh   Avoid query with '***'
 -- 20200618   mvh   Fixed hardcoded CONQUESTSRV1 in 'deleter'
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
+-- 20220830   mvh   Fix proposed patientID; included uids after |
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 version = version  or ''
@@ -155,7 +156,7 @@ end
 
 if CGI('parameter', '')=='anonymizer' then
   print('New ID for anonymized: '..CGI('item', '').. ' ')
-  print('<input id=newid value="'..string.gsub(CGI('item', ''), ':.+', '').. '">')
+  print('<input id=newid value="'..string.gsub(CGI('item', ''), '|.+', '').. '">')
   if (readOnly) then 
     print([[<a href=# onclick="servicecommand('nop&item=]]..CGI('item')..[[&newid='+document.getElementById('newid').value)">Not allowed</a><br>]])
   else
@@ -174,7 +175,7 @@ end
 
 if CGI('parameter', '')=='changerid' then
   print('New patient ID for: '..CGI('item', '').. ' ')
-  print('<input id=newid value="'..string.gsub(CGI('item', ''), ':.+', '').. '">')
+  print('<input id=newid value="'..string.gsub(CGI('item', ''), '|.+', '').. '">')
   if (readOnly) then 
     print([[<a href=# onclick="servicecommand('nop&item=]]..CGI('item')..[[&newid='+document.getElementById('newid').value)">Not allowed</a><br>]])
   else
@@ -222,7 +223,7 @@ end
 
 if CGI('parameter', '')=='zipperanonymized' then
   print('Zip anonymized for: '..CGI('item', '').. ' ')
-  print('<input id=newid value="'..string.gsub(CGI('item', ''), ':.+', '').. '">')
+  print('<input id=newid value="'..string.gsub(CGI('item', ''), '|.+', '').. '">')
   if (viewOnly) then 
     print([[<a href=# onclick="servicecommand('nop&item=]]..CGI('item')..[[&newid='+document.getElementById('newid').value+'&dum=.zip')">Not allowed</a><br>]])
   else

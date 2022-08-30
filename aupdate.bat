@@ -7,6 +7,7 @@ copy ..\doc\windowsmanual.pdf .
 copy ..\doc\DicomConformance_FilesLST_Changes.pdf .
 copy ..\doc\linuxmanual.pdf .
 
+copy docker\prebuild\dgate  .\linux
 copy dgate.dic .\linux
 
 rem need using server somewhere to compile dictionary to binary

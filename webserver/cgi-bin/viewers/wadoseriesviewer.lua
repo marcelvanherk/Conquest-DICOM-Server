@@ -21,6 +21,8 @@
 -- 20181128   mvh   Added anonymizer also to series viewer
 -- 20181223   mvh   Use remotequery (1.4.19d)
 -- 20180112   mvh   Fix to allow : in patientID
+-- 20220830   mvh   Renamed dropdown to slicelister; sync its position with slice
+--                  Disable altrows; no table!
 
 -- default series information - this is here to allow debugging of the code usign ZeroBrane Studio, running from the server
 series2 = series2 or '0009703828:1.3.46.670589.5.2.10.2156913941.892665339.860724'
@@ -310,7 +312,7 @@ function altRows(id){
 	}
 }
 window.onload=function(){
-	altRows('alternatecolor');
+	//altRows('alternatecolor');
 }
 
 // loads a series and makes relevant slicing form visible
@@ -321,8 +323,8 @@ function loadseries()
     document.getElementById("A"+i).innerHTML = "View";
 
   setInterval(savesettings, 500);
-  nframes = Number(document.getElementById("form"+seriesno).slice.value.split("|")[1]);
-  nslices = document.getElementById("form"+seriesno).slice.length;
+  nframes = Number(document.getElementById("form"+seriesno).slicelister.value.split("|")[1]);
+  nslices = document.getElementById("form"+seriesno).slicelister.length;
   document.getElementById("form"+seriesno).style.display = "block";
   document.getElementById("A"+seriesno).innerHTML = "---->";
   slice = Math.floor(nslices/2);
@@ -384,8 +386,8 @@ function loadsettings()
 
 // load the DICOM object as image or text
 function load()
-{ if (Number(document.getElementById("form"+seriesno).slice.value.split("|")[1])!=nframes)
-  { nframes = Number(document.getElementById("form"+seriesno).slice.value.split("|")[1]);
+{ if (Number(document.getElementById("form"+seriesno).slicelister.value.split("|")[1])!=nframes)
+  { nframes = Number(document.getElementById("form"+seriesno).slicelister.value.split("|")[1]);
     frame = 0;
   }
   
@@ -399,7 +401,7 @@ function load()
     '&windowWidth='+windowwidth +
     '&frameNumber='+frame +
     '&region='+region +
-    '&objectUID=' + document.getElementById("form"+seriesno).slice.value.split("|")[0];
+    '&objectUID=' + document.getElementById("form"+seriesno).slicelister.value.split("|")[0];
     document.addEventListener("keydown", myKeyFunction, false);
     document.getElementById("myframe").style.display='none';
     document.images[0].style.display='block';
@@ -410,7 +412,7 @@ function load()
     '&studyUID='+studyuid +
     '&seriesUID='+seriesuid +
     anonymizer +
-    '&objectUID=' + document.getElementById("form"+seriesno).slice.value.split("|")[0];
+    '&objectUID=' + document.getElementById("form"+seriesno).slicelister.value.split("|")[0];
     document.getElementById("myframe").style.display='block';
     document.images[0].style.display='none';
   } 
@@ -526,7 +528,7 @@ function myKeyFunction(a)
   else if (a.keyCode==34) slicer(-1);
   else if (ch=='Q')
     PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='
-    +seriesuid+anonymizer+'&objectUID=' + document.getElementById("form"+seriesno).slice.value.split("|")[0], 'hoi', 700, 512);
+    +seriesuid+anonymizer+'&objectUID=' + document.getElementById("form"+seriesno).slicelister.value.split("|")[0], 'hoi', 700, 512);
 }
 
 // step through slices
@@ -548,7 +550,7 @@ function slicer(delt)
     else 
       slice = slice + delt;
   }
-  document.getElementById("form"+seriesno).slice.selectedIndex = slice;
+  document.getElementById("form"+seriesno).slicelister.selectedIndex = slice;
   if (delt!=0)
     load()
   if (inputactive!=4 && inputactive!=6 && inputactive!=8)
@@ -672,7 +674,7 @@ Slice:
   <INPUT TYPE=BUTTON VALUE='<' onclick=slicer(-1) onmousedown="inter=setInterval('slicer(-1)', 100)" onmouseup=clearInterval(inter) onmouseout=clearInterval(inter)>
   <INPUT TYPE=HIDDEN VALUE=]]..windowcenter..[[ id=defwindowcenter1>
   <INPUT TYPE=HIDDEN VALUE=]]..windowwidth..[[ id=defwindowwidth1>
-  <select name=slice onchange=load() >
+  <select name=slicelister onchange=slice=document.getElementById("form"+seriesno).slicelister.selectedIndex;slicer(0)>
 ]])
 
 for i=1, math.min(#images, 2000) do
@@ -688,7 +690,7 @@ print([[
   <INPUT TYPE=BUTTON VALUE='>' onclick=slicer(1) onmousedown="inter=setInterval('slicer(1)', 100)" onmouseup=clearInterval(inter) onmouseout=clearInterval(inter)> Total slices: ]].. #images .. [[
   <INPUT TYPE=CHECKBOX VALUE=0 id=autosave onmouseover="active(9)" onclick="loadsettings();savesettings();">Auto save
 
-  <a href=# onclick="javascript:PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='+seriesuid+'&objectUID=' + document.forms[0].slice.value.split('|')[0], 'hoi', 700, 512)">[show header]</a>
+  <a href=# onclick="javascript:PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='+seriesuid+'&objectUID=' + document.forms[0].slicelister.value.split('|')[0], 'hoi', 700, 512)">[show header]</a>
   <a href=# onclick="javascript:PopupCenter(script_name+'?mode=wadoviewerhelp', 'hoi', 700, 512)">[help]</a>
   <br><i id=hint></i>
 
@@ -699,7 +701,7 @@ print([[
 print([[
 <SCRIPT language=JavaScript>
   document.getElementById("autosave").checked = getCookie("wadoseriesviewer_autosave")=='true';
-  document.onload=setInterval(savesettings, 500);nframes = Number(document.forms[0].slice.value.split("|")[1]);
+  document.onload=setInterval(savesettings, 500);nframes = Number(document.forms[0].slicelister.value.split("|")[1]);
   nslices=]]..#images..[[;slice=Math.floor(nslices/2);loadsettings();
   </SCRIPT>
 </BODY>

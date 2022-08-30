@@ -10,6 +10,7 @@
 -- 20181223   mvh   Use remotequery (1.4.19d)
 -- 20180112   mvh   Fix to allow : in patientID
 -- 20200113   mvh   Allow 0 records
+-- 20220830   mvh   Renamed dropdown to slicelister; sync its position with slice
 
 -- defaults to allow debugging in zbs
 study2 = study2 or 'EG2005:'
@@ -252,8 +253,8 @@ function loadseries()
     document.getElementById("A"+i).innerHTML = "View";
 
   setInterval(savesettings, 500);
-  nframes = Number(document.getElementById("form"+seriesno).slice.value.split("|")[1]);
-  nslices = document.getElementById("form"+seriesno).slice.length;
+  nframes = Number(document.getElementById("form"+seriesno).slicelister.value.split("|")[1]);
+  nslices = document.getElementById("form"+seriesno).slicelister.length;
   document.getElementById("form"+seriesno).style.display = "block";
   document.getElementById("A"+seriesno).innerHTML = "---->";
   slice = Math.floor(nslices/2);
@@ -315,8 +316,8 @@ function loadsettings()
 
 // load the DICOM object as image or text
 function load()
-{ if (Number(document.getElementById("form"+seriesno).slice.value.split("|")[1])!=nframes)
-  { nframes = Number(document.getElementById("form"+seriesno).slice.value.split("|")[1]);
+{ if (Number(document.getElementById("form"+seriesno).slicelister.value.split("|")[1])!=nframes)
+  { nframes = Number(document.getElementById("form"+seriesno).slicelister.value.split("|")[1]);
     frame = 0;
   }
   
@@ -330,7 +331,7 @@ function load()
     '&windowWidth='+windowwidth +
     '&frameNumber='+frame +
     '&region='+region +
-    '&objectUID=' + document.getElementById("form"+seriesno).slice.value.split("|")[0];
+    '&objectUID=' + document.getElementById("form"+seriesno).slicelister.value.split("|")[0];
     document.addEventListener("keydown", myKeyFunction, false);
     document.getElementById("myframe").style.display='none';
     document.images[0].style.display='block';
@@ -341,7 +342,7 @@ function load()
     '&studyUID='+studyuid +
     '&seriesUID='+seriesuid +
     anonymizer +
-    '&objectUID=' + document.getElementById("form"+seriesno).slice.value.split("|")[0];
+    '&objectUID=' + document.getElementById("form"+seriesno).slicelister.value.split("|")[0];
     document.getElementById("myframe").style.display='block';
     document.images[0].style.display='none';
   } 
@@ -457,7 +458,7 @@ function myKeyFunction(a)
   else if (a.keyCode==34) slicer(-1);
   else if (ch=='Q')
     PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='
-    +seriesuid+anonymizer+'&objectUID=' + document.getElementById("form"+seriesno).slice.value.split("|")[0], 'hoi', 700, 512);
+    +seriesuid+anonymizer+'&objectUID=' + document.getElementById("form"+seriesno).slicelister.value.split("|")[0], 'hoi', 700, 512);
 }
 
 // step through slices
@@ -479,7 +480,7 @@ function slicer(delt)
     else 
       slice = slice + delt;
   }
-  document.getElementById("form"+seriesno).slice.selectedIndex = slice;
+  document.getElementById("form"+seriesno).slicelister.selectedIndex = slice;
   if (delt!=0)
     load()
   if (inputactive!=4 && inputactive!=6 && inputactive!=8)
@@ -682,7 +683,7 @@ for i=1,#pats do
   <FORM onmouseover="active(8)" style="display: none" id=form]]..i..[[>
   Slice:
   <INPUT TYPE=BUTTON VALUE='<' onclick=slicer(-1) onmousedown="inter=setInterval('slicer(-1)', 100)" onmouseup=clearInterval(inter) onmouseout=clearInterval(inter)>
-  <select name=slice onchange=load() >
+  <select name=slicelister onchange=slice=document.getElementById("form"+seriesno).slicelister.selectedIndex;slicer(0)>
   ]])
 
   for i=1, math.min(#images, 2000) do
@@ -699,7 +700,7 @@ for i=1,#pats do
     <INPUT TYPE=HIDDEN VALUE=]]..windowcenter..[[ id=defwindowcenter]]..i..[[>
     <INPUT TYPE=HIDDEN VALUE=]]..windowwidth..[[ id=defwindowwidth]]..i..[[>
 
-    <a href=# onclick="javascript:PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='+seriesuid+anonymizer+'&objectUID='+document.getElementById('form'+seriesno).slice.value.split('|')[0], 'hoi', 700, 512)">[show header]</a>
+    <a href=# onclick="javascript:PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='+seriesuid+anonymizer+'&objectUID='+document.getElementById('form'+seriesno).slicelister.value.split('|')[0], 'hoi', 700, 512)">[show header]</a>
     <a href=# onclick="javascript:PopupCenter(script_name+'?mode=wadoviewerhelp', 'hoi', 700, 512)">[help]</a>
     </FORM>
   ]])

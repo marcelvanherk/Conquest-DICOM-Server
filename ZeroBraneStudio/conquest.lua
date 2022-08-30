@@ -20,7 +20,7 @@
 -- 20200125: Added new parameters to Serialize and dicommove, updated text a bit
 -- 20200314: release 1.5.0
 -- 20220322: Added sort parameter to dbquery
--- 20220718: Updated documentation for json interfaces
+-- 20220718: Updated documentation for json interfaces and new features
 
 --[[
 -- read/write data, create sequences, and write into sequences (if [] not passed, [0] is assumed)
@@ -306,7 +306,7 @@ return {
     childs = {
 	free      = { type = 'method', description = "destructor", args = "()", returns = "()", valuetype = nil,},
 	Delete    = { type = 'method', description = "delete sequence item", args = "(n: integer (starts at 0))", returns = "()", valuetype = nil,},
-	Serialize = { args = "(json: boolean=false, includepixeldata: boolean=false)", description = "return array in lua or json syntax, e.g. loadstring('return '..a:Serialize()) converts array to table",  returns = "DicomArray",  type = "method", },
+	Serialize = { args = "(json=false, includepixeldata=false, dicomweb=false)", description = "return array in lua or json syntax, e.g. loadstring('return '..a:Serialize()) converts array to table",  returns = "DicomArray",  type = "method", },
 	[0]       = { description = "element", valuetype = "DicomObject",},
     }
   },
@@ -405,8 +405,8 @@ return {
   type = "function"
   },
   servercommand = {
-  args = "(command_code: string, mode:string(e.g. 'cgi', 'cgibinary', 'cgihtml', '<filename' {upload}, '>filename' {download}",
-  description = "Sends conquest server command, e.g. 'display_status:' or 'get_param:MyACRNema'",
+  args = "(command_code: string, mode:string(e.g. 'cgi', 'cgibinary', 'cgihtml', 'binary', '<filename' {upload}, '>filename' {download}",
+  description = "Sends conquest server command, e.g. 'display_status:', 'get_param:MyACRNema' or 'lua:chunk'; For binary data write to tempfile and set returnfile to its name.",
   returns = "(string)",
   type = "function"
   },
@@ -551,9 +551,16 @@ return {
   valuetype = "DicomArray",
   type = "function"
   },
+  dicomread = {
+  args = "(query: DicomObject)",
+  description = "get objects from local DICOM server",
+  returns = "(DicomArray, counting from 0)",
+  valuetype = "DicomArray",
+  type = "function"
+  },
   dicomecho = {
   args = "(AE: string, extra: DicomObject)",
-  description = "echo DICOM server; return null if failed",
+  description = "echo DICOM server by AE or ip:port; return null if failed",
   returns = "(DicomObject, raw response from echo)",
   type = "function"
   },
@@ -570,7 +577,7 @@ return {
   type = "function"
   },
   dicomstore = {
-  args = "(image(s): DicomObject/DicomArray, AE: string)",
+  args = "(AE: string, image(s): DicomObject/DicomArray)",
   description = "store object(s) on DICOM archive",
   returns = "dicom result array",
   type = "function"
@@ -613,7 +620,7 @@ return {
   },
   changeuid = {
   args = "(olduid: string[, proposeduid: string][, stage: string][, type: string])",
-  description = "Consistently modify an UID, returns mapped UID, stage names anonymizer, type stored in database",
+  description = "Consistently modify an UID, returns mapped UID, stage names anonymizer (#name for MD5), type stored in database",
   returns = "(string)",
   type = "function"
   },
@@ -621,6 +628,13 @@ return {
   args = "(newuid: string[, stage: string][, type: string])",
   description = "For a modified UID, returns the original if exists",
   returns = "(string or nil)",
+  type = "function"
+  },
+  md5 = 
+  {
+  args = "(data: string)",
+  description = "returns md5 hash of string",
+  returns = "(string)",
   type = "function"
   },
   addimage = {
@@ -660,7 +674,7 @@ return {
   type = "function"
   },
   serialize = { 
-  args = "(object: DicomObject or DicomArray, json: boolean=false, includepixeldata: boolean=false", 
+  args = "(object: DicomObject or DicomArray, json: boolean=false, includepixeldata: boolean=false, dicomweb: boolean=false", 
   description = "return object in lua or json syntax, e.g. loadstring('return '..serialize(a)) converts object to table",
   returns = "(code: string)",  
   type = "method", 

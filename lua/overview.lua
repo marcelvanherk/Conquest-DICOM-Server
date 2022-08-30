@@ -15,6 +15,7 @@ embedded in the executable:
 -- and string:reshape(string, i, j) is embedded
 
 -- for 1.4.19beta3; decompress sample data before processing; distributed in jpeg format
+-- for 1.5.0c; add dicomget, dicomread, json stuff
 ]]
 
 -- for demo fill the global variable Data which normally contains
@@ -195,6 +196,11 @@ print(dictionary(16, 32))
 -- inspect sql definition (database, row) results in 16, 32 PatientID 64 SQL_STR DT_STR)
 print(get_sqldef(0, 0))
 
+-- send a script to conquest
+print('------ test conquest script call --------')
+script('nop this is an ImportConverter script') -- only works when Data defined
+Data:Script('nop this is an ImportConverter script running on a specified DICOM object')
+
 -- generate a tempfile
 print(tempfile('.txt'))
 
@@ -206,9 +212,9 @@ Data:Script('nop this is an ImportConverter script running on a specified DICOM 
 -- send a servercommand to conquest and read its result
 print('------ test conquest command call --------')
 print(servercommand('display_status:'))
-servercommand('display_status:', 'cgibinary') -- for web interface; also allows value 'cgihtml' or filename to upload
+servercommand('display_status:', 'cgibinary') -- for web interface; also allows value 'cgihtml' or <filename to upload and >filename to download or 'binary' without processing
 
--- run executable in the background
+-- run executable in the background (avoids window opened by os.execute)
 system('dgate.exe -?')
 
 -- get an item from ACRNEMA.MAP
@@ -236,6 +242,9 @@ print(changeuidback('aapnootmies', 'stage1'))
 print(changeuid('1.1', 'stage1'))
 print(changeuidback('1.2.826.0.1.3680043.2.135.734877.42238624.7.1359125302.31.0', 'stage1'))
 print(genuid())
+
+-- MD5 has based uid remapping (forward only):
+print(changeuid('1.1', '#stage1'))
 
 -- query the local database (also possible from CGI interface, if the database is setup in the CGI dicom.ini)
 print('------ test quering a database --------')
@@ -298,6 +307,12 @@ a:SetColumn(x, y, z, table)
 deletedicomobject(a) -- not required: will be freed automatically
 -- a:free() -- also allowed in 1.4.17: 
 
+-- add json object to dicom object, where the json_string can have elements by name or number.
+local c = Data:Copy(json_string)
+
+-- convert json object to dicom object, where the json_string can have elements by name or number.
+local c = DicomObject:new(json_string)
+
 -- query a dicomserver (returns a dicomobjectarray)
 print('------ test query a dicom server --------')
 b=newdicomobject(); b.PatientName = '*'; a=dicomquery('CONQUESTSRV1', 'PATIENT', b);
@@ -347,13 +362,25 @@ b=newdicomobject(); b.PatientName = 'HEAD EXP2'; b.QueryRetrieveLevel = 'STUDY';
 b=newdicomobject(); b.PatientName = 'HEAD EXP2'; b.QueryRetrieveLevel = 'STUDY'; dicommove('CONQUESTSRV1', AE, b, 0, 'print(Global.StatusString)');
 b=newdicomobject(); b.PatientName = 'HEAD EXP2'; b.QueryRetrieveLevel = 'PATIENT'; dicommove('CONQUESTSRV1', AE, b, 1);
 
+--get
+b=newdicomobject(); b.PatientName = 'HEAD EXP2'; b.QueryRetrieveLevel = 'IMAGE'
+array=dicomget('CONQUESTSRV1', 'IMAGE', b);
+
+--read array of objects
+b=newdicomobject(); b.PatientName = 'HEAD EXP2'; array=dicomread(b);
+
 -- advanced move; 1.5.0 up
 print('------ testing advanced C-MOVE; example setting max sent slices --------')
 b=newdicomobject();
 c=newdicomobject(); c.ConquestMaxSlices=1
-print(c:Serialize())
-print(c:Serialize(true))
 b.PatientName = 'HEAD EXP2'; b.QueryRetrieveLevel = 'PATIENT'; dicommove('CONQUESTSRV1', AE, b, 1, c);
+
+-- convert DICOM object to string
+c=newdicomobject(); c.ConquestMaxSlices=1
+print(c:Serialize()) -- lua format
+print(c:Serialize(true)) -- json format
+print(c:Serialize(true, true)) -- json format with pixel data
+print(c:Serialize(true, true, true)) -- dicomweb json format with pixel data
 
 -- sql
 print('------ testing an SQL statement --------')

@@ -9,6 +9,7 @@
 -- 20200307   mvh   Avoid query with '***'
 -- 20201025   mvh   Standardised header
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
+-- 20220830   mvh   Add studylink to add e.g. ohif
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -17,6 +18,10 @@ local query_pid = '';
 local query_pna = '';
 local query_pst = '';
 local query_sta = '';
+
+local studyviewer=gpps('webdefaults', 'studyviewer', '');
+local studylink=gpps('webdefaults', 'studylink', '');
+--studylink='<TD><A target="_blank" href=/app/ohif/viewer/{StudyInstanceUID}>Ohif</A>'
 
 function mycomp(a,b)
     if a.PatientName == nil and b.PatientName == nil then
@@ -209,8 +214,6 @@ table.altrowstable Caption {
 ]]
 )
 
-local studyviewer=gpps('webdefaults', 'studyviewer', '');
-
 function dropdown(i, item)
   return string.format([[
 <td>
@@ -245,20 +248,24 @@ else
 	HTML("<Caption>List of all studies (%s) on local server</caption>", #pats)
 end
 
-print("<TR><TD>Patient ID<TD>Name<TD>Study Date<TD>Study description<TD>Study modality<TD>Menu</TR>"); 
+local linkheader=''
+if studylink~='' then linkheader='<TD>' end
+
+HTML("<TR><TD>Patient ID<TD>Name<TD>Study Date<TD>Study description<TD>Study modality<TD>Menu%s</TR>", linkheader)
 
 for i=1,#pats do
+  local t = string.format("<A HREF=%s?%s&mode=listseries&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.studyinsta+=+'%s' title='Click to see series'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),mc(pats[i].PatientID))
   
-  t = string.format("<A HREF=%s?%s&mode=listseries&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.studyinsta+=+'%s' title='Click to see series'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),mc(pats[i].PatientID));
+  local link = studylink
+  link = string.gsub(link, '{StudyInstanceUID}', pats[i].StudyInstanceUID)
+  link = string.gsub(link, '{PatientID}', pats[i].PatientID)
   
-  --if (studyviewer ~= '') then
-  -- u = string.format("<A HREF=%s?%s&mode=%s&study=%s:%s&size=%s>View study</A>", ex, '', tostring(studyviewer or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),size); 
-  --else
-  --  u = 'No studyviewer'
-  --end
-  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,mc(pats[i].PatientName),mc(pats[i].StudyDate),
+  local s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s%s</TR>",t,mc(pats[i].PatientName),mc(pats[i].StudyDate),
     mc(pats[i].StudyDescription),mc(pats[i].StudyModality),
-    dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'|'..pats[i].StudyInstanceUID));
+    dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'|'..pats[i].StudyInstanceUID),
+    link
+    )
+  
   print(s)
 end 
 	

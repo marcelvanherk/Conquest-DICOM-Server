@@ -11,6 +11,7 @@
 -- 20200307   mvh   Avoid query with '***'
 -- 20201025   mvh   Standardised header
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
+-- 20220830   mvh   Add serieslink to add e.g. wadoseriesviewer
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -19,6 +20,10 @@ local query_pid = '';
 local query_pna = '';
 local query_pst = '';
 local query_sta = '';
+
+local viewer=gpps('webdefaults', 'viewer', '');
+local serieslink=gpps('webdefaults', 'serieslink', '');
+-- serieslink='<TD><A target="_blank" href=/app/newweb/?mode=wadoseriesviewer&series={PatientID}:{SeriesInstanceUID}>View</A>'
  
 function InitializeVar()
  if (CGI('patientidmatch') ~='' and CGI('patientidmatch') ~='*') then
@@ -205,8 +210,6 @@ table.altrowstable Caption {
 ]]
 )
 
-viewer=gpps('webdefaults', 'viewer', '');
-
 function dropdown(i, item)
   return string.format([[
 <td>
@@ -232,24 +235,27 @@ local pats=queryserie_remote()
 
 print("<table class='altrowstable' id='alternatecolor' RULES=ALL BORDER=1>");
 
+local linkheader=''
+if serieslink~='' then linkheader='<TD>' end
+
 HTML("<Caption>List of series (%s) on local server</caption>", #pats);
-HTML("<TR><TD>Patient ID<TD>Name<TD>Series date<TD>Series time<TD>Series description<TD>Modality<TD>Thumbs<TD>Menu</TR>");
+HTML("<TR><TD>Patient ID<TD>Name<TD>Series date<TD>Series time<TD>Series description<TD>Modality<TD>Thumbs<TD>Menu%s</TR>",linkheader);
 	
 for i=1,#pats do
-  t = string.format("<A HREF=%s?%s&mode=listimages&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s' title='Click to see images'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),mc(pats[i].PatientID));
-  v = string.format("<A HREF=%s?%s&mode=listimageswiththumbs&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s'&size=%s>Thumbs</A>", 
-       ex, '', string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size); 
-  --if (viewer ~= '') then
-  -- u = string.format("<A HREF=%s?%s&mode=%s&series=%s:%s&size=%s>View series</A>", ex, '', tostring(viewer or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size); 
-  --else
-  -- u='no viewer'
-  --end
+  local t = string.format("<A HREF=%s?%s&mode=listimages&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s' title='Click to see images'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),mc(pats[i].PatientID))
+  
+  local v = string.format("<A HREF=%s?%s&mode=listimageswiththumbs&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s'&size=%s>Thumbs</A>", 
+       ex, '', string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size)
+       
+  local link = serieslink
+  link = string.gsub(link, '{SeriesInstanceUID}', pats[i].SeriesInstanceUID)
+  link = string.gsub(link, '{StudyInstanceUID}', pats[i].StudyInstanceUID)
+  link = string.gsub(link, '{PatientID}', pats[i].PatientID)
 
---  r = string.format("<A HREF=%s?%s&mode=renderseries&series=%s:%s&size=%s>Render series</A>", ex, '', string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size); 
-
-  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,mc(pats[i].PatientName),
+  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s%s</TR>",t,mc(pats[i].PatientName),
     mc(pats[i].SeriesDate),mc(pats[i].SeriesTime), mc(pats[i].SeriesDescription),mc(pats[i].Modality),v,
-    dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'||'..pats[i].SeriesInstanceUID));
+    dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'||'..pats[i].SeriesInstanceUID),
+    link);
   print(s)
 end 
 

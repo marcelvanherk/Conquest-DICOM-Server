@@ -45,6 +45,7 @@
 --               No longer accept cgi port and address, fix unused default in remotemove function
 -- mvh 20220827: Escape \ to \\ in returned filename of upload; fix uploading even and odd data
 -- mvh 20220828: Use global port and address, can come from command line
+-- mvh 20220830: Popup and 'progress' bar for upload
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -616,9 +617,41 @@ print([[<style type="text/css">
 	</style>]])
 
 HTML("</HEAD>")
-		 		
+		
+print([[<script>
+// show modal message in div modalmessage
+function message(text) {
+  var s='';
+
+  s += ('<div style="border:5px solid black; overflow:visible; position:absolute; left:5%; top:5%; width:70%; height:50%; background-color:#dbb; padding:2%; border-radius:15px">');
+  s += '<br><p style="position:absolute;top:10%;left:50%;transform:translate(-50%,-50%);"><h2>';
+  s += text;
+  s += '</h2></p><br>';
+  s += "<button id=close style='font-size:22px;position:absolute;top:50%;left:0;right:0;margin-left:auto;margin-right:auto;'>Close</button>";
+  s += ('</div');
+  document.getElementById('modalmessage').style.display = 'block';
+  document.getElementById('modalmessage').innerHTML = s;
+  document.getElementById('close').addEventListener('click', function(e) {
+    document.getElementById('modalmessage').style.display = 'none';
+  });
+}
+function upload(formname) {
+  const XHR = new XMLHttpRequest();
+  const FD = new FormData( document.getElementById(formname) );
+  XHR.upload.onprogress = function (evt) { var per=40*(evt.loaded/evt.total); message('busy uploading '+('o').repeat(per)+('_').repeat(40-per)); }
+  XHR.onreadystatechange = function () {
+    if ((this.readyState === 4) && (this.status === 200)) { message(XHR.response);  }
+    else if ((this.readyState === 4) && (this.status === 404)) {message('Error uploading') }
+  }
+  XHR.open( "POST", this.server );
+  XHR.send( FD );
+}
+</script>
+]])
+ 		
 HTML("<BODY BGCOLOR='CFDFCF'>")
 
+print('<div id=modalmessage style="left:0;top:0;width:100%;height:100%;position:fixed;z-index:1;padding:10%; display:none"></div>')
 
 HTML("<H1>Welcome to Conquest DICOM server - version %s</H1>", version)
 if write then 
@@ -681,12 +714,13 @@ end
 
 HTML("</table>");
 
-HTML("<FORM ACTION=\"%s\" METHOD=POST ENCTYPE=\"multipart/form-data\">", ex);
+HTML("<FORM ID=upx ACTION=\"%s\" METHOD=POST ENCTYPE=\"multipart/form-data\">", ex);
 HTML("<INPUT NAME=mode      TYPE=HIDDEN VALUE=start>");
 HTML("<INPUT NAME=parameter TYPE=HIDDEN VALUE=uploadfile>");
 HTML("<INPUT NAME=script    TYPE=HIDDEN VALUE=servercommand('addimagefile:'..filename)>");
 HTML("Upload file to enter into server (dcm/v2/HL7/zip/7z/gz/tar): <INPUT NAME=filetoupload SIZE=40 TYPE=file VALUE=>");
-HTML("<INPUT TYPE=SUBMIT VALUE=Go>");
+--HTML("<INPUT TYPE=SUBMIT VALUE=Go>");
+HTML('<INPUT TYPE=BUTTON VALUE="Go" onclick=message("Wait");upload("upx")>');
 HTML("</FORM>");
 
 HTML("</BODY>")

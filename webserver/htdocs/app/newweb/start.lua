@@ -46,6 +46,7 @@
 -- mvh 20220827: Escape \ to \\ in returned filename of upload; fix uploading even and odd data
 -- mvh 20220828: Use global port and address, can come from command line
 -- mvh 20220830: Popup and 'progress' bar for upload
+-- mvh 20220831: Avoid overflow - don't use print() in downloadtable
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -568,7 +569,7 @@ if CGI('parameter')=='downloadtable' then
       f:close()
       list = JSON:decode(s)
     end 
-    print(JSON:encode(list))
+    io.write(JSON:encode(list))
   else
     print(0)
   end

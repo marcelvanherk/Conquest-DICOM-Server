@@ -1,2 +1,3 @@
 RewriteEngine On
 RewriteRule . index.html [L]
+RewriteRule ohif1.03_min.js ohif1.03_min.js [L]

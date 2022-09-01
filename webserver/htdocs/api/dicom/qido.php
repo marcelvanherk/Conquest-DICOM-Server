@@ -13,7 +13,7 @@
     $t = str_replace('"', $quote, json_encode($params));    
  
     ob_start();
-    passthru($exe . ' "--dolua:dofile([[rquery.lua]]);'.$level.'([[CONQUESTSRV1]],[[ ' . $t . ' ]], true)"');
+    passthru($exe . ' "--dolua:dofile([[rquery.lua]]);'.$level.'(nil,[[ ' . $t . ' ]], true)"');
     $var = ob_get_contents();
     ob_end_clean();
    
@@ -58,7 +58,7 @@
   function getmetadata($st,$se,$sop) {
     include 'config.php';
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getmetadata([[CONQUESTSRV1]],[['.$st.']],[['.$se.']],[['.$sop.']])"');
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getmetadata(nil,[['.$st.']],[['.$se.']],[['.$sop.']])"');
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Origin: *');
@@ -74,7 +74,7 @@
     include 'config.php';
     $bd = generateRandomString(32);
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getinstances([[CONQUESTSRV1]],[['.$bd.']],[['.$st.']],[['.$se.']],[['.$sop.']])"');
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getinstances(nil,[['.$bd.']],[['.$st.']],[['.$se.']],[['.$sop.']])"');
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
@@ -87,7 +87,7 @@
     include 'config.php';
     $bd = generateRandomString(32);
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getframe([[CONQUESTSRV1]],[['.$st.']],[['.$se.']],[['.$sop.']],'.$fr.')"');
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getframe(nil,[['.$st.']],[['.$se.']],[['.$sop.']],'.$fr.')"');
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
@@ -105,7 +105,7 @@
   function thumbnail($st,$se,$sop,$fr,$sz) {
     include 'config.php';
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getthumbnail([[CONQUESTSRV1]],[['.$st.']],[['.$se.']],[['.$sop.']],'.$fr.','.$sz.')"');
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getthumbnail(nil,[['.$st.']],[['.$se.']],[['.$sop.']],'.$fr.','.$sz.')"');
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');

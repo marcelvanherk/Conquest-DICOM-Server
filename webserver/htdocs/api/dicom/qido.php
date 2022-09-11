@@ -92,7 +92,7 @@
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
     header('Access-Control-Allow-Origin: *');
-    header('Content-Type: multipart/related; boundary=simpleconquestqidobridge3141592654');
+    header('Content-Type: multipart/related; boundary='.$bd);
 
     echo("--".$bd."\r\n");
     echo("Content-Type: application/dicom\r\n");

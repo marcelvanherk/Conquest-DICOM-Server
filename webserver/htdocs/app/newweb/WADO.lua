@@ -4,6 +4,7 @@
 -- mvh 20180202 delete output file and gracefully fail if not created
 -- mvh 20180203 Added local to f
 -- mvh 20181111 Use wadorequest for all images to fix zoom error and for convenience
+-- mvh 20220911 Read wadorequest using servercommand return value to avoid temp file
 
 local studyUID=CGI("studyUID",    "")
 local seriesUID =CGI("seriesUID",    "")
@@ -36,10 +37,10 @@ function scommand(c)
   local command=string.format("wadorequest:%s,%s,%s,%s,%s,%s,%s,%s,%s", obj, lwfq, size, region, contentType, transferSyntax, anonymize, annotation, bridge)
   
   HTML('')
-  servercommand(command..',w.out')
-  local f=io.open('w.out', 'rb')
-  local a = f:read('*all')
-  f:close()
+  local a=servercommand(command..'','binary')--,w.out')
+  --local f=io.open('w.out', 'rb')
+  --local a = f:read('*all')
+  --f:close()
   local i=string.find(a, '\n\n')
   a = string.sub(a, i+2)
   write(a)

@@ -1,3 +1,11 @@
+-- dicom api, lua parts remote controlling running dicom server
+-- 20220911 mvh made compatible with Ladle web server
+
+function iowrite(a)
+  if io then io.write(a)
+  else write(a) end
+end
+
 function remotequery(ae, level, q, dicomweb)
   local isdicomweb=true
    if (dicomweb == nil or dicomweb == '') then isdicomweb= false end;
@@ -17,25 +25,25 @@ end;
 function querypatients(server,params)
 local ae = server or servercommand('get_param:MyACRNema')
 b=remotequery(ae, 'PATIENT', params)
-io.write(b or '')
+iowrite(b or '')
 end;
 
 function querystudies(server,params,dicomweb)
 local ae = server or servercommand('get_param:MyACRNema')
 b=remotequery(ae, 'STUDY', params, dicomweb)
-io.write(b or '')
+iowrite(b or '')
 end;
 
 function queryseries(server,params, dicomweb)
 local ae = server or servercommand('get_param:MyACRNema')
 b=remotequery(ae, 'SERIES', params, dicomweb)
-io.write(b or '')
+iowrite(b or '')
 end;
 
 function queryimages(server,params, dicomweb)
 local ae = server or servercommand('get_param:MyACRNema')
 b=remotequery(ae, 'IMAGE', params, dicomweb);
-io.write(b or '')
+iowrite(b or '')
 end;
 
 function getmetadata(server, st, se, sop)
@@ -54,7 +62,7 @@ function getmetadata(server, st, se, sop)
   local s=tempfile('.txt') local f=io.open(s, "wb") f:write(r) returnfile=s f:close()
 ]]
  local f = servercommand('lua:'..remotecode)
- io.write(f)
+ iowrite(f or '')
 end
 
 function getinstances(ae, bd, st, se, sop)
@@ -69,7 +77,7 @@ function getinstances(ae, bd, st, se, sop)
   q2.SOPInstanceUID=']]..(sop or '')..[['
   q2["9999,0c00"]='ImageNumber' -- database field name to sort
   local r = dicomget(ae, 'IMAGE', q2)
-  local s=tempfile('.txt')
+  local s=tempfile('.txt') 
   local t=tempfile('.txt')
   f = io.open(s, "wb")
   for i=0, #r-1 do
@@ -87,7 +95,7 @@ function getinstances(ae, bd, st, se, sop)
   returnfile=s
 ]]
  local f = servercommand('lua:'..remotecode, 'binary')
- io.write(f)
+ iowrite(f or '')
 end
 
 function getframe(ae, st, se, sop, fr)
@@ -108,7 +116,7 @@ function getframe(ae, st, se, sop, fr)
   returnfile=s
 ]]
  local f = servercommand('lua:'..remotecode, 'binary')
- io.write(f)
+ iowrite(f or '')
 end
 
 function getthumbnail(server, studyuid, serieuid, instuid, frame, size)
@@ -132,14 +140,20 @@ function getthumbnail(server, studyuid, serieuid, instuid, frame, size)
   x[0]:Script('save jpg size '..size..' frame '..frame..' to '..outfile)
   returnfile = outfile
 ]]
-  b=servercommand('lua:'..remotecode,'binary')
-  io.write(b or '')
+b=servercommand('lua:'..remotecode,'binary')
+iowrite(b or '')
 end;
 
 function echo(server)
-  local ae = server or servercommand('get_param:MyACRNema')
-  local remotecode = [[local ae=']]..ae..[[' if (dicomecho(ae)) then return 1 else return 0 end]]
-  b=servercommand('lua:'..remotecode)
-  io.write(b or '')
+local ae = server or servercommand('get_param:MyACRNema')
+local remotecode = [[local ae=']]..ae..[[' if (dicomecho(ae)) then return 1 else return 0 end]]
+b=servercommand('lua:'..remotecode)
+iowrite(b or '')
+end;
+
+function rquery(server,params,level)
+local ae = server or servercommand('get_param:MyACRNema')
+b=remotequery(ae, level, params, true)
+iowrite(b or '')
 end;
 

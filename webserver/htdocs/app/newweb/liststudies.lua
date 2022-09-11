@@ -9,7 +9,8 @@
 -- 20200307   mvh   Avoid query with '***'
 -- 20201025   mvh   Standardised header
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
--- 20220830   mvh   Add studylink to add e.g. ohif
+-- 20220830   mvh   Add studylink to add e.g. ohif (example commented out)
+-- 20220905   mvh   Fix display of ModalitiesInStudy
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -95,7 +96,7 @@ function querystudy_remote()
   
   local b=DicomObject:new();
   b.QueryRetrieveLevel='STUDY'
-  b.Modality=''
+  b.ModalitiesInStudy=''
   b.StudyInstanceUID='' 
   b.PatientID=query_pid
   b.PatientName=query_pna
@@ -261,7 +262,7 @@ for i=1,#pats do
   link = string.gsub(link, '{PatientID}', pats[i].PatientID)
   
   local s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s%s</TR>",t,mc(pats[i].PatientName),mc(pats[i].StudyDate),
-    mc(pats[i].StudyDescription),mc(pats[i].StudyModality),
+    mc(pats[i].StudyDescription),mc(pats[i].ModalitiesInStudy),
     dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'|'..pats[i].StudyInstanceUID),
     link
     )

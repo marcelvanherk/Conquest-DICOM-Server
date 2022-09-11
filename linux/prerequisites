@@ -1,6 +1,6 @@
 sudo apt update
 #sudo apt -y install nano systemctl gettext-base 
-sudo apt -y install make git apache2 g++ lua5.1 liblua5.1-0 lua-socket p7zip-full
+sudo apt -y install make git apache2 g++ lua5.1 liblua5.1-0 php libapache2-mod-php lua-socket p7zip-full
 sudo ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so.0 /usr/lib/x86_64-linux-gnu/liblua5.1.so
 #sudo ln -s /usr/lib/aarch64-linux-gnu/liblua5.1.so.0 /usr/lib/aarch64-linux-gnu/liblua5.1.so
 

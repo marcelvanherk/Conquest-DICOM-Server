@@ -570,10 +570,6 @@ object Form1: TForm1
     end
     object TabSheet2: TTabSheet
       Caption = 'Installation'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -723,10 +719,6 @@ object Form1: TForm1
     end
     object TabSheet3: TTabSheet
       Caption = 'Maintenance'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -915,10 +907,6 @@ object Form1: TForm1
     end
     object TabSheet4: TTabSheet
       Caption = 'Known DICOM providers'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -1028,10 +1016,6 @@ object Form1: TForm1
     end
     object TabSheet5: TTabSheet
       Caption = 'Browse database'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object Panel5: TPanel
         Left = 0
         Top = 0
@@ -1532,10 +1516,6 @@ object Form1: TForm1
     end
     object TabSheet6: TTabSheet
       Caption = 'Server status'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -1746,10 +1726,6 @@ object Form1: TForm1
     end
     object TabSheet7: TTabSheet
       Caption = 'Query / Move'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -2067,10 +2043,6 @@ object Form1: TForm1
     object TabSheet8: TTabSheet
       Caption = 'Archiving'
       ImageIndex = 7
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -2411,10 +2383,6 @@ object Form1: TForm1
     object TapeBackupPage: TTabSheet
       Caption = 'Tape backup'
       ImageIndex = 8
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -2535,10 +2503,6 @@ object Form1: TForm1
       Tag = 9999
       Caption = 'Weekly Checks'
       ImageIndex = 9
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -4442,5 +4406,9 @@ object Form1: TForm1
   object OpenDialog1: TOpenDialog
     Left = 740
     Top = 384
+  end
+  object PopupMenu2: TPopupMenu
+    Left = 668
+    Top = 344
   end
 end

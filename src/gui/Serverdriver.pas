@@ -688,6 +688,7 @@ When            Who     What
                         change case of Logs folder to logs
 20220829        mvh     Allow threshold and treshhold in config files, write with correct spelling
 20220912        mvh     Set ladle webroot to Global.BaseDir..[[webserver/htdocs/]]
+20220912        mvh     Added popupmenu to choose app when right-clicking built-in webserver
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -1119,6 +1120,7 @@ type
     btnDoItNow: TButton;
     NightlyStrTimeToMoveLabel: TLabel;
     NightlyStrTimeToMoveText: TMaskEdit;
+    PopupMenu2: TPopupMenu;
     procedure FormCreate(Sender: TObject);
     procedure RestoreconfigButtonClick(Sender: TObject);
     procedure SaveConfigButtonClick(Sender: TObject);
@@ -1277,6 +1279,8 @@ type
     procedure ButtonRegenFolderMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure btnDoItNowClick(Sender: TObject);
+    procedure ShowPopupMenu2(Sender: TObject; X, Y: integer);
+    procedure AppClick(Sender: TObject);
   private
     procedure WMDropFiles(var Message: TWMDropFiles); message WM_DROPFILES;
     procedure WMQueryEndSession(var Message: TWMQueryEndSession); message WM_QUERYENDSESSION;
@@ -7301,12 +7305,45 @@ begin
     ServerTask('', 'luastart:dofile(Global.Basedir..[[lua/quitladle.lua]])');
 end;
 
+procedure TForm1.AppCLick(sender: TObject);
+begin
+  ShellExecute(0, 'open', PWideChar('http://127.0.0.1:'+LadlePort+'/app/'+(sender as TMenuItem).Caption+'/'), nil, nil, SW_SHOWNORMAL);
+end;
+
+procedure TForm1.ShowPopupMenu2(Sender: TObject; X, Y:integer);
+var sr: TSearchRec;
+    p:TPoint;
+begin
+  PopupMenu2.AutoHotkeys := maManual;
+  PopupMenu2.Items.Clear;
+
+  PopupMenu2.Items.Add(TMenuItem.Create(Self));
+  PopupMenu2.Items[PopupMenu2.Items.Count-1].Caption := 'Open web app:';
+  PopupMenu2.Items.Add(TMenuItem.Create(Self));
+  PopupMenu2.Items[PopupMenu2.Items.Count-1].Caption := '-';
+
+  if FindFirst(curdir + '\webserver\htdocs\app\*.*',faAnyFile, sr) = 0 then
+  repeat
+    if ((sr.Attr and faDirectory)<>0) and (sr.Name<>'.') and (sr.Name<>'..') then
+    begin
+      PopupMenu2.Items.Add(TMenuItem.Create(Self));
+      PopupMenu2.Items[PopupMenu2.Items.Count-1].Caption := sr.Name;
+      PopupMenu2.Items[PopupMenu2.Items.Count-1].OnClick := AppClick;
+    end;
+  until findNext(sr) <> 0;
+
+
+  p := (Sender as TCheckBox).ClientToScreen(TPoint.Create(X, Y));
+  PopupMenu2.Popup(p.X, p.Y);
+end;
+
 procedure TForm1.CheckBoxWebServerMouseDown(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
   if not (Sender as TCheckBox).Checked then exit;
   if Button <> mbRight then exit;
-  ShellExecute(0, 'open', PWideChar('http://127.0.0.1:'+LadlePort+'/app/newweb/dgate.exe?mode=start'), nil, nil, SW_SHOWNORMAL);
+  //ShellExecute(0, 'open', PWideChar('http://127.0.0.1:'+LadlePort+'/app/newweb/dgate.exe?mode=start'), nil, nil, SW_SHOWNORMAL);
+  ShowPopupMenu2(Sender, X, Y);
 end;
 
 {************************************************************************}

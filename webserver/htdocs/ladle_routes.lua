@@ -89,8 +89,8 @@ end )
 ---------------------------------------------------------------
 
 -- wado though uri: wadouri
-routes:get('/api/dicom/wadouri', function (params)
-   redirect('/app/newweb/dgate.exe?' .. request.query)
+routes:get('/api/dicom/wadouri/', function (params)
+   redirect('/app/newweb/dgate.exe')
 end )
 
 -- query all studies

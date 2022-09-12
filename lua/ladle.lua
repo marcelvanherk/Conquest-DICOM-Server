@@ -17,7 +17,18 @@
 -- mvh 20181218 Added loadstring and DicomObject for new serialized data
 -- mvh 20220828 Added dicomecho as trusted function; move used newweb source to htdocs/app
 -- mvh 20220828 Note: does not support POST multipart; cannot upload yet
-
+-- mvh 20220906 Responds to redirect.lua by sending all requests to there; 
+--              Added redirect method; Fixed include method (pass handleIt); 
+--              give luascript handler access to require, dofile, string
+--              close files when done
+-- mvh 20220909 Make it ladle_routes.lua; include and call router; 
+--              disable 'quit' for debugging; print error message
+--              added ipairs, table, print, tostring, JSON, servercommand to luascript handler
+-- mvh 20220911 Redirect for dgate.exe uses folder
+--              Default root is basedir/webserver/htdocs/
+-- mvh 20220912 Returned to default root to /webserver/htdocs/app/newweb/ for compatibility
+--              Added webroot as arg2 to startup; reenabled 'quit'; added pairs to Env
+--
 -----------------------------------------------------
 
 -- lfs = require('lfs')
@@ -63,7 +74,6 @@ mimetypes["mconf"] = {
 		["mime"] = "application/x-javascript",
 		["bin"] = false,
 		},
-		
 	[".jpg"] = {
 		["mime"] = "image/jpeg",
 		["bin"] = true,
@@ -257,6 +267,7 @@ function generic.handler(request, client, config)
 
 		local content = served:read("*all")
 		client:send(content)
+                served:close()
 	else
 		-- TODO : link to ladle's generic err
 		ladleutil.trace(("generic: %s not found"):format(config["webroot"] .. file))
@@ -335,6 +346,7 @@ function luascript.handleIt(filename, Env)
 	end
 
 	local fileContents = file_l:read("*all")
+        file_l:close()
 	
 	-- either lua script
 	-- or anything else
@@ -354,11 +366,11 @@ function luascript.handleIt(filename, Env)
 	end
 end
 
-function luascript.genEnv(_Env, request, config)
+function luascript.genEnv(_Env, request, config, handleIt, client)
 	local Env = _Env
 	Env.__tmp_output_buffer = ""
 	Env.write	= function (text)
-					Env.__tmp_output_buffer = Env.__tmp_output_buffer .. text
+					Env.__tmp_output_buffer = Env.__tmp_output_buffer .. (text or '')
 				end
 	Env.trace	= ladleutil.trace
 	Env.onerror	= function (text)
@@ -372,18 +384,39 @@ function luascript.genEnv(_Env, request, config)
 				end
 	Env.request = request
 	Env.config = config
-	Env.handleIt = handleIt
+
 	Env.include	= function (filename)
-					handleIt(Env.config.webroot .. "/" .. filename, _ENV)
+					handleIt(Env.config.webroot .. "/" .. filename, Env)
 				end
   
+	Env.redirect	= function (uri)
+                                        req = request
+                                        req.uri = uri
+					servedirect(req, client)
+					print('redirect', uri)
+			end
+
+        Env.require = require
+        Env.dofile = dofile
+        Env.string = string
+        Env.servercommand = servercommand
+	Env.print=print
+	Env.tostring=tostring
+	Env.ipairs=ipairs
+	Env.pairs=pairs
+	Env.table=table
+	Env.JSON=require('json')
+	
+	local router = require 'router'
+	Env.routes = router.new()
+
 	return Env
 end
 
 function luascript.handler(request, client, config)
 	local _ENV = {}
         -- setfenv(1, _ENV) 
-	local Env = luascript.genEnv(_ENV, request, config)
+	local Env = luascript.genEnv(_ENV, request, config, luascript.handleIt, client)
 	
 	if not ladleutil.fileExists(config.webroot .. request.uri)
 	then
@@ -398,6 +431,8 @@ function luascript.handler(request, client, config)
 	--local cdir = lfs.currentdir()
 	--lfs.chdir(config.webroot)
 	luascript.handleIt(config.webroot .. request.uri, Env)
+	Env.routes:execute(request.method, string.gsub(request.orguri, 'index.lua', ''))
+
 	client:send(Env.__tmp_output_buffer)
 	--lfs.chdir(cdir)
 end
@@ -418,6 +453,8 @@ dgatecgi.parseLuaPage = luascript.parseLuaPage
 dgatecgi.handleIt = luascript.handleIt
 dgatecgi.genEnv = luascript.genEnv
 function dgatecgi.handler(request, client, config)
+  local folder = string.match(request.orguri, '(.-)/dgate.exe') or ''
+  if folder~='' then folder = folder .. '/' end
   local _ENV = {}
   local Env = luascript.genEnv(_ENV, request, config)
   
@@ -431,6 +468,8 @@ function dgatecgi.handler(request, client, config)
   Env.string = string
   Env.io = io
   Env.loadstring = loadstring
+  Env.require = require
+  Env.dofile = dofile
 
   -- conquest specific
   Env.get_amap = get_amap
@@ -480,9 +519,9 @@ function dgatecgi.handler(request, client, config)
     error('quiting ladle server')
   end
   request.uri = (request.query['mode'] or 'xxxx')..'.lua' 
-	if not ladleutil.fileExists(config.webroot .. request.uri) then
+	if not ladleutil.fileExists(config.webroot .. folder .. request.uri) then
 	  request.uri = (request.query['requestType'] or 'xxxx')..'.lua' 
-	elseif not ladleutil.fileExists(config.webroot .. request.uri)
+	elseif not ladleutil.fileExists(config.webroot ..  folder .. request.uri)
 	then
 		-- TODO : link to ladle's generic err
 		ladleutil.trace(("luascript: %s not found"):format(config.webroot .. request.uri))
@@ -494,7 +533,7 @@ function dgatecgi.handler(request, client, config)
 	
 	--local cdir = lfs.currentdir()
 	--lfs.chdir(config.webroot)
-	luascript.handleIt(config.webroot .. request.uri, Env)
+	luascript.handleIt(config.webroot .. folder .. request.uri, Env)
 	client:send(Env.__tmp_output_buffer)
 	--lfs.chdir(cdir)
 end
@@ -507,7 +546,7 @@ dgatecgi.name = "Lua script and page handler to emulate dgate CGI mode"
 ---------------------
 
 Server = "Ladle"
-ServerVersion = "0.1.2"
+ServerVersion = "0.1.3"
 
 -- load required modules
 socket = require('socket')
@@ -551,6 +590,10 @@ end
 -- checks whether the root index file is requested and finds an appropriate
 -- one if needed
 function checkURI(uri)
+	if ladleutil.fileExists(config["webroot"] .. "ladle_routes.lua") then
+          uri = "ladle_routes.lua"
+        end
+                
 	-- if index file was requested
 	-- loop til' the first index.* file found
 	if(uri == "")
@@ -576,8 +619,22 @@ function checkURI(uri)
 end
 
 function serve(request, client)
+	request["orguri"] = request["uri"]
 	request["uri"] = checkURI(request["uri"])
-  -- print(request.url)
+  
+	-- find an appropriate handler in extensions
+	local handler = getHandler(request)
+
+	-- Got a handler, run it
+	handler(request, client, config)
+
+	-- done with client, close request
+	client:close()
+end
+
+function servedirect(request, client)
+	request["orguri"] = request["uri"]
+	-- request["uri"] = checkURI(request["uri"])
   
 	-- find an appropriate handler in extensions
 	local handler = getHandler(request)
@@ -618,7 +675,7 @@ function waitReceive()
 end
 
 -- start web server
-function main(arg1)
+function main(arg1, arg2)
 	-- command line argument overrides config file entry:
 	local port = arg1
 	-- if no port specified on command line, use config entry:
@@ -630,9 +687,13 @@ function main(arg1)
 	local hostname = config['hostname']
 	if hostname == nil then hostname = '*' end -- fall back to default
 	
-	if config["webroot"] == "" or config["webroot"] == nil
-	then
+	if arg2 then 
+	  config["webroot"] = arg2
+	else
+	  if config["webroot"] == "" or config["webroot"] == nil
+	  then
 		config["webroot"] = "www/"
+	  end
 	end
 
 	-- display initial program information
@@ -653,10 +714,11 @@ function main(arg1)
 
 	-- display message to web server is running
 	ladleutil.trace(("Serving on %s:%d"):format(hostname,port))
-  pcall(waitReceive) -- begin waiting for client requests
+  local a, b = pcall(waitReceive) -- begin waiting for client requests
+  print(b)
   ladleutil.trace("Ladle web server stopped")
 end
 
 -- invoke program starting point:
--- parameter is command-line argument for port number
-main((arg or {})[1])
+-- parameter is command-line argument for port number and webroot
+main((arg or {})[1], (arg or {})[2])

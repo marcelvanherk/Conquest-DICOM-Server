@@ -687,6 +687,7 @@ When            Who     What
                         file at install; copy dgate.exe to newweb app; update build date
                         change case of Logs folder to logs
 20220829        mvh     Allow threshold and treshhold in config files, write with correct spelling
+20220912        mvh     Set ladle webroot to Global.BaseDir..[[webserver/htdocs/]]
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -6818,9 +6819,9 @@ begin
                         Table2.FieldByName('STUDYINSTA').AsString,
                         Table3.FieldByName('SERIESINST').AsString);
 {$ELSE}
-  webaddress := 'http://127.0.0.1:'+LadlePort+'/dgate.exe?mode=wadoseriesviewer&series=' +
+  webaddress := 'http://127.0.0.1:'+LadlePort+'/app/newweb/dgate.exe?mode=wadoseriesviewer&series=' +
                  Table1.FieldByName('PATIENTID').AsString+':'+Table3.FieldByName('SERIESINST').AsString;
-  ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];dofile(Global.Basedir..[[lua/ladle.lua]])');
+  ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];arg[2]=Global.BaseDir..[[webserver/htdocs/]];dofile(Global.Basedir..[[lua/ladle.lua]])');
   ShellExecute(0, 'open', PWideChar(webaddress), nil, nil, SW_SHOWNORMAL);
 {$ENDIF KPACS}
 end;
@@ -7295,7 +7296,7 @@ end;
 procedure TForm1.CheckBoxWebServerClick(Sender: TObject);
 begin
   if (Sender as TCheckBox).Checked then
-    ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];dofile(Global.Basedir..[[lua/ladle.lua]])')
+    ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];arg[2]=Global.BaseDir..[[webserver/htdocs/]];dofile(Global.Basedir..[[lua/ladle.lua]])')
   else
     ServerTask('', 'luastart:dofile(Global.Basedir..[[lua/quitladle.lua]])');
 end;
@@ -7305,7 +7306,7 @@ procedure TForm1.CheckBoxWebServerMouseDown(Sender: TObject;
 begin
   if not (Sender as TCheckBox).Checked then exit;
   if Button <> mbRight then exit;
-  ShellExecute(0, 'open', PWideChar('http://127.0.0.1:'+LadlePort+'/dgate.exe?mode=start'), nil, nil, SW_SHOWNORMAL);
+  ShellExecute(0, 'open', PWideChar('http://127.0.0.1:'+LadlePort+'/app/newweb/dgate.exe?mode=start'), nil, nil, SW_SHOWNORMAL);
 end;
 
 {************************************************************************}

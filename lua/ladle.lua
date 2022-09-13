@@ -28,7 +28,7 @@
 --              Default root is basedir/webserver/htdocs/
 -- mvh 20220912 Returned to default root to /webserver/htdocs/app/newweb/ for compatibility
 --              Added webroot as arg2 to startup; reenabled 'quit'; added pairs to Env
---
+-- mvh 20220913 Added math to luascript handler
 -----------------------------------------------------
 
 -- lfs = require('lfs')
@@ -405,6 +405,7 @@ function luascript.genEnv(_Env, request, config, handleIt, client)
 	Env.ipairs=ipairs
 	Env.pairs=pairs
 	Env.table=table
+	Env.math=math
 	Env.JSON=require('json')
 	
 	local router = require 'router'

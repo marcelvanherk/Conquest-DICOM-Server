@@ -1,5 +1,6 @@
 -- Ladle version of DICOMWeb api and redirector for all web apps
 -- mvh 20220912 First version
+-- mvh 20220913 Fixed wadors frame access
 
 ---------------------------------------------
 --preflight
@@ -54,10 +55,10 @@ end )
 
 -- Static route: overrule conquest jpeg
 routes:get('/app/newweb/conquest.jpg', function (params)
-   redirect('/app/newweb/conquest.jpg')
+   redirect('/app/newweb/CIMG3558.jpg')
 end )
 routes:get('/app/conquest.jpg', function (params) -- when opening without trailing /
-   redirect('/app/newweb/conquest.jpg') 
+   redirect('/app/newweb/CIMG3558.jpg') 
 end )
 
 ---------------------------------------------
@@ -135,42 +136,42 @@ end )
 
 -- single frame (binary pixel data)
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/frames/:frame', function (params)
-   frame(params.suid,params.euid,params.ouid,params.frame)
+   frame(request.query, params.suid,params.euid,params.ouid,params.frame)
 end )
 
 -- dicom instance
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid', function (params)
-   instances(params.suid,params.euid,params.ouid)
+   instances(request.query, params.suid,params.euid,params.ouid)
 end )
 
 -- dicom instances of series
 routes:get('/api/dicom/rs/studies/:suid/series/:euid', function (params)
-   instances(params.suid,params.euid,'')
+   instances(request.query, params.suid,params.euid,'')
 end )
 
 -- dicom instances of study
 routes:get('/api/dicom/rs/studies/:suid', function (params)
-   instances(params.suid,'','')
+   instances(request.query, params.suid,'','')
 end )
 
 -- thumbnail of a frame
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/thumbnail/frames/:frame', function (params)
-   thumbnail(params.suid,params.euid,params.ouid,params.frame,128)
+   thumbnail(request.query, params.suid,params.euid,params.ouid,params.frame,128)
 end )
 
 -- thumbnail of an image
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/thumbnail', function (params)
-   thumbnail(params.suid,params.euid,params.ouid,0,128)
+   thumbnail(request.query, params.suid,params.euid,params.ouid,0,128)
 end )
 
 -- thumbnail for series (middle one)
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/thumbnail', function (params)
-   thumbnail(params.suid,params.euid,'',0,128)
+   thumbnail(request.query, params.suid,params.euid,'',0,128)
 end )
 
 -- thumbnail for study (middle one)
 routes:get('/api/dicom/rs/studies/:suid/thumbnail', function (params)
-   thumbnail(params.suid,'','',0,128)
+   thumbnail(request.query, params.suid,'','',0,128)
 end );
 
 ------------------------------------------------------------
@@ -255,14 +256,14 @@ end
 
 function frame(query,st,se,sop,fr)
   include('/api/dicom/rquery.lua')
-  local bd = generateRandomString(32)
+  local bd = 'Hallo'..generateRandomString(32)
   write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Headers: *\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
   write('Content-Type: multipart/related; boundary='..bd..'\r\n\r\n')
-
+  
   write("--"..bd.."\r\n")
-  write("Content-Type: application/dicom\r\n")
+  write("Content-Type: application/binary\r\n")
   write('Access-Control-Allow-Origin: *')
   write("Content-Transfer-Encoding: binary\r\n\r\n")
   getframe(nil,st,se,sop,fr)

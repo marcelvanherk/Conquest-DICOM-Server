@@ -1,6 +1,7 @@
 -- Ladle version of DICOMWeb api and redirector for all web apps
 -- mvh 20220912 First version
 -- mvh 20220913 Fixed wadors frame access
+-- mvh 20220914 Added ohiftop
 
 ---------------------------------------------
 --preflight
@@ -77,12 +78,21 @@ routes:get('/app/ohif/viewer/:suid', function (params)
 end )
 
 ---------------------------------------------
--- Static route: luis viewer
+-- Static route: luiz viewer
 routes:get('/app/luiz/', function (params)
    redirect( '/app/luiz/index.html')
 end )
 routes:get('/app/luiz/*rest', function (params)
    redirect( '/app/luiz/'..params.rest)
+end )
+
+---------------------------------------------
+-- Static route: ohiftop viewer
+routes:get('/app/ohiftop/', function (params)
+   redirect( '/app/ohiftop/index.html')
+end )
+routes:get('/app/ohiftop/*rest', function (params)
+   redirect( '/app/ohiftop/'..params.rest)
 end )
 
 ---------------------------------------------------------------

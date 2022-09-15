@@ -56,10 +56,10 @@ end )
 
 -- Static route: overrule conquest jpeg
 routes:get('/app/newweb/conquest.jpg', function (params)
-   redirect('/app/newweb/CIMG3558.jpg')
+   redirect('/app/newweb/conquest.jpg')
 end )
 routes:get('/app/conquest.jpg', function (params) -- when opening without trailing /
-   redirect('/app/newweb/CIMG3558.jpg') 
+   redirect('/app/newweb/conquest.jpg') 
 end )
 
 ---------------------------------------------

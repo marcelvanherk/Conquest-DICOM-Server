@@ -29,6 +29,8 @@
 -- mvh 20220912 Returned to default root to /webserver/htdocs/app/newweb/ for compatibility
 --              Added webroot as arg2 to startup; reenabled 'quit'; added pairs to Env
 -- mvh 20220913 Added math to luascript handler
+-- mvh 20220915 prepMain parses post or put message into request; CGI('') returns payload
+-- mvh 20220916 CGI() also returns payload; correct size of payload
 -----------------------------------------------------
 
 -- lfs = require('lfs')
@@ -239,7 +241,31 @@ end
 
 -- decides which prep to run etc
 function ladleutil.prepMain(request, client)
-
+        -- simplistic multipart data parser, assumes one filename and must be the last parameter
+	if request.method=='POST' or request.method=='PUT' then
+		boundary = string.match(request["Content-Type"], '.+boundary=(.+)$')
+		local len = request["Content-Length"]
+		local data, err, partial = client:receive(len)
+		for i=1, 100 do
+			line, data = string.match(data, "(.-)\r\n(.+)")
+			if string.find(line, 'filename=') then 
+				local fn= string.match(line, '; filename="(.-)"')
+				local nam= string.match(line, '; name="(.-)"')
+				_, data = string.match(data, "(.-)\r\n(.+)")
+				_, data = string.match(data, "(.-)\r\n(.+)")
+				request.query["filename"]=fn
+				request.query["_upload_"]=data:sub(1, -#boundary-9)
+				--local f=io.open(fn,'wb') f:write(request["_upload_"]) f:close()
+				break 
+			elseif string.find(line, 'name=') then 
+				local nam= string.match(line, 'name="(.-)"')
+				_, data = string.match(data, "(.-)\r\n(.+)")
+				val, data = string.match(data, "(.-)\r\n(.+)")
+				request.query[nam]=val
+			end
+		end
+		for k, v in pairs(request.query) do print(k, v) end
+	end
 end
 
 -- display error message and server information
@@ -459,6 +485,7 @@ function dgatecgi.handler(request, client, config)
   local _ENV = {}
   local Env = luascript.genEnv(_ENV, request, config)
   
+  -- inherited from luascript, need not reimport most functions anymore
   Env.tostring = tostring
   Env.tonumber = tonumber
   Env.table = table
@@ -488,7 +515,11 @@ function dgatecgi.handler(request, client, config)
     Env.write('\n') 
   end
   Env.CGI = function(a, b)
-    return request.query[a] or (b or '')
+    if (a or '')=='' then
+      return request.query["_upload_"] or (b or '')
+    else
+      return request.query[a] or (b or '')
+    end
   end
   Env.gpps = function(a, b, c)
     if b=='viewer' then return 'wadoseriesviewer' end

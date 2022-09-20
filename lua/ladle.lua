@@ -31,6 +31,8 @@
 -- mvh 20220913 Added math to luascript handler
 -- mvh 20220915 prepMain parses post or put message into request; CGI('') returns payload
 -- mvh 20220916 CGI() also returns payload; correct size of payload
+-- mvh 20220920 Added mjs to mimetypes
+
 -----------------------------------------------------
 
 -- lfs = require('lfs')
@@ -73,6 +75,10 @@ mimetypes["mconf"] = {
 		["bin"] = false,
 		},
 	[".js"] = {
+		["mime"] = "application/x-javascript",
+		["bin"] = false,
+		},
+	[".mjs"] = {
 		["mime"] = "application/x-javascript",
 		["bin"] = false,
 		},

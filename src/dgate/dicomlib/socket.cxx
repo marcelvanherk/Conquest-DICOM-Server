@@ -21,6 +21,7 @@
 20140528        lsp     Kept member initialization only in constructors: not GNUC specific
 20200617        mvh     Replaced UNIX version of SendBinary with luasocket inspired waiting code
 20200618        mvh     Made send() timeout ~20s by increasingly longer nanosleep
+20220922        mvh     Host names like 2.aap.mies are looked up; 1.2.3 taken as is
 */
 
 /****************************************************************************
@@ -204,10 +205,21 @@ struct	hostent	*	Socket	::	Gethostbyname(char	*name1)
 	strcpy(ndat, name1);
 	name = &ndat[0];
 	
-	if(!atoi(name1) || strchr(name1, '.')==NULL)		  // fix for name like 2station
+	// previous code failed for e.g. 2.aap.mies
+	BOOL isname=false;
+	for (int i=0; i<strlen(name1); i++)
+		{
+		if (name1[i]<'.' || name1[i]>'9') // outside ascii ./0123456789
+			{
+			isname = true;
+			break;
+			}
+		}
+
+	if(isname)
 		gethostbyname_r(name, &he2, buf, 64, &he, &dum);
 	else
-		he = NULL;					  // has . and starts with number
+		he = NULL;
 	if(he)
 		{
 		memcpy ((void *) &hes, (void *) he, sizeof(struct hostent));
@@ -219,39 +231,6 @@ struct	hostent	*	Socket	::	Gethostbyname(char	*name1)
 #else
 	ip = inet_addr(name);
 #endif
-/******************************
-	dot2 = strchr(name, '.');
-	if(!dot2)
-		return ( NULL );
-	(*dot2) = '\0';
-	++dot2;
-	dot3 = strchr(dot2, '.');
-	if(!dot3)
-		return ( NULL );
-	(*dot3) = '\0';
-	++dot3;
-	dot4 = strchr(dot3, '.');
-	if(!dot4)
-		return ( NULL );
-	(*dot4) = '\0';
-	++dot4;
-	i1 = atoi(name);
-	i2 = atoi(dot2);
-	i3 = atoi(dot3);
-	i4 = atoi(dot4);
-	
-#if	NATIVE_ENDIAN == BIG_ENDIAN
-	i1 = i4 << 24;
-	i2 = i3 << 16;
-	i3 = i2 << 8;
-#else	
-	i4 = i4 << 24;
-	i3 = i3 << 16;
-	i2 = i2 << 8;
-#endif
-	
-	ip = i1 | i2 | i3 | i4;
-********************************/
 	hes.h_addr_list = (char **) &tulongptr;
 	tulongptr = &tulong;
 	tulong = ip;
@@ -278,22 +257,12 @@ struct	servent	*	Socket	::	Getservbyname(const char	*name, char	*prot)
 #else
 	servs.s_port = htons(s);
 #endif
-/****************************
-	s1 = s & 0x00ff;
-	s1 = s1 << 8;
-	s = s >> 8;
-	s1 = s1 | s;
-	servs.s_port = s1;
-*******************************/	
-//	fprintf(stderr, "returning: %d\n", servs.s_port);
 	return ( &servs );
 	}
 
 BOOL	Socket	::	Listen ( char 	*port )
 	{
 	UINT32				tuint32;
-//	struct	hostent		*he;
-//	struct	hostent		hecopy;
 	struct	servent		*se;
 	struct	servent		secopy;
 	struct	linger		Linger;
@@ -303,16 +272,6 @@ BOOL	Socket	::	Listen ( char 	*port )
 
 	if ( Socketfd )
 		closesocket(Socketfd);
-
-//	fprintf(stderr, "[Listen: %s]\n", port); fflush(stderr);
-	/*he = Gethostbyname("hampson");
-	
-	if ( !he )
-		{
-		return ( FALSE );	// could not resolve host name
-		}
-	*/   
-	//memcpy ((void *) &hecopy, (void *) he, sizeof(struct hostent));
 	
 	se = Getservbyname(port, NULL);
 	

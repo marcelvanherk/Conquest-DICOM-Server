@@ -8,7 +8,10 @@
 # to run the container interactively with bash:
 #    docker run -it prebuild bash
 #
+# if needed cd Conquest-DICOM-Server/src/servertask && chmod 777 make.sh && make.sh
+#
 # docker cp CONTAINER:/Conquest-DICOM-Server/dgate .
+# docker cp CONTAINER:/Conquest-DICOM-Server/src/servertask/servertask .
 #
 ##########
 
@@ -21,6 +24,7 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so.0 /usr/lib/x86_64-linux-gnu/lib
 #RUN ln -s /usr/lib/aarch64-linux-gnu/liblua5.1.so.0 /usr/lib/aarch64-linux-gnu/liblua5.1.so
 
 #get conquest source code
+COPY Dockerfile .
 RUN git clone https://github.com/marcelvanherk/Conquest-DICOM-Server
 #COPY Conquest-DICOM-Server Conquest-DICOM-Server
 
@@ -33,6 +37,7 @@ RUN cd Conquest-DICOM-Server && chmod 777 linux/maklinux_precompiled
 
 #compile, update dicom.ini if next to Dockerfile, and regenerate the SQLite database
 RUN cd Conquest-DICOM-Server && linux/maklinux_precompiled
+RUN cd Conquest-DICOM-Server/src/servertask && chmod 777 make.sh && ./make.sh
 
 ###### additional docker commands:
 #

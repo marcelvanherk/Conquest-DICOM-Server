@@ -689,6 +689,7 @@ When            Who     What
 20220829        mvh     Allow threshold and treshhold in config files, write with correct spelling
 20220912        mvh     Set ladle webroot to Global.BaseDir..[[webserver/htdocs/]]
 20220912        mvh     Added popupmenu to choose app when right-clicking built-in webserver
+20220919        mvh     Right-click bugreport buttons shows server folder
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -1281,6 +1282,8 @@ type
     procedure btnDoItNowClick(Sender: TObject);
     procedure ShowPopupMenu2(Sender: TObject; X, Y: integer);
     procedure AppClick(Sender: TObject);
+    procedure ButtonBugReportMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
   private
     procedure WMDropFiles(var Message: TWMDropFiles); message WM_DROPFILES;
     procedure WMQueryEndSession(var Message: TWMQueryEndSession); message WM_QUERYENDSESSION;
@@ -8278,6 +8281,14 @@ begin
     WriteMemoSl(ServerStatusMemo, 'Mail this file to: vanherkmarcel@gmail.com, with a short description of the problem', 1100, 1000, 'serverstatus', true, ServerStatusStringList);
   end;
   WriteMemoSl(ServerStatusMemo, '-----------------------------------------------------', 1100, 1000, 'serverstatus', true, ServerStatusStringList);
+end;
+
+procedure TForm1.ButtonBugReportMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  if Button <> mbRight    then exit;
+  ShellExecute(Application.Handle, nil,
+    'explorer.exe', pchar('/n,'+CurDir), nil, SW_NORMAL)
 end;
 
 procedure TForm1.CheckBoxDebugLogClick(Sender: TObject);

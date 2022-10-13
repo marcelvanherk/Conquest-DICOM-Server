@@ -24,6 +24,7 @@ function parse_multipart_content(?string $content, ?string $boundary): ?array {
   return empty($parts) ? null : $parts;
 }    
 
+function poststow() {
   include 'config.php';
   $d=file_get_contents("php://input");
   $t = getallheaders();
@@ -36,19 +37,12 @@ function parse_multipart_content(?string $content, ?string $boundary): ?array {
     fwrite($file, $d[0]["value"]);
     $path = stream_get_meta_data($file)['uri'];
     ob_start();
-    passthru($exe . ' "' . str_replace('"', $quote, '--dolua:' .
-    'servercommand([[lua:a=Command:GetVR(0x9999,0x0402,true);' .
-    'n=tempfile(".dcm");f=io.open(n,"wb");f:write(a);f:close();' .
-    'x=DicomObject:new();x:Read(n);print(x.Modality);' .
-    'y=DicomObject:new();y.StudyInstanceUID=x.StudyInstanceUID;y.PatientID="";y.PatientName="";' .
-    'r=dicomquery("CONQUESTSRV1", "STUDY", y);' .
-    'if r[0] then x.PatientID=r[0].PatientID;x.PatientName=r[0].PatientName end;' .
-    'addimage(x);os.remove(n);print(x.SOPInstanceUID)]], [[<' . $path . ']])') . '"');
-    
+    passthru($exe . ' "--dolua:dofile([[posters.lua]]);poststow([['.$path.']])"');
     $var = ob_get_contents();
-    fclose($file);
     ob_end_clean();
+    fclose($file);
     header('Access-Control-Allow-Origin: *');
     header('Content-Type: application/json');
     echo $var;
   }
+}

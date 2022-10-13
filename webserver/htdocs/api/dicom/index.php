@@ -1,7 +1,7 @@
 <?php
     require_once 'Router.php';
     include 'config.php';
-
+    
     if ($wplogin) {
       if (!defined("DISABLE_WP_CRON")) define( 'DISABLE_WP_CRON', true );
       if (!defined("WP_PLUGIN_DIR"))   define( 'WP_PLUGIN_DIR', 'xxx' );
@@ -20,7 +20,7 @@
         exit;
       }
     }
-
+    
     // Create a Router
     $router = new \Bramus\Router\Router();
     
@@ -162,7 +162,8 @@ EOD;
 
     // post instance
     $router->post('/rs/studies$', function () {
-       include 'postinstance.php';
+       include 'posters.php';
+       poststow();
     });
 
     // thumbnail of a frame

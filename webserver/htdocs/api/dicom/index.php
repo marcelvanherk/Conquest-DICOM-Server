@@ -21,6 +21,19 @@
       }
     }
     
+    function CGI($name, $default) {
+       $t = parse_url($_SERVER["REQUEST_URI"]);
+       $s = array();
+       if (array_key_exists("query", $t))
+         parse_str($t["query"], $s);
+       if ($name=='') return $s;
+       $output = $default;
+       if (array_key_exists($name, $s)) {
+	 $output = $s[$name];
+       }
+       return $output;
+    }
+    
     // Create a Router
     $router = new \Bramus\Router\Router();
     
@@ -73,50 +86,35 @@ EOD;
     // query all studies
     $router->get('/rs/studies$', function () {
        include 'qido.php';
-       $t = parse_url($_SERVER["REQUEST_URI"]);
-       $output = array();
-       if (array_key_exists("query", $t))
-         parse_str($t["query"], $output);
+       $output = CGI('', '');
        querystudies($output);
     });
 
     // query series of a study
     $router->get('/rs/studies/([0-9%.]+)/series$', function ($st) {
        include 'qido.php';
-       $t = parse_url($_SERVER["REQUEST_URI"]);
-       $output = array();
-       if (array_key_exists("query", $t))
-         parse_str($t["query"], $output);
+       $output = CGI('', '');
        queryseries($st, $output);
     });
 
     // query all series
     $router->get('/rs/series$', function () {
        include 'qido.php';
-       $t = parse_url($_SERVER["REQUEST_URI"]);
-       $output = array();
-       if (array_key_exists("query", $t))
-         parse_str($t["query"], $output);
+       $output = CGI('', '');
        queryseries('', $output);
     });
 
     // query instances of series
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances$', function ($st, $se) {
        include 'qido.php';
-       $t = parse_url($_SERVER["REQUEST_URI"]);
-       $output = array();
-       if (array_key_exists("query", $t))
-         parse_str($t["query"], $output);
+       $output = CGI('', '');
        queryinstances($st, $se, $output);
     });
 
     // query all instances
     $router->get('/rs/instances$', function () {
        include 'qido.php';
-       $t = parse_url($_SERVER["REQUEST_URI"]);
-       $output = array();
-       if (array_key_exists("query", $t))
-         parse_str($t["query"], $output);
+       $output = CGI('', '');
        queryinstances('', '', $output);
     });
 
@@ -170,33 +168,15 @@ EOD;
 
     // attach instance (allow importconverter style script query parameter run for each object in e.g. zip)
     $router->post('/rs/attach$', function () {
-       $t = parse_url($_SERVER["REQUEST_URI"]);
-       $output = array();
-       $script = '';
-       if (array_key_exists("query", $t)) {
-         parse_str($t["query"], $output);  
-         if (array_key_exists("script", $output)) {
-           $script = $output["script"];  
-
-	 }
-       }	 
        include 'posters.php';
+       $script = CGI('script', '');
        attachfile($script);
     });
 
     // attach instance (allow lua script query parameter, let it return JSON string for response)
     $router->post('/rs/attachdicom$', function () {
-       $t = parse_url($_SERVER["REQUEST_URI"]);
-       $output = array();
-       $script = '';
-       if (array_key_exists("query", $t)) {
-         parse_str($t["query"], $output);  
-         if (array_key_exists("script", $output)) {
-           $script = $output["script"];  
-
-	 }
-       }	 
        include 'posters.php';
+       $script = CGI('script', '');
        attachdicomfile($script);
     });
 

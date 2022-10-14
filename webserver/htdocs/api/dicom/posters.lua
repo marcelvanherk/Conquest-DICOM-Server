@@ -50,3 +50,57 @@ function poststow(path)
   ]]
   attachdicomfile(path, code)
 end
+
+-- run a script in the server; can return information
+function runscript(script)
+  local remotecode = [[
+    local dat=Command:GetVR(0x9999,0x0402,true);
+    local filename=tempfile('.lua');
+    local f=io.open(filename,"wb");f:write(dat);f:close();
+    local a=dofile(filename);
+    os.remove(filename);
+    return a
+  ]]
+  io.write(servercommand('lua:'..remotecode, '<'..script));
+end
+
+-- start a script as background task in the server; return uid of job
+-- use progress(percentage) from script
+function startscript(script)
+  local remotecode1 = [[
+    return tempfile('.lua');
+  ]]
+  local remotecode2 = [[
+    local dat=Command:GetVR(0x9999,0x0402,true);
+    local f=io.open(filename,"wb");f:write(dat);f:close();
+    function progress(n) local f=io.open(filename, "w") f:write(n) f:close() end
+    local a=dofile(filename);
+    os.remove(filename);
+    return a
+  ]]
+  local fn = servercommand('lua:'..remotecode1);
+  fn = string.gsub(fn, '\000', '')
+  local uid = '"' .. string.match(fn, '.+\\(.-)%.lua') .. '"'
+  io.write(uid)
+  servercommand('luastart:local filename=[['..fn..']];'..remotecode2, '<'..script);
+end
+
+-- return progress indicator of job (0 started, to 100 end)
+function readprogress(uid)
+  local remotecode = 
+    "local uid=[["..uid.."]];" .. [[
+    local fn = tempfile('.lua')
+    local u1 = string.match(fn, '.+\\(.-)%.lua')
+    local filename = string.gsub(fn, u1, uid)
+    local f = io.open(filename, 'r')
+    if f==nil then
+      return 100
+    end
+    local s = f:read('*a')
+    f:close()
+    return tonumber(s) or 0
+  ]]
+  local s = servercommand('lua:'..remotecode);
+  s = string.gsub(s, '\000', '')
+  io.write(s)
+end

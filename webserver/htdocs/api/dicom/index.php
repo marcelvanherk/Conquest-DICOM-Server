@@ -160,7 +160,7 @@ EOD;
        getinstances($st,'','');
     });
 
-    // post instance
+    // post instance(s)
     $router->post('/rs/studies$', function () {
        include 'posters.php';
        poststow();
@@ -178,6 +178,24 @@ EOD;
        include 'posters.php';
        $script = CGI('script', '');
        attachdicomfile($script);
+    });
+
+    // runs a script
+    $router->post('/rs/script$', function () {
+       include 'posters.php';
+       runscript();
+    });
+
+    // start a script
+    $router->post('/rs/startscript$', function () {
+       include 'posters.php';
+       startscript();
+    });
+
+    // get a script progress
+    $router->get('/rs/startscript/([0-9%.]+)$', function ($uid) {
+       include 'posters.php';
+       readprogress($uid);
     });
 
     // thumbnail of a frame

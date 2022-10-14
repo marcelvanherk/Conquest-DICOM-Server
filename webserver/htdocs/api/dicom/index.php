@@ -168,7 +168,7 @@ EOD;
        poststow();
     });
 
-    // attach instance (allow script query parameter)
+    // attach instance (allow importconverter style script query parameter run for each object in e.g. zip)
     $router->post('/rs/attach$', function () {
        $t = parse_url($_SERVER["REQUEST_URI"]);
        $output = array();
@@ -184,7 +184,7 @@ EOD;
        attachfile($script);
     });
 
-    // attach instance (allow lua script query parameter)
+    // attach instance (allow lua script query parameter, let it return JSON string for response)
     $router->post('/rs/attachdicom$', function () {
        $t = parse_url($_SERVER["REQUEST_URI"]);
        $output = array();

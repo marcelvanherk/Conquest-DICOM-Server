@@ -14,8 +14,8 @@ function attachfile(path, script, ext)
   io.write(servercommand('lua:'..remotecode, '<'..path))
 end
 
--- add and process a dicom file stored in path (may be zip)
--- script is in lua format working on global data; return string taken as JSON response
+-- add and process a dicom file stored in path
+-- script is in lua format working on global Data; return string taken as JSON response
 function attachdicomfile(path, script)
   script = '[['..script..']]' -- allow ' and " in script
   ext = ".dcm"
@@ -24,8 +24,7 @@ function attachdicomfile(path, script)
     local dat=Command:GetVR(0x9999,0x0402,true);
     local filename=tempfile(']]..ext..[[');
     local f=io.open(filename,"wb");f:write(dat);f:close();
-    data=DicomObject:new()
-    data:Read(filename)
+    readdicom(filename)
     os.remove(filename);
     return loadstring(script)()
   ]]
@@ -36,16 +35,16 @@ end
 function poststow(path)
   local code = [[
     local q=DicomObject:new()
-    q.StudyInstanceUID=data.StudyInstanceUID
+    q.StudyInstanceUID=Data.StudyInstanceUID
     q.PatientID=""; q.PatientName=""
     local ae = servercommand('get_param:MyACRNema')
     r=dicomquery(ae, "STUDY", q)
     if r[0] then 
-      data.PatientID=r[0].PatientID
-      data.PatientName=r[0].PatientName 
+      Data.PatientID=r[0].PatientID
+      Data.PatientName=r[0].PatientName 
     end;
-    addimage(data)
-    local s='"'..data.SOPInstanceUID..'"'
+    addimage(Data)
+    local s='"'..Data.SOPInstanceUID..'"'
     if (#s % 2)~=0 then s=s..' ' end
     return s
   ]]

@@ -2,6 +2,7 @@
 // mvh 20181215; based on code by ljz and lsp
 // mvh 20200110; Allow change of transfer syntax
 // mvh 20220809; Added executable version servertask lua_chunk
+// mvh 20221013; Allow '<file' mode to return response
 
 #include "dicom.hpp"
 
@@ -376,7 +377,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
       if      (strcmp(t, "cgi"      )==0) {c=console; }
       else if (strcmp(t, "cgibinary")==0) {c=console; }
       else if (strcmp(t, "cgihtml"  )==0) {c=console; html=TRUE;}
-      else if (t[0]=='<') {b=t+1; html=FALSE; upload=TRUE;}
+      else if (t[0]=='<') {b=t+1; html=FALSE; upload=TRUE; L2=L;}
       else if (t[0]=='>') {c=open(t+1, O_CREAT | O_TRUNC | O_BINARY | O_RDWR, 0666); html=FALSE; download=FALSE;}
       else if (strcmp(t, "binary"   )==0) {b=bin; L2=L;}
       else { L2=L; }

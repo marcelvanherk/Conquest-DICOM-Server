@@ -3,6 +3,7 @@
 // mvh 20200110; Allow change of transfer syntax
 // mvh 20220809; Added executable version servertask lua_chunk
 // mvh 20221013; Allow '<file' mode to return response
+// mvh 20221014; Suppress dicom error messages for luastart
 
 #include "dicom.hpp"
 
@@ -227,6 +228,10 @@ char MYACRNEMA[128]="CONQUESTSRV1";
 char ServerCommandAddress[128]="127.0.0.1";
 char Port[128]="5678";
 
+void MyDicomError(int error, const char *message, int info)
+	{ 
+	}
+
 // returns 1 on failure, 0 on success, -1 if value is returned on con, buf or L
 static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, int con, char *buf, BOOL html, BOOL upload, lua_State *L)
 	{
@@ -238,6 +243,9 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 	LE_UINT16		command, datasettype, messageid;//, tuint16;
 	BYTE			SOP[64];
 	int			rc=0;
+	
+	if (strstr(NKIcommand2, "luastart:"))
+	  SetDicomErrorHandler(&MyDicomError);
 
 	PDU.ClearAbstractSyntaxs();
 	PDU.SetLocalAddress((BYTE *)MYACRNEMA);

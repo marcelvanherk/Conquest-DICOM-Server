@@ -38,11 +38,13 @@
     });
 
     $router->options('/.*', function () {
+       header('Access-Control-Allow-Headers: *');
        header('Access-Control-Allow-Origin: *');
     });
 
     $router->options('/$', function () {
        header('Access-Control-Allow-Origin: *');
+       header('Access-Control-Allow-Headers: *');
        header('Content-Type: application/json');
        $res = 
 <<<EOD
@@ -164,6 +166,38 @@ EOD;
     $router->post('/rs/studies$', function () {
        include 'posters.php';
        poststow();
+    });
+
+    // attach instance (allow script query parameter)
+    $router->post('/rs/attach$', function () {
+       $t = parse_url($_SERVER["REQUEST_URI"]);
+       $output = array();
+       $script = '';
+       if (array_key_exists("query", $t)) {
+         parse_str($t["query"], $output);  
+         if (array_key_exists("script", $output)) {
+           $script = $output["script"];  
+
+	 }
+       }	 
+       include 'posters.php';
+       attachfile($script);
+    });
+
+    // attach instance (allow lua script query parameter)
+    $router->post('/rs/attachdicom$', function () {
+       $t = parse_url($_SERVER["REQUEST_URI"]);
+       $output = array();
+       $script = '';
+       if (array_key_exists("query", $t)) {
+         parse_str($t["query"], $output);  
+         if (array_key_exists("script", $output)) {
+           $script = $output["script"];  
+
+	 }
+       }	 
+       include 'posters.php';
+       attachdicomfile($script);
     });
 
     // thumbnail of a frame

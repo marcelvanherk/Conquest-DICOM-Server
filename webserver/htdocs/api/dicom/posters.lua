@@ -1,55 +1,53 @@
--- script has Data object to work with
-function postwithscript(path, script)
+-- add and process a file stored in path (may be zip)
+-- script has importconverter format e.g. start with lua: if needed
+function attachfile(path, script, ext)
+  script = '[['..script..']]' -- allow ' and " in script
+  ext = ext or ".dcm"
   remotecode = [[
+    local script = ]]..script..[[;
     local dat=Command:GetVR(0x9999,0x0402,true);
-    local filename=tempfile(".dcm");
+    local filename=tempfile(']]..ext..[[');
     local f=io.open(filename,"wb");f:write(dat);f:close();
-    local Data=DicomObject:new();
-    Data:Read(filename);
+    servercommand('attachfile:'..filename..','..script)
     os.remove(filename);
-  ]] .. script
+  ]]
+  io.write(servercommand('lua:'..remotecode, '<'..path))
+end
+
+-- add and process a dicom file stored in path (may be zip)
+-- script is in lua format working on global data; return string taken as JSON response
+function attachdicomfile(path, script)
+  script = '[['..script..']]' -- allow ' and " in script
+  ext = ".dcm"
+  local remotecode = [[
+    local script = ]]..script..[[;
+    local dat=Command:GetVR(0x9999,0x0402,true);
+    local filename=tempfile(']]..ext..[[');
+    local f=io.open(filename,"wb");f:write(dat);f:close();
+    data=DicomObject:new()
+    data:Read(filename)
+    os.remove(filename);
+    return loadstring(script)()
+  ]]
   io.write(servercommand('lua:'..remotecode, '<'..path))
 end
 
 -- STOW a single dicom object stored in path; fix its PatientName and PatientID
 function poststow(path)
-  remotecode = [[
-    print(Data.Modality);
-    local q=DicomObject:new();
-    q.StudyInstanceUID=Data.StudyInstanceUID;
-    q.PatientID=""; q.PatientName="";
-    r=dicomquery("CONQUESTSRV1", "STUDY", q);
+  local code = [[
+    local q=DicomObject:new()
+    q.StudyInstanceUID=data.StudyInstanceUID
+    q.PatientID=""; q.PatientName=""
+    local ae = servercommand('get_param:MyACRNema')
+    r=dicomquery(ae, "STUDY", q)
     if r[0] then 
-      Data.PatientID=r[0].PatientID;
-      Data.PatientName=r[0].PatientName 
+      data.PatientID=r[0].PatientID
+      data.PatientName=r[0].PatientName 
     end;
-    addimage(Data);
-    return(Data.SOPInstanceUID)
+    addimage(data)
+    local s='"'..data.SOPInstanceUID..'"'
+    if (#s % 2)~=0 then s=s..' ' end
+    return s
   ]]
-  postwithscript(path, remotecode)
-end
-
--- add a file stored in path (may be zip)
-function addlocalfile(path)
-  remotecode = [[
-    local dat=Command:GetVR(0x9999,0x0402,true);
-    local filename=tempfile(".dcm");
-    local f=io.open(filename,"wb");f:write(dat);f:close();
-    servercommand('addimagefile:'..filename)
-    os.remove(filename);
-  ]] .. script
-  io.write(servercommand('lua:'..remotecode, '<'..path))
-end
-
--- add and process a file stored in path (may be zip)
--- script has importconverter format e.g. start with lua: if needed
-function attachfile(path, script)
-  remotecode = [[
-    local dat=Command:GetVR(0x9999,0x0402,true);
-    local filename=tempfile(".dcm");
-    local f=io.open(filename,"wb");f:write(dat);f:close();
-    servercommand('attachfile:'..filename..','..script)
-    os.remove(filename);
-  ]] .. script
-  io.write(servercommand('lua:'..remotecode, '<'..path))
+  attachdicomfile(path, code)
 end

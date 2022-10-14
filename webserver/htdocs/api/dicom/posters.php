@@ -1,6 +1,4 @@
 <?php
-// post instance belonging to study; takes PatientID and PatientName from existing study
-
 /**
 * Parse arbitrary multipart/form-data content
 * Note: null result or null values for headers or value means error
@@ -24,6 +22,7 @@ function parse_multipart_content(?string $content, ?string $boundary): ?array {
   return empty($parts) ? null : $parts;
 }    
 
+// post instance belonging to study; takes PatientID and PatientName from existing study
 function poststow() {
   include 'config.php';
   $d=file_get_contents("php://input");
@@ -38,6 +37,74 @@ function poststow() {
     $path = stream_get_meta_data($file)['uri'];
     ob_start();
     passthru($exe . ' "--dolua:dofile([[posters.lua]]);poststow([['.$path.']])"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    fclose($file);
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/json');
+    echo $var;
+  }
+}
+
+// post arbitrary file to conquest attachfile: command
+// script is in importConverter format; e.g. add lua: if needed
+function attachfile($script) {
+  include 'config.php';
+  $d=file_get_contents("php://input");
+  $t = getallheaders();
+  if (array_key_exists("Content-Type", $t)) {
+    $file = tmpfile();
+    $typ=$t["Content-Type"];
+    
+    $ext = '.dcm';
+    if (strpos($typ, 'application/zip')!==false) $ext='.zip';
+    	    
+    if (strpos($typ, 'multipart/related')!==false) {
+      preg_match_all("/boundary=\"([^;= ]+)\"/", $typ, $r); 
+      $boundary= $r[1][0];
+	 
+      $d = parse_multipart_content($d, $boundary);
+      fwrite($file, $d[0]["value"]);
+    }
+    else {
+      fwrite($file, $d);
+    }
+	    
+    $path = stream_get_meta_data($file)['uri'];
+    ob_start();
+    passthru($exe . ' "--dolua:dofile([[posters.lua]]);attachfile([['.$path.']], [['. str_replace('"', $quote, $script).']], [['. $ext .']])"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    fclose($file);
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/json');
+    echo $var;
+  }
+}
+
+// post DICOM file, lua script determines what happens with it
+function attachdicomfile($script) {
+  include 'config.php';
+  $d=file_get_contents("php://input");
+  $t = getallheaders();
+  if (array_key_exists("Content-Type", $t)) {
+    $file = tmpfile();
+    $typ=$t["Content-Type"];
+        	    
+    if (strpos($typ, 'multipart/related')!==false) {
+      preg_match_all("/boundary=\"([^;= ]+)\"/", $typ, $r); 
+      $boundary= $r[1][0];
+	 
+      $d = parse_multipart_content($d, $boundary);
+      fwrite($file, $d[0]["value"]);
+    }
+    else {
+      fwrite($file, $d);
+    }
+	    
+    $path = stream_get_meta_data($file)['uri'];
+    ob_start();
+    passthru($exe . ' "--dolua:dofile([[posters.lua]]);attachdicomfile([['.$path.']], [['. str_replace('"', $quote, $script).']])"');
     $var = ob_get_contents();
     ob_end_clean();
     fclose($file);

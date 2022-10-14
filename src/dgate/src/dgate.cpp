@@ -1195,6 +1195,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220830        mvh     Reject __MACOSX folder, and files starting with ._ in LoadAndDeleteDir; 
 			pass DB to LoadAndDeleteDir to avoid DB activity each second in monitorthread
 20220830        mvh     ---- RELEASE 1.5.0c -----
+20221014        mvh     Allow return from servertask <file
 
 ENDOFUPDATEHISTORY
 */
@@ -6393,7 +6394,7 @@ int console;
       if      (strcmp(t, "cgi"      )==0) {c=console; }
       else if (strcmp(t, "cgibinary")==0) {c=console; }
       else if (strcmp(t, "cgihtml"  )==0) {c=console; html=TRUE;}
-      else if (t[0]=='<') {b=t+1; html=FALSE; upload=TRUE;}
+      else if (t[0]=='<') {b=t+1; html=FALSE; upload=TRUE; L2=L;}
       else if (t[0]=='>') {c=open(t+1, O_CREAT | O_TRUNC | O_BINARY | O_RDWR, 0666); html=FALSE; download=FALSE;}
       else if (strcmp(t, "binary"   )==0) {b="binary"; L2=L;}
       else { L2=L; }

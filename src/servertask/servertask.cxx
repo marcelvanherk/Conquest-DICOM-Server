@@ -4,6 +4,7 @@
 // mvh 20220809; Added executable version servertask lua_chunk
 // mvh 20221013; Allow '<file' mode to return response
 // mvh 20221014; Suppress dicom error messages for luastart
+// mvh 20221016; Padd VR identifying odd length if needed for file upload
 
 #include "dicom.hpp"
 
@@ -292,6 +293,11 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 	  fread((char*)(vr->Data), 1, len, f);
           fclose(f); 
           DCO.Push(vr);
+          if (len&1)
+          { UINT16 oddlength = 1;	
+            VR *vr4 = new VR (0x9999, 0x0404, 2, &oddlength, FALSE);
+            DCO.Push(vr4); // requires change in dimsec.cpp
+          }
 	}
         
         if (buf && !L) *buf=0;
@@ -300,7 +306,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 	if(!PDU.Read(&DCOR))
 		return ( 1 );	// associate lost
         
-        int oddlength = DCOR.GetUINT16(0x9999,0x0404);
+        int oddlength = DCOR.GetUINT16(0x9999,0x0404)?1:0;
 
 	while((vr = DCOR.Pop()))
 		{

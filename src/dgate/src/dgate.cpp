@@ -1195,7 +1195,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20220830        mvh     Reject __MACOSX folder, and files starting with ._ in LoadAndDeleteDir; 
 			pass DB to LoadAndDeleteDir to avoid DB activity each second in monitorthread
 20220830        mvh     ---- RELEASE 1.5.0c -----
-20221014        mvh     Allow return from servertask <file
+20221014        mvh     Allow response from servertask <file
+20221016        mvh     Handle odd length return data from servercommand; and odd length upload
+			Note: dgate.dic must be updated to read the conquest items properly
 
 ENDOFUPDATEHISTORY
 */
@@ -21418,11 +21420,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (p) *p++ = 0;
 		if ((vr = DCO.GetVR(0x9999,0x0402)))
 			{
+                        int oddlength = DCO.GetUINT16(0x9999,0x0404)?1:0;
 			char *p1 = strrchr(SilentText+13, '.');
 			if (p1) NewTempFile(tempfile, p1);
 			else    NewTempFile(tempfile, "");
 			FILE *f = fopen(tempfile, "wb");
-			fwrite(vr->Data, vr->Length, 1, f);
+			fwrite(vr->Data, vr->Length-oddlength, 1, f);
 			fclose(f);
 			if (p) rc=!AddImageFile(tempfile, p, &PDU);
 			else   rc=!AddImageFile(tempfile, NULL, &PDU);
@@ -23191,11 +23194,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (p) *p++=0;
 		if ((vr = DCO.GetVR(0x9999,0x0402)))
 			{
+                        int oddlength = DCO.GetUINT16(0x9999,0x0404)?1:0;
 			char *p1 = strrchr(SilentText+13, '.');
 			if (p1) NewTempFile(tempfile, p1);
 			else    NewTempFile(tempfile, "");
 			FILE *f = fopen(tempfile, "wb");
-			fwrite(vr->Data, vr->Length, 1, f);
+			fwrite(vr->Data, vr->Length-oddlength, 1, f);
 			fclose(f);
 			if (p) AttachFile(tempfile, p, rFilename, &PDU);
 			unlink(tempfile);
@@ -23740,6 +23744,12 @@ BOOL StorageApp	::	ServerChild (int theArg )
 			else if (Response[0]!=0 && vr2==NULL)
 				{
 				VR *vr3 = new VR(0x9999, 0x0401, strlen(Response), (void *)Response, FALSE);
+                                if (strlen(Response)&1)
+					{
+					UINT16 oddlength = 1;	
+					VR *vr4 = new VR (0x9999, 0x0404, 2, &oddlength, FALSE);
+					DCO.Push(vr4); // requires change in dimsec.cpp
+					}
 				SOPVerification.WriteResponse(&PDU, &DCO, vr3);
 				}
 			else if (vr2)	
@@ -24894,6 +24904,11 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 	  fread((char*)(vr->Data), 1, len, f);
           fclose(f); 
           DCO.Push(vr);
+          if (len&1)
+          { UINT16 oddlength = 1;	
+            VR *vr4 = new VR (0x9999, 0x0404, 2, &oddlength, FALSE);
+            DCO.Push(vr4); // requires change in dimsec.cpp
+          }
 	}
         
         if (buf && !L) *buf=0;
@@ -24902,7 +24917,7 @@ static int SendServerCommand(const char *NKIcommand1, const char *NKIcommand2, i
 	if(!PDU.Read(&DCOR))
 		return ( 1 );	// associate lost
         
-        int oddlength = DCOR.GetUINT16(0x9999,0x0404);
+        int oddlength = DCOR.GetUINT16(0x9999,0x0404)?1:0;
 
 	while((vr = DCOR.Pop()))
 		{

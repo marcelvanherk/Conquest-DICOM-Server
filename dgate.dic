@@ -25,6 +25,7 @@
 # 20160425	mvh	Fix PixelPaddingValue
 # 20200125      mvh     Added ConquestSplit, ConquestImageQueryOrder, ConquestMoveOriginator
 # 20210620      mvh     Made 2005,1084; 2005,140F; 2005,1580 sequence to support modern Philips MR
+# 20221016      mvh     Added conquest console command support elements
 
 (0000,0000) VERS="3"	VR="UL"   VM="1"	Keyword="GroupLength"				Name="Group Length"
 (0000,0001) VERS="2"	VR="UL"   VM="1"	Keyword="CommandLengthToEnd"			Name="Command Length to End"
@@ -4017,6 +4018,10 @@
 (9999,0201) VERS="CQ"	VR="US"   VM="1"	Keyword="ConquestFrame"	 			Name="Conquest Frame"
 (9999,0300) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestConsoleText"	 		Name="Conquest Console Text"
 (9999,0400) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestConsoleCommand"	 	Name="Conquest Console Command"
+(9999,0401) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestConsoleResponse"	 	Name="Conquest Console Response"
+(9999,0402) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestConsoleData"	 	Name="Conquest Command Data"
+(9999,0403) VERS="CQ"	VR="SQ"   VM="1"	Keyword="ConquestConsoleResponseSequence"	 	Name="Conquest Console Response Sequence"
+(9999,0404) VERS="CQ"	VR="US"   VM="1"	Keyword="ConquestConsoleDataOddlength"	 	Name="Conquest Console Data Odd Length"
 (9999,0500) VERS="CQ"	VR="US"   VM="1"	Keyword="ConquestMaxSlices"	 		Name="Conquest Maximum Slices"
 (9999,0600) VERS="CQ"	VR="US"   VM="1"	Keyword="ConquestMaxNKICompression"		Name="Conquest Maximum NKI Compression"
 (9999,0700) VERS="CQ"	VR="LO"   VM="1"	Keyword="ConquestReCompression"			Name="Conquest ReCompression"

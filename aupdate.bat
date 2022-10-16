@@ -8,6 +8,8 @@ copy ..\doc\DicomConformance_FilesLST_Changes.pdf .
 copy ..\doc\linuxmanual.pdf .
 
 copy docker\prebuild\dgate  .\linux
+copy docker\prebuild\servertask  .\webserver\htdocs\api\dicom
+copy ..\servertask\servertask.exe  .\webserver\htdocs\api\dicom
 copy dgate.dic .\linux
 
 rem need using server somewhere to compile dictionary to binary

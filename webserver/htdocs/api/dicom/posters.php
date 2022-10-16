@@ -203,3 +203,15 @@ function readprogress($uid) {
   header('Content-Type: application/json');
   echo $var;
 }
+
+// write progress of script with given uid
+function writeprogress($uid, $val) {
+  include 'config.php';
+  ob_start();
+  passthru($exe . ' "--dolua:dofile([[posters.lua]]);writeprogress([['. $uid . ']], ' . $val . ')"');
+  $var = ob_get_contents();
+  ob_end_clean();
+  header('Access-Control-Allow-Origin: *');
+  header('Content-Type: application/json');
+  echo $var;
+}

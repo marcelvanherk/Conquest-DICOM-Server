@@ -180,24 +180,6 @@ EOD;
        attachdicomfile($script);
     });
 
-    // runs a script
-    $router->post('/rs/script$', function () {
-       include 'posters.php';
-       runscript();
-    });
-
-    // start a script
-    $router->post('/rs/startscript$', function () {
-       include 'posters.php';
-       startscript();
-    });
-
-    // get a script progress
-    $router->get('/rs/startscript/([0-9%.]+)$', function ($uid) {
-       include 'posters.php';
-       readprogress($uid);
-    });
-
     // thumbnail of a frame
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances/([0-9%.]+)/thumbnail/frames/([0-9]+)$', function ($st,$se,$sop,$fr) {
        include 'qido.php';
@@ -222,4 +204,26 @@ EOD;
        thumbnail($st,'','',0,128);
     });
     
+    // runs a script
+    $router->post('/rs/script$', function () {
+       include 'posters.php';
+       runscript();
+    });
+
+    // start a script
+    $router->post('/rs/startscript$', function () {
+       include 'posters.php';
+       startscript();
+    });
+
+    // get (or set) a script progress (uri parameter setvalue writes the value)
+    $router->get('/rs/startscript/([0-9%.]+)$', function ($uid) {
+       include 'posters.php';
+       $val = CGI('setvalue', -1);
+       if ($val>=0) 
+         writeprogress($uid, $val);
+       else
+         readprogress($uid);
+    });
+
     $router->run();

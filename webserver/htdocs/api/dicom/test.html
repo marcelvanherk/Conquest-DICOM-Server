@@ -1,0 +1,94 @@
+<html>
+<script type="text/javascript">
+// Test conquest DICOM api extensions
+
+// Read json file from server
+function readJSON(url) {
+  var x = new XMLHttpRequest();
+  var settings;
+  x.onreadystatechange = function () {
+    if (x.readyState===4 && x.status===200) {
+      try {
+        settings = JSON.parse(x.responseText);
+      }
+      catch(e) {
+        settings = x.responseText;
+      }
+    }
+  }
+  if (url.indexOf('?')>=0)
+    x.open("GET", url + '&_=' + new Date().getTime(), false);
+  else
+    x.open("GET", url + '?_=' + new Date().getTime(), false);
+  try {
+  x.send();
+  } catch (error) {};
+  return settings;
+}
+// post json as form data to server
+function post(url, data, f) {
+  var data;
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", url, true);
+  const FD = new FormData();
+  for (const [name, value] of Object.entries(data)) {
+    FD.append(name, value);
+  }
+  xhr.onerror  = function () {
+    window.alert('failed to post');      
+  }
+  xhr.onreadystatechange = function() { // Call a function when the state changes.
+    if (this.readyState === XMLHttpRequest.DONE && this.status === 200) {
+      try {
+        data = JSON.parse(xhr.responseText);
+      }
+      catch(e) {
+        a = xhr.responseText;
+      }
+      f(data);
+    }	
+    else if (this.readyState === XMLHttpRequest.DONE && this.status !== 200) {
+      window.alert('failed to post');      
+    }
+  }
+  xhr.send(FD);
+}
+
+var uid='';
+
+function teststartscript() {
+  setInterval(function() {
+    if (uid!='') {
+      var p=readJSON("/api/dicom/rs/startscript/"+uid);
+      document.getElementById('startscript').innerHTML=p;
+      if (p==100) {uid='';document.getElementById('startscript').innerHTML='';}
+    }
+  }, 100);
+  post("/api/dicom/rs/startscript",
+    {script:"print('startscript');for i=1,50 do progress((i*1));sleep(100) end"}, 
+    function(t) 
+    { uid=t;
+    }
+  );
+}
+
+function testscript() {
+  post("/api/dicom/rs/script",
+    {script:"print('script'); return os.time();"}, 
+    function(t) 
+    { document.getElementById('_script').innerHTML=t;
+    }
+  );
+}
+
+</script>
+
+<form>
+  <table>
+  <tr><td><b>Item</b><td><b>Response</b></tr>
+  <tr><td><input type=button onclick=document.getElementById('dicom').innerHTML=readJSON('/api/dicom')>/api/dicom</input><td><div style="display:inline-block" id=dicom></div></tr>
+  <tr><td><input type=button onclick=teststartscript()>/api/dicom/rs/startscript</input> <td><div style="display:inline-block" id=startscript></div></tr>
+  <tr><td><input type=button onclick=testscript()>/api/dicom/rs/script</input> <td><div style="display:inline-block" id=_script></div></input></tr>
+  </table>
+</form>
+</html>

@@ -8,8 +8,6 @@
 # to run the container interactively with bash:
 #    docker run -it prebuild bash
 #
-# if needed cd Conquest-DICOM-Server/src/servertask && chmod 777 make.sh && make.sh
-#
 # docker cp CONTAINER:/Conquest-DICOM-Server/dgate .
 # docker cp CONTAINER:/Conquest-DICOM-Server/src/servertask/servertask .
 #

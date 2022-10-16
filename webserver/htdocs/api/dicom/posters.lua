@@ -6,6 +6,8 @@ function attachfile(path, script, ext)
   remotecode = [[
     local script = ]]..script..[[;
     local dat=Command:GetVR(0x9999,0x0402,true);
+    local s=Command["9999,0404"] or '0'
+    if s=='1' then dat=string.sub(dat, 1, -2) end
     local filename=tempfile(']]..ext..[[');
     local f=io.open(filename,"wb");f:write(dat);f:close();
     servercommand('attachfile:'..filename..','..script)
@@ -22,6 +24,8 @@ function attachdicomfile(path, script)
   local remotecode = [[
     local script = ]]..script..[[;
     local dat=Command:GetVR(0x9999,0x0402,true);
+    local s=Command["9999,0404"] or '0'
+    if s=='1' then dat=string.sub(dat, 1, -2) end
     local filename=tempfile(']]..ext..[[');
     local f=io.open(filename,"wb");f:write(dat);f:close();
     readdicom(filename)
@@ -55,6 +59,8 @@ end
 function runscript(script)
   local remotecode = [[
     local dat=Command:GetVR(0x9999,0x0402,true);
+    local s=Command["9999,0404"] or '0'
+    if s=='1' then dat=string.sub(dat, 1, -2) end
     local filename=tempfile('.lua');
     local f=io.open(filename,"wb");f:write(dat);f:close();
     local a=dofile(filename);
@@ -72,6 +78,8 @@ function startscript(script)
   ]]
   local remotecode2 = [[
     local dat=Command:GetVR(0x9999,0x0402,true);
+    local s=Command["9999,0404"] or '0'
+    if s=='1' then dat=string.sub(dat, 1, -2) end
     local f=io.open(filename,"wb");f:write(dat);f:close();
     function progress(n) local f=io.open(filename, "w") f:write(n) f:close() end
     local a=dofile(filename);
@@ -79,7 +87,6 @@ function startscript(script)
     return a
   ]]
   local fn = servercommand('lua:'..remotecode1);
-  fn = string.gsub(fn, '\000', '')
   local uid = '"' .. string.match(fn, '.+\\(.-)%.lua') .. '"'
   io.write(uid)
   servercommand('luastart:local filename=[['..fn..']];'..remotecode2, '<'..script);
@@ -101,6 +108,22 @@ function readprogress(uid)
     return tonumber(s) or 0
   ]]
   local s = servercommand('lua:'..remotecode);
-  s = string.gsub(s, '\000', '')
+  io.write(s)
+end
+
+-- write progress value of job (0 started, to 100 end)
+function writeprogress(uid, val)
+  local remotecode = 
+    "local uid=[["..uid.."]];" ..
+    "local val="..val..";" .. [[
+    local fn = tempfile('.lua')
+    local u1 = string.match(fn, '.+\\(.-)%.lua')
+    local filename = string.gsub(fn, u1, uid)
+    local f = io.open(filename, 'w')
+    f:write(val)
+    f:close()
+    return val
+  ]]
+  local s = servercommand('lua:'..remotecode);
   io.write(s)
 end

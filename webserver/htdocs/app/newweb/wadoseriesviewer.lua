@@ -23,6 +23,10 @@
 -- 20180112   mvh   Fix to allow : in patientID
 -- 20220830   mvh   Renamed dropdown to slicelister; sync its position with slice
 --                  Disable altrows; no table!
+-- 20220921   mvh   Added slice=num parameter; click on image shows x and y position
+-- 20220921   mvh   x=num and y=num parameters to show annotation
+-- 20221012   mvh   Added storeclick call on clicking
+-- 20221017   mvh   Only call storeclick when startslice is passed
 
 -- default series information - this is here to allow debugging of the code usign ZeroBrane Studio, running from the server
 series2 = series2 or '0009703828:1.3.46.670589.5.2.10.2156913941.892665339.860724'
@@ -181,7 +185,20 @@ if CGI('anonymize')~='' then
   anonymizer = '&anonymize='..CGI('anonymize')
 end
   
-  -- collect all DICOM information needed
+local startslice=-1
+if CGI('slice')~='' then
+  startslice=tonumber(CGI('slice'))-1
+end
+
+local annotationX, annotationY = -1, -1
+if CGI('x')~='' then
+  annotationX=tonumber(CGI('x'))
+end
+if CGI('y')~='' then
+  annotationY=tonumber(CGI('y'))
+end
+
+-- collect all DICOM information needed
 local patid = string.gsub(series2, ':[^:]-$', '')
 local seriesuid = string.gsub(series2, '^.*:', '')
 local seriesinfo, patinfo = getseriesinfo(source, patid, seriesuid)
@@ -267,6 +284,9 @@ var size = ]]..size..[[;
 var serverversion = ']]..serverversion..[[';
 var script_name = ']]..(script_name or '')..[[';
 var anonymizer = ']]..(anonymizer or '')..[[';
+var startslice = ]]..(startslice or -1)..[[;
+var annotationX = ]]..(annotationX or -1)..[[;
+var annotationY = ]]..(annotationY or -1)..[[;
 ]])
 
 -- here is all the js code defined; long string is rendered line by line below
@@ -405,6 +425,8 @@ function load()
     document.addEventListener("keydown", myKeyFunction, false);
     document.getElementById("myframe").style.display='none';
     document.images[0].style.display='block';
+    document.getElementById('annotation').style.display='none';
+    if (annotationX>0 && slice==startslice) document.getElementById('annotation').style.display='inline-block';
   }
   else  
   { document.getElementById("myframe").src   =  script_name+'?requestType=WADO&contentType=text/plain'+
@@ -581,6 +603,7 @@ function active(n)
   document.getElementById("level").addEventListener("mouseup", clicker);
   document.getElementById("window").addEventListener("mouseup", clicker);
   document.getElementById("frame").addEventListener("mouseup", clicker);
+  document.getElementById("image").addEventListener("mouseup", clicker);
   if (inputactive==1) hint = 'Wheel=zoom; Key I/O=zoom In/Out; Arrows=pan; F=Fit';
   if (inputactive==2) hint = 'Wheel=brightness; Key B/D=Brigher/Darker; H/L=Higher/Lower contrast';
   if (inputactive==3) hint = 'Wheel=contrast; Key A=Auto level/window; P=Preset level/window';
@@ -592,15 +615,45 @@ function active(n)
   document.getElementById("hint").innerHTML = hint;
 }
 
+// Read json file from server
+function readJSON(url) {
+  var x = new XMLHttpRequest();
+  var settings;
+  x.onreadystatechange = function () {
+    if (x.readyState===4 && x.status===200) {
+      settings = JSON.parse(x.responseText);
+    }
+  }
+  if (url.indexOf('?')>=0)
+    x.open("GET", url + '&_=' + new Date().getTime(), false);
+  else
+    x.open("GET", url + '?_=' + new Date().getTime(), false);
+  try {
+  x.send();
+  } catch (error) {};
+  return settings;
+}
+
 // onclick sets numerical value for items
-function clicker()
+function clicker(a)
 { var a;
   if (inputactive==4) { a=Number(prompt("Slice number:",slice+1)); if (a) slice=a-1; slicer(0); load(); }
   if (inputactive==3) { a=Number(prompt("Window width:",windowwidth)); if (a) windowwidth=a; leveler(0, 1); load(); }
   if (inputactive==2) { a=Number(prompt("Window center:",windowcenter)); if (a) windowcenter=a; leveler(0, 1); load(); }
   if (inputactive==1) { a=Number(prompt("Zoom:",zoom)); if (a) zoom=a; zoomer(1,0,0); load(); }
   if (inputactive==5) { a=Number(prompt("Frame number:",frame)); if (a) frame=a; framer(0); load(); }
+  if (inputactive==6) 
+  { console.log(a); 
+    var hint =   'x='+Math.round(((a.offsetX-256)/zoom+(panx*512)))+
+	           ', y='+Math.round(((a.offsetY-256)/zoom+(pany*512)));
+    document.getElementById('clickinformation').innerHTML=hint;
+    if (startslice>=0)
+      readJSON(script_name+'?mode=start&parameter=storeclick&series='+patientid+':'+seriesuid+'&slice='+(slice+1)+
+        '&x='+Math.round(((a.offsetX-256)/zoom+(panx*512)))+
+        '&y='+Math.round(((a.offsetY-256)/zoom+(pany*512))));
+  }
 }
+
 
 // wheel change of items
 function wheeler(a)
@@ -630,6 +683,7 @@ modality = ']]..modality..[[';
 description = ']]..description..[[';
 studyuid = ']]..studyuid..[[';
 seriesuid = ']]..seriesuid..[[';
+patientid = ']]..patid..[[';
 </script>
 ]])
 
@@ -664,12 +718,15 @@ print([[
 </iframe>
 ]])
 print([[
-<IMG onmouseover="active(6)" id=image BORDER=1 HEIGHT=]]..size..[[>
+<div id=wrapper style="position:relative">
+<IMG style="position:absolute" onmouseover="active(6)" id=image BORDER=1 HEIGHT=]]..size..[[>
+<div style="position:absolute;background-color:#0000;border-color:#f00f;border-width:2px;border-style:solid;left:251;top:251;width:10;height:10;display:none" id=annotation ></div>
+</div id=wrapper>
 ]])
 
 -- generate form with slicing controls
 print([[
-<FORM onmouseover="active(8)" id=form1>
+<FORM style="position:relative;top:520" onmouseover="active(8)" id=form1>
 Slice:
   <INPUT TYPE=BUTTON VALUE='<' onclick=slicer(-1) onmousedown="inter=setInterval('slicer(-1)', 100)" onmouseup=clearInterval(inter) onmouseout=clearInterval(inter)>
   <INPUT TYPE=HIDDEN VALUE=]]..windowcenter..[[ id=defwindowcenter1>
@@ -693,6 +750,7 @@ print([[
   <a href=# onclick="javascript:PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='+seriesuid+'&objectUID=' + document.forms[0].slicelister.value.split('|')[0], 'hoi', 700, 512)">[show header]</a>
   <a href=# onclick="javascript:PopupCenter(script_name+'?mode=wadoviewerhelp', 'hoi', 700, 512)">[help]</a>
   <br><i id=hint></i>
+  <br><i id=clickinformation></i>
 
 </FORM>
 ]])
@@ -702,7 +760,8 @@ print([[
 <SCRIPT language=JavaScript>
   document.getElementById("autosave").checked = getCookie("wadoseriesviewer_autosave")=='true';
   document.onload=setInterval(savesettings, 500);nframes = Number(document.forms[0].slicelister.value.split("|")[1]);
-  nslices=]]..#images..[[;slice=Math.floor(nslices/2);loadsettings();
+  nslices=]]..#images..[[;slice=startslice<0?Math.floor(nslices/2):startslice;loadsettings();
+  document.getElementById('annotation').style.left=annotationX-5;document.getElementById('annotation').style.top=annotationY-5;
   </SCRIPT>
 </BODY>
 </html>

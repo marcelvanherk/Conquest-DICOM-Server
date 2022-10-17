@@ -47,6 +47,7 @@
 -- mvh 20220828: Use global port and address, can come from command line
 -- mvh 20220830: Popup and 'progress' bar for upload
 -- mvh 20220831: Avoid overflow - don't use print() in downloadtable
+-- mvh 20221012: storeclick stores link in clicks.txt
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -591,6 +592,16 @@ if CGI('parameter', '')=='zipanonymized' then
   local script=string.format('%s,%s,%s,%s,cgi,lua/anonymize_script.lua(%s%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', CGI('newid'), stage)
   servercommand([[export:]]..script, 'cgibinary')
   return
+end
+
+if CGI('parameter', '')=='storeclick' then
+  servercommand('lua:print("'..
+  'series='..CGI('series')..'&slice='..CGI('slice')..'&x='..CGI('x')..'&y='..CGI('y')
+  ..'")')
+  servercommand('lua:f=io.open("clicks.txt", "at") f:write("'..
+  'series='..CGI('series')..'&slice='..CGI('slice')..'&x='..CGI('x')..'&y='..CGI('y')
+  ..'"); f:write("\\n"); f:close()')
+  print 'hallo'
 end
 
 if s==nil then

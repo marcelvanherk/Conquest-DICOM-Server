@@ -1,5 +1,7 @@
 -- dicom api, lua parts remote controlling running dicom server
 -- 20220911 mvh made compatible with Ladle web server
+-- 20220919 mvh only provide rquery; used for all queries; 
+-- 20221017 mvh added remotemove, remotezip, remotemodalities
 
 function iowrite(a)
   if io then io.write(a)
@@ -22,28 +24,10 @@ function remotequery(ae, level, q, dicomweb)
  return f
 end;
 
-function querypatients(server,params)
-local ae = server or servercommand('get_param:MyACRNema')
-b=remotequery(ae, 'PATIENT', params)
-iowrite(b or '')
-end;
-
-function querystudies(server,params,dicomweb)
-local ae = server or servercommand('get_param:MyACRNema')
-b=remotequery(ae, 'STUDY', params, dicomweb)
-iowrite(b or '')
-end;
-
-function queryseries(server,params, dicomweb)
-local ae = server or servercommand('get_param:MyACRNema')
-b=remotequery(ae, 'SERIES', params, dicomweb)
-iowrite(b or '')
-end;
-
-function queryimages(server,params, dicomweb)
-local ae = server or servercommand('get_param:MyACRNema')
-b=remotequery(ae, 'IMAGE', params, dicomweb);
-iowrite(b or '')
+function rquery(server,params,level)
+  local ae = server or servercommand('get_param:MyACRNema')
+  local b=remotequery(ae, level, params, true)
+  iowrite(b or '')
 end;
 
 function getmetadata(server, st, se, sop)
@@ -140,20 +124,61 @@ function getthumbnail(server, studyuid, serieuid, instuid, frame, size)
   x[0]:Script('save jpg size '..size..' frame '..frame..' to '..outfile)
   returnfile = outfile
 ]]
-b=servercommand('lua:'..remotecode,'binary')
+local b=servercommand('lua:'..remotecode,'binary')
 iowrite(b or '')
 end;
 
-function echo(server)
-local ae = server or servercommand('get_param:MyACRNema')
-local remotecode = [[local ae=']]..ae..[[' if (dicomecho(ae)) then return 1 else return 0 end]]
-b=servercommand('lua:'..remotecode)
-iowrite(b or '')
+----- for non qido api
+
+function remoteecho(server)
+  local ae = server or servercommand('get_param:MyACRNema')
+  local remotecode = [[local ae=']]..ae..[[' if (dicomecho(ae)) then return 1 else return 0 end]]
+  local b=servercommand('lua:'..remotecode)
+  iowrite('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  iowrite('Access-Control-Allow-Origin: *\r\n')
+  iowrite('Content-Type: application/json\r\n\r\n')
+  iowrite(b or '')
 end;
 
-function rquery(server,params,level)
-local ae = server or servercommand('get_param:MyACRNema')
-b=remotequery(ae, level, params, true)
-iowrite(b or '')
-end;
+function remotemove(from, to, q)
+  local from = from or servercommand('get_param:MyACRNema')
+  local remotecode =
+[[
+  local from=']]..from..[[';
+  local to=']]..to..[[';
+  local q=DicomObject:new(']]..q..[[');
+  return dicommove(from, to, q, 0);
+]]
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  iowrite(servercommand('lua:'..remotecode))
+end
 
+function remotezip(patid, studyuid, serieuid, instuid, script)
+  local s=string.format('%s,%s,%s,%s,cgi,%s', patid or '', studyuid or '', serieuid or '', instuid or '', script or '')
+  local b=servercommand([[export:]]..s, 'binary')
+  b = b:sub(b:find('\n\n')+2)
+  iowrite('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  iowrite('Access-Control-Allow-Origin: *\r\n')
+  iowrite('Content-Type: application/zip\r\n\r\n')
+  iowrite(b or '')
+end
+
+function remotemodalities()
+  local remotecode =
+[[
+  JSON=require('lua/JSON')
+  local t={}
+  for j=0, 1000 do
+    local a,i,p,c=get_amap(j)
+    if string.find(a, '*') then break end
+    table.insert(t, {ae=a, ip=i, port=p, compression=c})
+  end
+  return JSON:encode(t)
+]]
+  iowrite('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  iowrite('Access-Control-Allow-Origin: *\r\n')
+  iowrite('Content-Type: application/json\r\n\r\n')
+  iowrite(servercommand('lua:'..remotecode))
+end

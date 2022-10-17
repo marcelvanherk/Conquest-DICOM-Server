@@ -166,20 +166,6 @@ EOD;
        poststow();
     });
 
-    // attach instance (allow importconverter style script query parameter run for each object in e.g. zip)
-    $router->post('/rs/attach$', function () {
-       include 'posters.php';
-       $script = CGI('script', '');
-       attachfile($script);
-    });
-
-    // attach instance (allow lua script query parameter, let it return JSON string for response)
-    $router->post('/rs/attachdicom$', function () {
-       include 'posters.php';
-       $script = CGI('script', '');
-       attachdicomfile($script);
-    });
-
     // thumbnail of a frame
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances/([0-9%.]+)/thumbnail/frames/([0-9]+)$', function ($st,$se,$sop,$fr) {
        include 'qido.php';
@@ -204,6 +190,77 @@ EOD;
        thumbnail($st,'','',0,128);
     });
     
+    //**************** non-standard api *************
+
+    // zip an image, synchronous; script can modify (e.g. anonymise)
+    $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances/([0-9%.]+)/zip$', function ($st,$se,$sop) {
+       include 'qido.php';
+       $script = CGI('script', '');
+       zip($st,$se,$sop,$script);
+    });
+
+    // zip a series, synchronous; script can modify (e.g. anonymise)
+    $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/zip$', function ($st,$se) {
+       include 'qido.php';
+       $script = CGI('script', '');
+       zip($st,$se,'',$script);
+    });
+
+    // zip a study, synchronous; script can modify (e.g. anonymise)
+    $router->get('/rs/studies/([0-9%.]+)/zip$', function ($st) {
+       include 'qido.php';
+       $script = CGI('script', '');
+       zip($st,'','',$script);
+    });
+    
+    // move an image
+    $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances/([0-9%.]+)/move$', function ($st,$se,$sop) {
+       include 'qido.php';
+       $script = CGI('script', '');
+       $target = CGI('target', '');
+       move(null,$target,$st,$se,$sop,$script);
+    });
+
+    // move a series
+    $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/move$', function ($st,$se) {
+       include 'qido.php';
+       $script = CGI('script', '');
+       move(null,$target,$st,$se,'',$script);
+    });
+
+    // move a study
+    $router->get('/rs/studies/([0-9%.]+)/move$', function ($st) {
+       include 'qido.php';
+       $script = CGI('script', '');
+       move(null,$target,$st,'','',$script);
+    });
+
+    // list modalities
+    $router->get('/rs/modalities$', function () {
+       include 'qido.php';
+       modalities();
+    });
+
+    // echo
+    $router->get('/rs/modalities/(.+)$', function ($ae) {
+       include 'qido.php';
+       dicomecho($ae);
+    });
+
+    // attach instance (allow importconverter style script query parameter run for each object in e.g. zip)
+    $router->post('/rs/attach$', function () {
+       include 'posters.php';
+       $script = CGI('script', '');
+       attachfile($script);
+    });
+
+    // attach instance (use lua script query parameter, let it return JSON string for response)
+    $router->post('/rs/attachdicom$', function () {
+       include 'posters.php';
+       $script = CGI('script', '');
+       attachdicomfile($script);
+    });
+
     // runs a script
     $router->post('/rs/script$', function () {
        include 'posters.php';

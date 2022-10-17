@@ -130,41 +130,6 @@ end;
 
 ----- for non qido api
 
-function remoteecho(server)
-  local ae = server or servercommand('get_param:MyACRNema')
-  local remotecode = [[local ae=']]..ae..[[' if (dicomecho(ae)) then return 1 else return 0 end]]
-  local b=servercommand('lua:'..remotecode)
-  iowrite('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
-  iowrite('Access-Control-Allow-Origin: *\r\n')
-  iowrite('Content-Type: application/json\r\n\r\n')
-  iowrite(b or '')
-end;
-
-function remotemove(from, to, q)
-  local from = from or servercommand('get_param:MyACRNema')
-  local remotecode =
-[[
-  local from=']]..from..[[';
-  local to=']]..to..[[';
-  local q=DicomObject:new(']]..q..[[');
-  return dicommove(from, to, q, 0);
-]]
-  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
-  write('Access-Control-Allow-Origin: *\r\n')
-  write('Content-Type: application/json\r\n\r\n')
-  iowrite(servercommand('lua:'..remotecode))
-end
-
-function remotezip(patid, studyuid, serieuid, instuid, script)
-  local s=string.format('%s,%s,%s,%s,cgi,%s', patid or '', studyuid or '', serieuid or '', instuid or '', script or '')
-  local b=servercommand([[export:]]..s, 'binary')
-  b = b:sub(b:find('\n\n')+2)
-  iowrite('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
-  iowrite('Access-Control-Allow-Origin: *\r\n')
-  iowrite('Content-Type: application/zip\r\n\r\n')
-  iowrite(b or '')
-end
-
 function remotemodalities()
   local remotecode =
 [[
@@ -177,8 +142,32 @@ function remotemodalities()
   end
   return JSON:encode(t)
 ]]
-  iowrite('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
-  iowrite('Access-Control-Allow-Origin: *\r\n')
-  iowrite('Content-Type: application/json\r\n\r\n')
   iowrite(servercommand('lua:'..remotecode))
+end
+
+function remoteecho(server)
+  local ae = server or servercommand('get_param:MyACRNema')
+  local remotecode = [[local ae=']]..ae..[[' if (dicomecho(ae)) then return 1 else return 0 end]]
+  local b=servercommand('lua:'..remotecode)
+  iowrite(b or '')
+end;
+
+function remotemove(from, to, q)
+  local from = from or servercommand('get_param:MyACRNema')
+  local remotecode =
+[[
+  local from=']]..from..[[';
+  if from=='null' then from=Global.MyACRNema end
+  local to=']]..to..[[';
+  local q=DicomObject:new(']]..q..[[');
+  return dicommove(from, to, q, 0);
+]]
+  iowrite(servercommand('lua:'..remotecode))
+end
+
+function remotezip(patid, studyuid, serieuid, instuid, script)
+  local s=string.format('%s,%s,%s,%s,cgi,%s', patid or '', studyuid or '', serieuid or '', instuid or '', script or '')
+  local b=servercommand([[export:]]..s, 'binary')
+  b = b:sub(b:find('\n\n')+2)
+  iowrite(b or '')
 end

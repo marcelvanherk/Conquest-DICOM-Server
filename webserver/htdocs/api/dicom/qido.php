@@ -113,3 +113,54 @@
     header('Content-Type: image/jpeg');
     echo $var;
   }
+  
+  function modalities() {
+    include 'config.php';
+    ob_start();
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);remotemodalities()"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    header('Access-Control-Allow-Headers: *');
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/json');
+    echo $var;
+  }
+
+  function dicomecho($ae) {
+    include 'config.php';
+    ob_start();
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);remoteecho([['.$ae.']])"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    header('Access-Control-Allow-Headers: *');
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/json');
+    echo $var;
+  }
+
+  function zip($st,$se,$sop,$script) {
+    include 'config.php';
+    ob_start();
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);remotezip(nil,[['.$st.']],[['.$se.']],[['.$sop.']],[['.$script.']])"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    header('Access-Control-Allow-Headers: *');
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/zip');
+    echo $var;
+  }
+
+  function move($src,$dest,$st,$se,$sop,$script) {
+    include 'config.php';
+    ob_start();
+    $params = array("StudyInstanceUID"=>$st, "SeriesInstanceUID"=>$se, "SOPInstanceUID"=>$sop, "99990900"=>$script);
+    $t = str_replace('"', $quote, json_encode($params));    
+    passthru($exe.' "--dolua:dofile([[rquery.lua]]);remotemove([['.$src.']],[['.$dest.']],[['.$t.']])"');
+    $var = ob_get_contents();
+    ob_end_clean();
+    header('Access-Control-Allow-Headers: *');
+    header('Access-Control-Allow-Origin: *');
+    header('Content-Type: application/json');
+    echo $var;
+  }
+  

@@ -5,6 +5,7 @@
 -- mvh 20220919 Added post to /app/newweb/dgate.exe
 --              Extensions: modalities echo zip move
 -- mvh 20221018 test.html, script, startscript
+-- mvh 20221018 fix zip mime type; added attach and attachdicom; stow in right place
 
 ---------------------------------------------
 --preflight
@@ -390,7 +391,7 @@ routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/zip', funct
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
-  write('Content-Type: application/json\r\n\r\n')
+  write('Content-Type: application/zip\r\n\r\n')
   remotezip('', params.suid, params.euid, params.ouid, request.query.script)
 end )
 
@@ -399,7 +400,7 @@ routes:get('/api/dicom/rs/studies/:suid/series/:euid/zip', function (params)
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
-  write('Content-Type: application/json\r\n\r\n')
+  write('Content-Type: application/zip\r\n\r\n')
   remotezip('', params.suid, params.euid, '', request.query.script)
 end )
 
@@ -408,7 +409,7 @@ routes:get('/api/dicom/rs/studies/:suid/zip', function (params)
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
-  write('Content-Type: application/json\r\n\r\n')
+  write('Content-Type: application/zip\r\n\r\n')
   remotezip('', params.suid, '', '', request.query.script)
 end )
 
@@ -418,7 +419,7 @@ routes:post('/api/dicom/rs/script', function (params)
   write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
   write('Content-Type: application/json\r\n\r\n')
-  local scr=tempfile('lua')
+  local scr=tempfile('.lua')
   writefile(scr, request.query.script)
   runscript(scr)
   unlink(scr)
@@ -430,7 +431,7 @@ routes:post('/api/dicom/rs/startscript', function (params)
   write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
   write('Content-Type: application/json\r\n\r\n')
-  local scr=tempfile('lua')
+  local scr=tempfile('.lua')
   writefile(scr, request.query.script)
   startscript(scr)
 end )
@@ -448,3 +449,38 @@ routes:get('/api/dicom/rs/startscript/:uid', function (params)
   end
 end )
 
+-- attach a file
+routes:post('/api/dicom/rs/attach', function (params)
+  include('/api/dicom/posters.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  local file=tempfile('.zip')
+  writefile(file, request.query["_upload_"])
+  attachfile(file, request.query.script)
+  unlink(file)
+end )
+
+-- attach a dicom file
+routes:post('/api/dicom/rs/attachdicom', function (params)
+  include('/api/dicom/posters.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  local file=tempfile('.dcm')
+  writefile(file, request.query["_upload_"])
+  attachdicomfile(file, request.query.script)
+  unlink(file)
+end )
+
+-- stow
+routes:post('/api/dicom/rs/studies', function (params)
+  include('/api/dicom/posters.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  local file=tempfile('.dcm')
+  writefile(file, request.query["_upload_"])
+  poststow(file)
+  unlink(file)
+end )

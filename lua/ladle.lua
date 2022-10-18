@@ -33,6 +33,7 @@
 -- mvh 20220916 CGI() also returns payload; correct size of payload
 -- mvh 20220920 Added mjs to mimetypes
 -- mvh 20221018 Added wasm; fix post without filename; added unlink writefile tempfile to env
+-- mvh 20221018 Fixed STOW (needs multipart/related); writefile must be binary
 
 -----------------------------------------------------
 
@@ -277,6 +278,10 @@ function ladleutil.prepMain(request, client)
 				_, data = string.match(data, "(.-)\r\n(.+)")
 				val, data = string.match(data, "(.-)\r\n(.+)")
 				request.query[nam]=val
+			elseif string.find(line, 'Content') then 
+				_, data = string.match(data, "(.-)\r\n(.+)")
+				request.query["_upload_"]=data:sub(1, -#boundary-9)
+				break 
 			end
 		end
 	end
@@ -447,7 +452,7 @@ function luascript.genEnv(_Env, request, config, handleIt, client)
 	Env.table=table
 	Env.math=math
 	Env.tempfile=tempfile
-	Env.writefile=function(nam, dat) local f=io.open(nam, 'w') f:write(dat) f:close() end
+	Env.writefile=function(nam, dat) local f=io.open(nam, 'wb') f:write(dat) f:close() end
 	Env.unlink=function(nam) os.remove(nam) end
 	Env.JSON=require('json')
 	

@@ -32,6 +32,7 @@
 -- mvh 20220915 prepMain parses post or put message into request; CGI('') returns payload
 -- mvh 20220916 CGI() also returns payload; correct size of payload
 -- mvh 20220920 Added mjs to mimetypes
+-- mvh 20221018 Added wasm; fix post without filename; added unlink writefile tempfile to env
 
 -----------------------------------------------------
 
@@ -100,6 +101,10 @@ mimetypes["mconf"] = {
 		},
 	[".ico"] = {
 		["mime"] = "image/x-icon",
+		["bin"] = true,
+		},
+	[".wasm"] = {
+		["mime"] = "application/web-assembly",
 		["bin"] = true,
 		},
 }
@@ -252,8 +257,12 @@ function ladleutil.prepMain(request, client)
 		boundary = string.match(request["Content-Type"], '.+boundary=(.+)$')
 		local len = request["Content-Length"]
 		local data, err, partial = client:receive(len)
+		local line = ''
 		for i=1, 100 do
 			line, data = string.match(data, "(.-)\r\n(.+)")
+			if not line then
+			        break
+			end
 			if string.find(line, 'filename=') then 
 				local fn= string.match(line, '; filename="(.-)"')
 				local nam= string.match(line, '; name="(.-)"')
@@ -270,7 +279,6 @@ function ladleutil.prepMain(request, client)
 				request.query[nam]=val
 			end
 		end
-		for k, v in pairs(request.query) do print(k, v) end
 	end
 end
 
@@ -438,6 +446,9 @@ function luascript.genEnv(_Env, request, config, handleIt, client)
 	Env.pairs=pairs
 	Env.table=table
 	Env.math=math
+	Env.tempfile=tempfile
+	Env.writefile=function(nam, dat) local f=io.open(nam, 'w') f:write(dat) f:close() end
+	Env.unlink=function(nam) os.remove(nam) end
 	Env.JSON=require('json')
 	
 	local router = require 'router'

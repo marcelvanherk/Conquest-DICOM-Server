@@ -2,6 +2,9 @@
 -- mvh 20220912 First version
 -- mvh 20220913 Fixed wadors frame access
 -- mvh 20220914 Added ohiftop; need 5 routes to keep ohiftop/viewer
+-- mvh 20220919 Added post to /app/newweb/dgate.exe
+--              Extensions: modalities echo zip move
+-- mvh 20221018 test.html, script, startscript
 
 ---------------------------------------------
 --preflight
@@ -40,6 +43,9 @@ end )
 routes:get('/api/dicom/', function (params)
    write( 'Conquest DICOMWeb api; partially supports wado-rs, wado-uri and qido-rs')
 end )
+routes:get('/api/dicom/test.html', function (params)
+   redirect( '/api/dicom/test.html')
+end )
 
 ---------------------------------------------
 -- Static route: /app/newweb/ (dgate.exe cgi emulated app)
@@ -53,7 +59,9 @@ end )
 routes:get('/app/dgate.exe', function (params) -- when opening without trailing /
    redirect( '/app/newweb/dgate.exe?' .. request.query_string)
 end )
-
+routes:post('/app/newweb/dgate.exe', function (params)
+   redirect( '/app/newweb/dgate.exe')
+end )
 -- Static route: overrule conquest jpeg
 routes:get('/app/newweb/conquest.jpg', function (params)
    redirect('/app/newweb/conquest.jpg')
@@ -197,7 +205,7 @@ end );
 -- dicom api, Ladle version, orginal source code in qido.php 
 ------------------------------------------------------------
 
-function processData(params, tags, query, level)
+function processData(params, tags, query, level, server)
   include('/api/dicom/rquery.lua')
   for k, v in ipairs(tags) do
     params[v]=''
@@ -213,10 +221,10 @@ function processData(params, tags, query, level)
   write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
   write('Content-Type: application/json\r\n\r\n')
-  rquery(nil, t, level)
+  rquery(server, t, level)
 end    
 
-function querystudies(query)
+function querystudies(query, server)
    local defaultTags = {
      "00080005", "00080020", "00080030",
      "00080050", "00080054", "00080056",
@@ -224,26 +232,26 @@ function querystudies(query)
      "00080201", "00100010", "00100020",
      "00100030", "00100040", "0020000D",
      "00200010", "00201206", "00201208"}
-   processData(query, defaultTags, {["99990C00"]="PatientName"}, "STUDY")
+   processData(query, defaultTags, {["99990C00"]="PatientName"}, "STUDY", server)
 end
 
-function queryseries(query, suid)
+function queryseries(query, suid, server)
    local defaultTags = {
     "00080005", "00080054", "00080056",
     "00080060", "0008103E", "00081190",
     "0020000E", "00200011", "00201209",
     "00080201", "00400244", "00400245",
     "00400275", "00400009", "00401001"}
-   processData(query, defaultTags, {["99990C00"]="SeriesTime", StudyInstanceUID=suid}, "SERIES")
+   processData(query, defaultTags, {["99990C00"]="SeriesTime", StudyInstanceUID=suid, server}, "SERIES")
 end
 
-function queryinstances(query, suid, euid)
+function queryinstances(query, suid, euid, server)
    local defaultTags = {
     "00080016", "00080018", "00080056",
     "00080201", "00081190", "00200013",
     "00280010", "00280011", "00280100",
     "00280008"}
-   processData(query, defaultTags, {["99990C00"]="ImageNumber", StudyInstanceUID=suid, SeriesInstanceUID=euid}, "IMAGE")
+   processData(query, defaultTags, {["99990C00"]="ImageNumber", StudyInstanceUID=suid, SeriesInstanceUID=euid}, "IMAGE", server)
 end
 
 function metadata(query,st,se,sop)
@@ -297,3 +305,146 @@ function thumbnail(query,st,se,sop,fr,sz)
   write('Content-Type: image/jpeg\r\n\r\n')
   getthumbnail(nil,st,se,sop,fr,sz)
 end
+
+---------------------------------------------------------------
+--DICOMWeb extensions
+---------------------------------------------------------------
+
+-- list all modalities
+routes:get('/api/dicom/rs/modalities', function (params)
+  include('/api/dicom/rquery.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  remotemodalities()
+end )
+
+-- echo a modality
+routes:get('/api/dicom/rs/modalities/:modality', function (params)
+  include('/api/dicom/rquery.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  remoteecho(params.modality)
+end )
+
+-- query all studies on modality
+routes:get('/api/dicom/rs/modalities/:modality/studies', function (params)
+  include('/api/dicom/rquery.lua')
+  querystudies(request.query, params.modality)
+end )
+
+-- query series of a study on modality
+routes:get('/api/dicom/rs/modalities/:modality/studies/:suid/series', function (params)
+  include('/api/dicom/rquery.lua')
+  queryseries(request.query, params.suid, params.modality)
+end )
+
+-- query all series on modality
+routes:get('/api/dicom/rs/modalities/:modality/series', function (params)
+  include('/api/dicom/rquery.lua')
+  queryseries(request.query, '', params.modality)
+end )
+
+-- query instances of series on modality
+routes:get('/api/dicom/rs/modalities/:modality/studies/:suid/series/:euid/instances', function (params)
+  include('/api/dicom/rquery.lua')
+  queryinstances(request.query, params.suid, params.euid, params.modality)
+end )
+
+-- query all instances on modality
+routes:get('/api/dicom/rs/modalities/:modality/instances', function (params)
+  include('/api/dicom/rquery.lua')
+  queryinstances(request.query, '', '', params.modality)
+end )
+
+-- move an instance
+routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/move', function (params)
+  include('/api/dicom/rquery.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  remotemove(nil, request.query.target, JSON:encode{StudyInstanceUID=params.suid, SeriesInstanceUID=params.euid, SOPInstanceUID=params.ouid})
+end )
+
+-- move a series
+routes:get('/api/dicom/rs/studies/:suid/series/:euid/move', function (params)
+  include('/api/dicom/rquery.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  remotemove(nil, request.query.target, JSON:encode{StudyInstanceUID=params.suid, SeriesInstanceUID=params.euid})
+end )
+
+-- move a study
+routes:get('/api/dicom/rs/studies/:suid/move', function (params)
+  include('/api/dicom/rquery.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  remotemove(nil, request.query.target, JSON:encode{StudyInstanceUID=params.suid})
+end )
+
+-- zip an instance (script can be passed)
+routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/zip', function (params)
+  include('/api/dicom/rquery.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  remotezip('', params.suid, params.euid, params.ouid, request.query.script)
+end )
+
+-- zip a series (script can be passed)
+routes:get('/api/dicom/rs/studies/:suid/series/:euid/zip', function (params)
+  include('/api/dicom/rquery.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  remotezip('', params.suid, params.euid, '', request.query.script)
+end )
+
+-- zip a study (script can be passed)
+routes:get('/api/dicom/rs/studies/:suid/zip', function (params)
+  include('/api/dicom/rquery.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  remotezip('', params.suid, '', '', request.query.script)
+end )
+
+-- run a script
+routes:post('/api/dicom/rs/script', function (params)
+  include('/api/dicom/posters.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  local scr=tempfile('lua')
+  writefile(scr, request.query.script)
+  runscript(scr)
+  unlink(scr)
+end )
+
+-- start a script
+routes:post('/api/dicom/rs/startscript', function (params)
+  include('/api/dicom/posters.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  local scr=tempfile('lua')
+  writefile(scr, request.query.script)
+  startscript(scr)
+end )
+
+-- get a script progress
+routes:get('/api/dicom/rs/startscript/:uid', function (params)
+  include('/api/dicom/posters.lua')
+  write('HTTP/1.1 200/OK\r\nServer: Ladle\r\n')
+  write('Access-Control-Allow-Origin: *\r\n')
+  write('Content-Type: application/json\r\n\r\n')
+  if request.query.setvalue then
+    writeprogress(params.uid, request.query.setvalue)
+  else
+    readprogress(params.uid)
+  end
+end )
+

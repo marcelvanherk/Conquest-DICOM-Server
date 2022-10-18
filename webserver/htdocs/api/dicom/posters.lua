@@ -1,5 +1,10 @@
 -- add and process a file stored in path (may be zip)
 -- script has importconverter format e.g. start with lua: if needed
+function iowrite(a)
+  if io then io.write(a)
+  else write(a) end
+end
+
 function attachfile(path, script, ext)
   script = '[['..script..']]' -- allow ' and " in script
   ext = ext or ".dcm"
@@ -13,7 +18,7 @@ function attachfile(path, script, ext)
     servercommand('attachfile:'..filename..','..script)
     os.remove(filename);
   ]]
-  io.write(servercommand('lua:'..remotecode, '<'..path))
+  iowrite(servercommand('lua:'..remotecode, '<'..path))
 end
 
 -- add and process a dicom file stored in path
@@ -32,7 +37,7 @@ function attachdicomfile(path, script)
     os.remove(filename);
     return loadstring(script)()
   ]]
-  io.write(servercommand('lua:'..remotecode, '<'..path))
+  iowrite(servercommand('lua:'..remotecode, '<'..path))
 end
 
 -- STOW a single dicom object stored in path; fix its PatientName and PatientID
@@ -67,7 +72,7 @@ function runscript(script)
     os.remove(filename);
     return a
   ]]
-  io.write(servercommand('lua:'..remotecode, '<'..script));
+  iowrite(servercommand('lua:'..remotecode, '<'..script));
 end
 
 -- start a script as background task in the server; return uid of job
@@ -88,7 +93,7 @@ function startscript(script)
   ]]
   local fn = servercommand('lua:'..remotecode1);
   local uid = '"' .. string.match(fn, '.+\\(.-)%.lua') .. '"'
-  io.write(uid)
+  iowrite(uid)
   servercommand('luastart:local filename=[['..fn..']];'..remotecode2, '<'..script);
 end
 
@@ -108,7 +113,7 @@ function readprogress(uid)
     return tonumber(s) or 0
   ]]
   local s = servercommand('lua:'..remotecode);
-  io.write(s)
+  iowrite(s)
 end
 
 -- write progress value of job (0 started, to 100 end)
@@ -125,5 +130,5 @@ function writeprogress(uid, val)
     return val
   ]]
   local s = servercommand('lua:'..remotecode);
-  io.write(s)
+  iowrite(s)
 end

@@ -34,6 +34,7 @@
 -- mvh 20220920 Added mjs to mimetypes
 -- mvh 20221018 Added wasm; fix post without filename; added unlink writefile tempfile to env
 -- mvh 20221018 Fixed STOW (needs multipart/related); writefile must be binary
+-- mvh 20221022 Replaced some \n outputs by \r\n (tripped Quirt HTTP_GET module)
 
 -----------------------------------------------------
 
@@ -291,7 +292,7 @@ end
 -- used while serving pages (for different errors like 404, 500 etc)
 function ladleutil.err(message,client)
 	client:send(message)
-	client:send("\n\nLadle web server\n")
+	client:send("\n\nLadle web server\r\n")
 end
 
 function ladleutil.trace(message)
@@ -534,7 +535,7 @@ function dgatecgi.handler(request, client, config)
 
   Env.print = function(...) 
     Env.write(...) 
-    Env.write('\n') 
+    Env.write('\r\n') 
   end
   Env.CGI = function(a, b)
     if (a or '')=='' then
@@ -557,7 +558,7 @@ function dgatecgi.handler(request, client, config)
         Env.__tmp_output_buffer = "HTTP/1.1 200/OK\r\nServer: Ladle\r\n"
       end
       Env.write(string.format(a, b or '', c or '', d or '', e or '', f or '', g or '', h or ''))
-      Env.write('\n') 
+      Env.write('\r\n') 
     end
   
   Env.script_name = 'dgate.exe'

@@ -690,6 +690,7 @@ When            Who     What
 20220912        mvh     Set ladle webroot to Global.BaseDir..[[webserver/htdocs/]]
 20220912        mvh     Added popupmenu to choose app when right-clicking built-in webserver
 20220919        mvh     Right-click bugreport buttons shows server folder
+20221031        mvh     Enable jpeg on startup to sync with checkbox
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -726,7 +727,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0c';
-const BUILDDATE = '20220829';
+const BUILDDATE = '20221031';
 const testmode = 0;
 
 {************************************************************************}
@@ -1406,7 +1407,7 @@ var FileCompressMode: integer;                  // obsolete parameter
 var DroppedFileCompression: string = 'un';      // uncompressed
 var IncomingCompression:    string = 'un';
 var ArchiveCompression:     string = 'as';      // as-is
-var JPEGSupport:            boolean= FALSE;	// from dgatesop.lst
+var JPEGSupport:            boolean= true;	// from dgatesop.lst
 
 // Luiz added at Sept 19 2021
 var NightlyStrTimeToMove: string ='02:00';
@@ -2691,13 +2692,12 @@ begin
     DICOMMap.Lines.LoadFromFile(CurDir + '\acrnema.map');
   FillAELists;
 
-  // make sure a dgatesop.lst exists. Default support JPEG if OFFIS tools are there
+  // make sure a dgatesop.lst exists. Default support JPEG
   if not FileExists(curdir + '\dgatesop.lst') then
-    CreateDGATESOP_LST(FileExists(//ExtractFileDir(ParamStr(0))
-      CurDir + '\dcmdjpeg.exe'));
+    CreateDGATESOP_LST(true);
 
   // Check dgatesop.lst to see if JPEG support is enabled
-  JPEGSupport := true;
+  JPEGSupport := false;
   AssignFile(f, Curdir + '\dgatesop.lst');
   Reset(f);
   while not Eof(f) do

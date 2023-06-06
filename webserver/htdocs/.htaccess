@@ -1,0 +1,4 @@
+RewriteEngine On
+RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)
+RewriteRule .* - [F]
+Options -Indexes

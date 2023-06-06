@@ -48,6 +48,7 @@
 -- mvh 20220830: Popup and 'progress' bar for upload
 -- mvh 20220831: Avoid overflow - don't use print() in downloadtable
 -- mvh 20221012: storeclick stores link in clicks.txt
+-- mvh 20230605: readOnly disables upload methods and post
 
 webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 local ex = string.match(webscriptaddress, 'dgate(.*)')
@@ -323,7 +324,7 @@ if CGI('parameter')=='serverpage' then
   return
 end
 
-if CGI('parameter')=='swupdate' then
+if CGI('parameter')=='swupdate' and not readOnly then
   HTML('Content-type: application/json\n\n')
   local n, ds, web, cgi = '', '/'
   local fn = CGI('filename', 'x.x')
@@ -442,7 +443,7 @@ if CGI('parameter')=='swupdate' then
   return
 end
 
-if CGI('parameter')=='uploadsql' then
+if CGI('parameter')=='uploadsql' and not readOnly then
   if CGI('ref')~='' then
     servercommand("lua:sql([[delete from UIDMODS where Stage like '"..CGI('ref').."%']])")
     servercommand("lua:changeuid('')") -- clear UID cache
@@ -466,7 +467,7 @@ if CGI('parameter')=='uploadsql' then
   print (upload('', a, 'returnvalue = sql(data)'))
 end
 
-if CGI('parameter')=='uploadinfo' then
+if CGI('parameter')=='uploadinfo' and not readOnly then
   local web
   local ds='/'
   local fn = safetempfile(".pdf")
@@ -494,7 +495,7 @@ if CGI('parameter')=='uploadinfo' then
   print (upload(web..project..ds.."info"..ds..CGI('filename'), a, 'returnvalue=filename'))
 end
 
-if CGI('parameter')=='uploadtable' then
+if CGI('parameter')=='uploadtable' and not readOnly then
   local ds = '/'
   local g = servercommand('lua:return Global.basedir')
   local fn = safetempfile(".csv")
@@ -525,7 +526,7 @@ if CGI('parameter')=='uploadtable' then
   print (upload(g.."tables"..ds..CGI('filename'), a, 'returnvalue=filename'))
 end
 
-if CGI('parameter')=='uploadfile' then
+if CGI('parameter')=='uploadfile' and not readOnly then
   local fn = safetempfile(".tmp")
   local a
   if CGI('_passfile_', '')~='' then
@@ -726,13 +727,15 @@ end
 
 HTML("</table>");
 
-HTML("<FORM ID=upx ACTION=\"%s\" METHOD=POST ENCTYPE=\"multipart/form-data\">", ex);
-HTML("<INPUT NAME=mode      TYPE=HIDDEN VALUE=start>");
-HTML("<INPUT NAME=parameter TYPE=HIDDEN VALUE=uploadfile>");
-HTML("<INPUT NAME=script    TYPE=HIDDEN VALUE=servercommand('addimagefile:'..filename)>");
-HTML("Upload file to enter into server (dcm/v2/HL7/zip/7z/gz/tar): <INPUT NAME=filetoupload SIZE=40 TYPE=file VALUE=>");
---HTML("<INPUT TYPE=SUBMIT VALUE=Go>");
-HTML('<INPUT TYPE=BUTTON VALUE="Go" onclick=message("Wait");upload("upx")>');
-HTML("</FORM>");
+if not readOnly then
+  HTML("<FORM ID=upx ACTION=\"%s\" METHOD=POST ENCTYPE=\"multipart/form-data\">", ex);
+  HTML("<INPUT NAME=mode      TYPE=HIDDEN VALUE=start>");
+  HTML("<INPUT NAME=parameter TYPE=HIDDEN VALUE=uploadfile>");
+  HTML("<INPUT NAME=script    TYPE=HIDDEN VALUE=servercommand('addimagefile:'..filename)>");
+  HTML("Upload file to enter into server (dcm/v2/HL7/zip/7z/gz/tar): <INPUT NAME=filetoupload SIZE=40 TYPE=file VALUE=>");
+  --HTML("<INPUT TYPE=SUBMIT VALUE=Go>");
+  HTML('<INPUT TYPE=BUTTON VALUE="Go" onclick=message("Wait");upload("upx")>');
+  HTML("</FORM>");
+end
 
 HTML("</BODY>")

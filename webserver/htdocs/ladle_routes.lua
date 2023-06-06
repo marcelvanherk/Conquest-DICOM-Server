@@ -6,6 +6,7 @@
 --              Extensions: modalities echo zip move
 -- mvh 20221018 test.html, script, startscript
 -- mvh 20221018 fix zip mime type; added attach and attachdicom; stow in right place
+-- mvh 20221220 unlink temp file after startscript
 
 ---------------------------------------------
 --preflight
@@ -434,6 +435,7 @@ routes:post('/api/dicom/rs/startscript', function (params)
   local scr=tempfile('.lua')
   writefile(scr, request.query.script)
   startscript(scr)
+  unlink(scr)
 end )
 
 -- get a script progress

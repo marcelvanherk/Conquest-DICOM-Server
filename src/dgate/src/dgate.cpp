@@ -1198,6 +1198,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20221014        mvh     Allow response from servertask <file
 20221016        mvh     Handle odd length return data from servercommand; and odd length upload
 			Note: dgate.dic must be updated to read the conquest items properly
+20221220        mvh     Added DelayIncomingFileOpen (ms) for incoming files to avoid reading partial
 
 ENDOFUPDATEHISTORY
 */
@@ -3240,7 +3241,9 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 	HANDLE		fdHandle;
 	WIN32_FIND_DATA	FileData;
 	char		TempPath[512];
-	int             count=0;
+	int             count=0, sleep=0;
+        char            szRootSC[64];
+        char            buffer[64];
 
 	strcpy(TempPath, dir);
 	strcat(TempPath, "*.*");
@@ -3250,6 +3253,12 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 	fdHandle = FindFirstFile(TempPath, &FileData);
 	if(fdHandle == INVALID_HANDLE_VALUE)
 		return ( FALSE );
+        
+        if (MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile))
+                {
+                MyGetPrivateProfileString(szRootSC, "DelayIncomingFileOpen", "0", buffer, 64, ConfigFile);
+                sleep = atoi(buffer);
+                }
 
 	if (Thread) Progress.printf("Process=%d, Type='loadanddeletedir', Active=1\n", Thread);
 	while ( TRUE )
@@ -3283,7 +3292,9 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 				{
 			  	strcpy(TempPath, dir);
 				strcat(TempPath, FileData.cFileName);
-
+                                
+                                if (sleep) Sleep(sleep); // give sending program time to write
+                                
 				FILE *f = fopen(TempPath, "at");
 				if (f)
 					{

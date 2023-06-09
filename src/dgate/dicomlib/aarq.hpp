@@ -8,6 +8,7 @@
    lsp 20140528: Member initialization and assignment operator are not GNUC specific:
                  latter is used in CqDicom project
    mvh 20150908: Added HasImpVersion to UserInformation; needed for VITREA which does not send it
+   mvh 20221108: Added SCPSCURoleSelect array in UserInfo
  */
 
 /****************************************************************************
@@ -241,7 +242,7 @@ class	PresentationContext
 		BYTE							Reserved3;
 		BYTE							Reserved4;
 	public:
-		AbstractSyntax				AbsSyntax;
+		AbstractSyntax			AbsSyntax;
 		Array<TransferSyntax>		TrnSyntax;
 					PresentationContext();
 					PresentationContext(AbstractSyntax &, TransferSyntax &);
@@ -299,7 +300,7 @@ class	UserInformation
 		MaximumSubLength			MaxSubLength;
 		ImplementationClass			ImpClass;
 		ImplementationVersion		ImpVersion;
-		SCPSCURoleSelect			SCPSCURole;
+		Array<SCPSCURoleSelect>		SCPSCURole;
 	public:
 					UserInformation();
 					~UserInformation();
@@ -309,6 +310,7 @@ class	UserInformation
 		BOOL		Read(Buffer &);
 		BOOL		ReadDynamic(Buffer	&);
 		UINT32		Size();
+		void		AddSCPSCURole(SCPSCURoleSelect	&);
 	};
 
 class	AAssociateRQ

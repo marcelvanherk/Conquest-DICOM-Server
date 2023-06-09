@@ -15,6 +15,8 @@ mvh 20150908: Added HasImpVersion to UserInformation; needed for VITREA which do
               Set count to 0 after skipping unknown element
 mvh 20181113: replace min() by MIN() for Ubuntu 18 compile
 mvh 20201224: Added error handling
+mvh 20221108: Added SCPSCURoleSelect array in UserInfo
+mvh 20230607: Fix ReadDynamic of SCPSCURoleSelect
 */
 
 /****************************************************************************
@@ -697,7 +699,7 @@ BOOL	SCPSCURoleSelect	::	ReadDynamic(Buffer	&Link)
 	Link.Read((BYTE *) &Reserved1, sizeof(BYTE));
 	Link >> Length;	//Link.Read((BYTE *) &Length, sizeof(UINT16));
 	Link >> TL;
-	Link.Read((BYTE*) uid.GetBuffer(TL+1), TL);
+	Link.Read((BYTE*) uid.GetBuffer(1), TL);
 	uid.GetBuffer(Length)[Length] = '\0';
 	uid.SetLength(TL);
 	Link >> SCURole;
@@ -725,8 +727,7 @@ UserInformation	::	UserInformation()
     HasImpVersion (TRUE),
     MaxSubLength(0),
     ImpClass(),
-    ImpVersion(),
-    SCPSCURole() {}
+    ImpVersion() {}
 		
 UserInformation	::	~UserInformation()
 	{
@@ -751,6 +752,12 @@ BOOL	UserInformation	::	Write(Buffer	&Link)
 	if (!Link.Flush()) return FALSE;
 	MaxSubLength.Write(Link);
 	ImpClass.Write(Link);
+	int Index = 0;
+	while ( Index < SCPSCURole.GetSize() )
+		{
+		SCPSCURole[ Index ].Write(Link);
+		++Index;
+		}
 	ImpVersion.Write(Link);
 	return ( TRUE );
 	}
@@ -761,10 +768,16 @@ BOOL	UserInformation	::	Read(Buffer	&Link)
 	return ( this->ReadDynamic(Link) );
 	}
 
+void	UserInformation	::	AddSCPSCURole(SCPSCURoleSelect	&Role)
+	{
+	SCPSCURole.Add ( Role );
+	}
+
 BOOL	UserInformation	::	ReadDynamic(Buffer	&Link)
 	{
 	BYTE		TempByte;
 	INT32		Count;
+	SCPSCURoleSelect *Role;
 
 	UserInfoBaggage = 0;
 	HasImpVersion = FALSE;
@@ -789,9 +802,10 @@ BOOL	UserInformation	::	ReadDynamic(Buffer	&Link)
 				Count = Count - ImpClass.Size();
 				break;
 			case	0x54:	// Role selection
-				SCPSCURole.ReadDynamic(Link);
-				Count = Count - SCPSCURole.Size();
-				UserInfoBaggage += SCPSCURole.Size();
+				Role = new SCPSCURoleSelect();
+				Role->ReadDynamic(Link);
+				Count = Count - Role->Size();
+				SCPSCURole.Add(*Role);
 				break;
 			case	0x55:
 //				fprintf(stderr, "Reading Implemenation Version Count = %d\n", Count);
@@ -818,6 +832,12 @@ UINT32	UserInformation	::	Size()
 	Length += ImpClass.Size();
 	if (HasImpVersion)
 	  Length += ImpVersion.Size();
+	int Index = 0;
+	while(Index < SCPSCURole.GetSize() )
+		{
+		Length += SCPSCURole.Get(Index).Size();
+		++Index;
+		}
 	return ( Length + UserInfoBaggage + sizeof(BYTE) + sizeof(BYTE) + sizeof(UINT16));
 	}
 

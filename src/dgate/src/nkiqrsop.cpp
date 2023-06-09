@@ -277,6 +277,7 @@
 20220819        mvh     Fixed buffer overflow and leak in scrub code
 20220820        mvh     Also allow scrub on typecode e.g. -SQ,OB,OW,OF,0010,00080008
 20220821        mvh     Optimized scrub a bit; do not test on unused features
+20230607        mvh     Set cget back compression to 'un'; acceptedCompression not set
 */
 
 //#define bool BOOL
@@ -761,9 +762,9 @@ BOOL	StandardRetrieveNKI	::	Read (
 			}
 		else
 			{
-			//if (!cget) 
+			if (!cget) 
 			  AcceptedCompress = UsedPDU->GetAcceptedCompressionType(iUID);
-			//else AcceptedCompress = "un";
+			else AcceptedCompress = "un";
 
 			StripGroup2 = memicmp(AcceptedCompress, "as", 2)!=0 && memicmp(AcceptedCompress, "is", 2)!=0;
 

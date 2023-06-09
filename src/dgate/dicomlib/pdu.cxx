@@ -48,6 +48,7 @@
 20190118    mvh    Take out print statement
 20190318    mvh    Deal with zero returned MaxSubLength; use 8192 pdusize for Linux
 20190319    mvh    Image corruption only stops at 4096 pdusize for Linux
+20230608    mvh    Copy AAssociateRQ SCPSCURoles to AAssociateAC
 */
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -489,6 +490,8 @@ BOOL	PDU_Service	::	InterogateAAssociateRQ()
 	GetImplementationClass(UserInfo.ImpClass);
 	GetImplementationVersion(UserInfo.ImpVersion);
 	UserInfo.SetMax(MaxSubLength);
+        for (int i=0; i<AAssociateRQ :: UserInfo.SCPSCURole.GetSize(); i++)
+          UserInfo.AddSCPSCURole(AAssociateRQ :: UserInfo.SCPSCURole.Get(i));
 
 	AAssociateAC :: SetUserInformation ( UserInfo );
 	AAssociateAC :: Write ( *this );

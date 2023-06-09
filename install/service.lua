@@ -51,6 +51,7 @@
 --          Added favicon, cgi install source is htdocs/app/newweb; avoid null tempdir
 --          Write and configure /app/newweb, disable (but keep) config cgi interface
 --          Updated version and date; note: temp is still null
+-- 20230607 Install dicom api and ohif app, enable ohif links from newweb; read newweb setting from app folder
 
 local server = 'unknown'
 local sep, dsep = '\\', '\\\\'
@@ -321,6 +322,7 @@ function create_newweb_cgi()
 	         'flexviewer_starter', 'papaya_starter', 'cornerstone_starter', 'iframe_starter', 'dumpvars',
 		 'conquest', 'favicon' --jpg/ico
 	       }
+
   if true then -- not fileexists(cgiweb..'newweb'..sep..'dicom.ini') then
     sendservercommand('mkdir '..cgiweb..'newweb')
 
@@ -487,6 +489,8 @@ viewer   = ]]..CGI('SVIEWER', 'wadoseriesviewer')..[[
 
 studyviewer = ]]..CGI('VIEWER', 'wadostudyviewer')..[[
 
+studylink = '<TD><A target="_blank" href=/app/ohif/viewer/{StudyInstanceUID}>Ohif</A>'
+serieslink = '<TD><A target="_blank" href=/app/newweb/?mode=wadoseriesviewer&series={PatientID}:{SeriesInstanceUID}>View</A>'
 
 [DefaultPage]
 source = *.lua
@@ -496,13 +500,67 @@ source = start.lua
 ]]..s)
 
     copyfile(source..'dgate.dic', dest..'dgate.dic')
-    --copyfile(server..sep..'acrnema.map', cgiweb..'newweb'..sep..'acrnema.map')
     if cgiclient=='dgate.exe' then
       copyfile(server..'install32'..sep..cgiclient, dest..cgiclient)
       copyfile(server..'install32'..sep..'lua5.1.dll', dest..'lua5.1.dll')
     else
       sendservercommand('cp '..server..cgiclient..' '..dest..cgiclient)
       sendservercommand('chmod 777 '..dest..cgiclient)
+    end
+  end
+end
+
+function create_dicom_api()
+  local list = {'posters','test','rquery','index','qido','servertask','posters','wado','readme','.htaccess','Router'}
+  local exts={'.html', '.lua', '', '.php', '.exe'}
+  sendservercommand('mkdir '..htmlweb..'api')
+  sendservercommand('mkdir '..htmlweb..'api'..sep..'dicom')
+
+  local s='exceptions='
+  local source=server..'webserver'..sep..'htdocs'..sep..'api'..sep..'dicom'..sep
+  local dest=htmlweb..'api'..sep..'dicom'..sep
+
+  for _,v in ipairs(list) do
+    for _,w in ipairs(exts) do
+      if fileexists(source..v..w) then
+        copyfile(   source..v..w, dest..v..w)
+      end
+    end
+  end
+
+  create_server_file(dest..'config.php', [[
+<?php
+  $exe    = 'servertask -p]]..CGI('PORT', '5678')..[[ -q127.0.0.1';
+  $quote  = '""';				// quotes in command line
+
+  if (PHP_OS_FAMILY != 'Windows') {		// On Linux:
+    $exe = './' . $exe;				// start as ./servertask
+    $quote = '\"';				// quotes in command line
+  }
+
+  $userlogin = false;				// uses single file login system
+  $wplogin   = false;				// uses wordpress login system
+]])
+
+  if cgiclient~='dgate.exe' then
+    sendservercommand('chmod 777 '..dest..'servertask')
+  end
+end
+
+function create_ohif_app()
+  local list = {'ohif1.03_min','index','.htaccess'}
+  local exts={'.html', '.js', ''}
+  sendservercommand('mkdir '..htmlweb..'app')
+  sendservercommand('mkdir '..htmlweb..'app'..sep..'ohif')
+
+  local source=server..'webserver'..sep..'htdocs'..sep..'app'..sep..'ohif'..sep
+  local dest=htmlweb..'app'..sep..'ohif'..sep
+
+  for _,v in ipairs(list) do
+    for _,w in ipairs(exts) do
+      if fileexists(source..v..w) then
+        copyfile(   source..v..w, dest..v..w)
+      end
     end
   end
 end
@@ -942,7 +1000,7 @@ function subfunctions(param)
   end
   -----------------------------------------
   if param=='regen' then
-    local pats=tonumber(sendservercommand(server..dgate.." -w"..server.." "..[["--lua:a=dbquery('DICOMPatients', '*');return #(a or {})"]]))
+    local pats=tonumber(sendservercommand(server..dgate.." -w"..server.." "..[["--lua:a=dbquery('DICOMPatients', '*');return #(a or {})"]]) or 0)
     if pats==0 then
       servercommand("lua:os.execute([["..server..dgate.." -w"..server.." -v -r]]); return false")
       statuspage([[Database regen completed - click <a href=# onclick="javascript:servicecommand('welcome')">here</a> to refresh]])
@@ -1454,12 +1512,14 @@ function subfunctions(param)
       else
         --create_newweb_cgi()
         create_newweb_app()
+        create_ohif_app()
+        create_dicom_api()
       end
     else
-      editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^TCPPort *= ).*', '%1' .. CGI('PORT', '5678'))
-      editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^viewer *= ).*', '%1' .. CGI('SVIEWER', 'wadoseriesviewer'))
-      editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^seriesviewer *= ).*', '%1' .. CGI('VIEWER', 'wadostudyviewer'))
-      editfile(cgiweb..'newweb'..sep..'dicom.ini', '(^TempDir *= ).*', '%1' .. (CGI('TEMP', '') or 'temp'))
+      editfile(htmlweb..'app'..sep..'newweb'..sep..'dicom.ini', '(^TCPPort *= ).*', '%1' .. CGI('PORT', '5678'))
+      editfile(htmlweb..'app'..sep..'newweb'..sep..'dicom.ini', '(^viewer *= ).*', '%1' .. CGI('SVIEWER', 'wadoseriesviewer'))
+      editfile(htmlweb..'app'..sep..'newweb'..sep..'dicom.ini', '(^seriesviewer *= ).*', '%1' .. CGI('VIEWER', 'wadostudyviewer'))
+      editfile(htmlweb..'app'..sep..'newweb'..sep..'dicom.ini', '(^TempDir *= ).*', '%1' .. (CGI('TEMP', '') or 'temp'))
     end
     statuspage('Web server configured ... ')
     return param, true
@@ -2133,7 +2193,7 @@ HTML([[<tr>]])
 
 HTML("<td><b>Config:</b><br>")
 
-sel=getfile(cgiweb..'newweb'..sep..'dicom.ini', '^studyviewer *= (.*)') or 'wadostudyviewer'
+sel=getfile(htmlweb..'app'..sep..'newweb'..sep..'dicom.ini', '^studyviewer *= (.*)') or 'wadostudyviewer'
 HTML("<td>Study<SELECT NAME=SelectStudyViewer>")
 if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'wadostudyviewer.lua') then
   HTML("<option value=wadostudyviewer"..selected("wadostudyviewer", sel)..">Conquest viewer</option>")
@@ -2158,7 +2218,7 @@ if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'flexview
 end
 HTML("</SELECT>")
 
-local ssel=getfile(cgiweb..'newweb'..sep..'dicom.ini', '^viewer *= (.*)') or 'wadoseriesviewer'
+local ssel=getfile(htmlweb..'app'..sep..'newweb'..sep..'dicom.ini', '^viewer *= (.*)') or 'wadoseriesviewer'
 HTML("<td>Series<SELECT NAME=SelectSeriesViewer>")
 if fileexists(server..'webserver'..sep..'cgi-bin'..sep..'newweb'..sep..'wadoseriesviewer.lua') then
   HTML("<option value=wadoseriesviewer"..selected("wadostudyviewer", ssel)..">Conquest viewer</option>")
@@ -2191,11 +2251,11 @@ HTML("</SELECT>")
 
 
 local check=''
-local flag=getfile(cgiweb..'newweb'..sep..'dicom.ini', '^readOnly *= (%d*)') or '0'
+local flag=getfile(htmlweb..'app'..sep..'newweb'..sep..'dicom.ini', '^readOnly *= (%d*)') or '0'
 if flag~='0' then check = ' checked' end
 HTML([[<td><input type=checkbox name=readOnly]]..check..[[><label for="readOnly">No modify</label>]])
 
-flag=getfile(cgiweb..'newweb'..sep..'dicom.ini', '^viewOnly *= (%d*)') or '0'
+flag=getfile(htmlweb..'app'..sep..'newweb'..sep..'dicom.ini', '^viewOnly *= (%d*)') or '0'
 if flag~='0' then check = ' checked' end
 HTML([[<td><input type=checkbox name=viewOnly]]..check..[[><label for="viewOnly">No download</label>]])
 

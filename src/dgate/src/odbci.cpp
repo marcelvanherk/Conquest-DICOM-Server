@@ -182,6 +182,7 @@
 20201107   mvh    Allow multiple statements for MySQL (flag 65536)
 20210509   mvh    Reduce ODBC retries to 6 times
 20220817   mvh    Allow LIMIT and OFFSET to be added to the Sort parameter; some postprocessing for SQL server done; () rule for multiple sort was wrong
+20230609   mvh    Added retry on SQLITE_LOCKED
 */
 
 /*
@@ -3705,6 +3706,9 @@ int	Database :: MYSQLExec(char *StatementText, BOOL q)
 
 #ifdef USESQLITE
 #define SQLITE_BUSY         5
+#define SQLITE_LOCKED       6
+#define SQLITE_CONSTRAINT   19
+
 int	Database :: SQLITEExec(char *StatementText, BOOL q)
 	{
 	int i, rc;
@@ -3731,13 +3735,13 @@ int	Database :: SQLITEExec(char *StatementText, BOOL q)
 		return 0;
 		}
 	
-	if (sqlite3_errcode(sqlitedata)==19)	// SQLITE_CONSTRAINT
+	if (sqlite3_errcode(sqlitedata)==SQLITE_CONSTRAINT)
 		{
 		sqlite3_free(err);
 		return 0;
 		}
 
-	if (sqlite3_errcode(sqlitedata)==SQLITE_BUSY) 
+	if (sqlite3_errcode(sqlitedata)==SQLITE_BUSY || sqlite3_errcode(sqlitedata)==SQLITE_LOCKED) 
 		for(i=0; i<60; i++)
 			{
 			sqlite3_free(err);
@@ -3760,7 +3764,7 @@ int	Database :: SQLITEExec(char *StatementText, BOOL q)
 				}
 			}
 	
-	if (sqlite3_errcode(sqlitedata)==19)	// SQLITE_CONSTRAINT
+	if (sqlite3_errcode(sqlitedata)==SQLITE_CONSTRAINT)
 		{
 		sqlite3_free(err);
 		return 0;

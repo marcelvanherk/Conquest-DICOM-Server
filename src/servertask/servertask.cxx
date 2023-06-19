@@ -5,7 +5,8 @@
 // mvh 20221013; Allow '<file' mode to return response
 // mvh 20221014; Suppress dicom error messages for luastart
 // mvh 20221016; Padd VR identifying odd length if needed for file upload
-// mvh 20230307; Fix that any --d command did dolua:
+// mvh 20230607; Fix that any --d command did dolua:
+// mvh 20230619; Fix in above fix
 
 #include "dicom.hpp"
 
@@ -479,7 +480,7 @@ int main(int argc, char **argv)
       else if (argv[i][1]=='p') strcpy(Port, argv[i]+2);
       else if (argv[i][1]=='q') strcpy(ServerCommandAddress, argv[i]+2);
       else if (argv[i][1]=='-')
-      { if (argv[i][2]=='d' && strlen(argv[i])>8 && memcmp(argv[i], "do_lua:", 7)==0) 
+      { if (argv[i][2]=='d' && strlen(argv[i])>8 && memcmp(argv[i], "--dolua:", 8)==0) 
 	  do_lua(&L2, argv[i]+8);
         else
 	{ int rc = SendServerCommand("Server command sent using DGATE -- option", argv[i]+2, 0, NULL, FALSE, FALSE, NULL);

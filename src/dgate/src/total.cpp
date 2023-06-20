@@ -164,8 +164,6 @@
 #define OPJ_STATIC
 
 #include "imagedata.cpp"
-// in ms1925 below breaks on charls/interface/publictypes/iostream/ostream/ios/xlocnum:    
-//          int& _Errno_ref = errno; // Nonzero cost, pay it once; errno not defined
 #include "jpegconv.cpp"
 #endif
 

@@ -691,6 +691,8 @@ When            Who     What
 20220912        mvh     Added popupmenu to choose app when right-clicking built-in webserver
 20220919        mvh     Right-click bugreport buttons shows server folder
 20221031        mvh     Enable jpeg on startup to sync with checkbox
+20230607        mvh     Update version number
+20230620        mvh     Set UTF8FromDB and UTF8ToDB for postgres
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -726,8 +728,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0c';
-const BUILDDATE = '20221031';
+const VERSION = '1.5.0d';
+const BUILDDATE = '20230631';
 const testmode = 0;
 
 {************************************************************************}
@@ -1338,7 +1340,7 @@ uses ServerAbout, HeaderLister, AboutNew, SendSelected, EditDatabaseForm, printe
 
 var DataDir, DataSource, SQLHost, SqlUser, SqlPassWord, MySql, FSqLite, FPostGres,
     FileNameSyntax, MaxFileNameLength, FixPhilips, FixKodak,
-    DoubleBackSlashToDB, UseEscapeStringConstants, AllowEmptyPatientID: string;
+    DoubleBackSlashToDB, UseEscapeStringConstants, AllowEmptyPatientID, UTF8ToDB, UTF8FromDB: string;
 var ExternalViewer, DemoViewer, DemoCopy: string;
 var NewInstall, NewInstallDone: boolean;
 var PreRunning: boolean;
@@ -2631,6 +2633,8 @@ begin
   FixKodak            := '0';
   DoubleBackSlashToDB := '0';
   UseEscapeStringConstants := '0';
+  UTF8ToDB            := '0';
+  UTF8FromDB          := '0';
   MagDevices          := 1;
   BurnTime            := 'INVALID';
   BurnTime2           := 'INVALID';
@@ -3125,6 +3129,8 @@ begin
       BrowseThroughDBF    := '1';
       DoubleBackSlashToDB := '1';
       UseEscapeStringConstants := '1';
+      UTF8ToDB            := '1';
+      UTF8FromDB          := '1';
     end;
   end;
 
@@ -3405,6 +3411,12 @@ begin
 
     if Copy(s, 0, length('useescapestringconstants')) = 'useescapestringconstants' then
       UseEscapeStringConstants := GetData(s);
+
+    if Copy(s, 0, length('utf8fromdb')) = 'utf8fromdb' then
+      UTF8FromDB := GetData(s);
+
+    if Copy(s, 0, length('utf8todb')) = 'utf8todb' then
+      UTF8ToDB := GetData(s);
 
     if Copy(s, 0, length('magdevice0')) = 'magdevice0' then
     begin
@@ -4379,6 +4391,10 @@ begin
   //  writeln(f, 'BrowseThroughDBF         = ' + BrowseThroughDBF);
   writeln(f, 'DoubleBackSlashToDB      = ' + DoubleBackSlashToDB);
   writeln(f, 'UseEscapeStringConstants = ' + UseEscapeStringConstants);
+  if UTF8ToDB<>'0' then
+    writeln(f, 'UTF8ToDB                 = ' + UTF8ToDB);
+  if UTF8FromDB<>'0' then
+    writeln(f, 'UTF8FromDB               = ' + UTF8FromDB);
   writeln(f, '');
   writeln(f, '# Configure server');
   //writeln(f, 'TruncateFieldNames       = 10');

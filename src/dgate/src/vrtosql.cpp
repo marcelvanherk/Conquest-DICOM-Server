@@ -81,6 +81,7 @@
 20220815        mvh     Implemented sorting for all queries except Modality, properly sort on Number fields
 20220817        mvh     Private tags for query limit (9999,0c01) and offset (9999,0c02), report sorting
 20220820        mvh     Overhaul of sorting code
+20220620        mvh     Fix sorting code for PostGres; use CAST and pass expression to columnstring through OrderExp
 */
 
 #ifndef	WHEDGE
@@ -759,6 +760,7 @@ BOOL	QueryOnPatient (
 	char				SortOrder[128];
 	char				Order[128];
 	char				OrderCalc[128];
+	char				OrderExp[128];
 	char				*Sorting;
 	BOOL				DoSort;
 	BOOL				SendAE = FALSE;
@@ -785,7 +787,7 @@ BOOL	QueryOnPatient (
 	// the Patient/Study database.  If they are not, well, then we
 	// return FALSE.
 	DoSort = FALSE;
-	Order[0] = OrderCalc[0] = 0;
+	Order[0] = OrderCalc[0] = OrderExp[0] = 0;
 	while ((vr = DDO->Pop()))
 		{
 		if(vr->Element == 0x0000)
@@ -858,12 +860,14 @@ BOOL	QueryOnPatient (
 				Order[vr->Length]=0;
 				if (strstr(Order, "Number")) 
                                 { Order[10]=0;
-                                  sprintf(OrderCalc, "(%s+0)", Order);
+                                  if (DB.db_type!=DT_POSTGRES) sprintf(OrderCalc, "(%s+0)", Order);
+				  else sprintf(OrderCalc, "CAST(%s AS integer)", Order);
                                 }
                                 else
 				{ Order[10]=0;
 			          strcpy(OrderCalc, Order);
 				}
+			        strcpy(OrderExp, OrderCalc);
 				delete vr;
 				continue;	// discard it
 				}
@@ -977,7 +981,7 @@ BOOL	QueryOnPatient (
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
-		strcat(ColumnString, Order);
+		strcat(ColumnString, OrderExp);
 		}
 	else if (PatientQuerySortOrder[0]) 
 		{
@@ -1003,11 +1007,11 @@ BOOL	QueryOnPatient (
 		SQLResultPatient.RemoveAt(0);
 		}
 
-        if (Order[0])
+/*        if (Order[0])
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
-		strcat(ColumnString, Order);
+		strcat(ColumnString, OrderExp);
 		}
 	else if (PatientQuerySortOrder[0]) 
 		{
@@ -1015,6 +1019,7 @@ BOOL	QueryOnPatient (
 			strcat(ColumnString, ", ");
 		strcat(ColumnString, PatientQuerySortOrder);
 		}
+*/
 
 	SystemDebug.printf("Issue Query on Columns: %s\n", ColumnString);
 	SystemDebug.printf("Values: %.1000s\n", SearchString);
@@ -1192,6 +1197,7 @@ BOOL	QueryOnStudy (
 	char				SortOrder[128];
 	char				Order[128];
 	char				OrderCalc[128];
+	char				OrderExp[128];
 	char				*Sorting;
 	BOOL				DoSort;
         char				*Sort=NULL;
@@ -1213,7 +1219,7 @@ BOOL	QueryOnStudy (
 	// return FALSE.
 
 	DoSort = FALSE;
-	Order[0] = OrderCalc[0] = 0;
+	Order[0] = OrderCalc[0] = OrderExp[0] = 0;
 	while ((vr = DDO->Pop()))
 		{
 		if(vr->Element == 0x0000)
@@ -1279,12 +1285,14 @@ BOOL	QueryOnStudy (
 				Order[vr->Length]=0;
 				if (strstr(Order, "Number")) 
                                 { Order[10]=0;
-                                  sprintf(OrderCalc, "(%s+0)", Order);
+                                  if (DB.db_type!=DT_POSTGRES) sprintf(OrderCalc, "(%s+0)", Order);
+				  else sprintf(OrderCalc, "CAST(%s AS integer)", Order);
                                 }
                                 else
 				{ Order[10]=0;
 			          strcpy(OrderCalc, Order);
 				}
+			        strcpy(OrderExp, OrderCalc);
 				delete vr;
 				continue;	// discard it
 				}
@@ -1418,7 +1426,7 @@ BOOL	QueryOnStudy (
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
-		strcat(ColumnString, Order);
+		strcat(ColumnString, OrderExp);
 		}
 	else if (StudyQuerySortOrder[0]) 
 		{
@@ -1620,6 +1628,7 @@ BOOL	QueryOnSeries (
 	BOOL				SendAE = FALSE;
 	char				Order[128];
 	char				OrderCalc[128];
+	char				OrderExp[128];
 	char				TempString [ 8192 ];
 	char				SearchString [ 8192 ];
 	char				ColumnString [ 4096 ];
@@ -1641,7 +1650,7 @@ BOOL	QueryOnSeries (
 	// the Patient/Study database.  If they are not, well, then we
 	// return FALSE.
 
-	Order[0] = OrderCalc[0] = 0;
+	Order[0] = OrderCalc[0] = OrderExp[0] = 0;
 	while ((vr = DDO->Pop()))
 		{
 		if(vr->Element == 0x0000)
@@ -1699,12 +1708,14 @@ BOOL	QueryOnSeries (
 				Order[vr->Length]=0;
 				if (strstr(Order, "Number")) 
                                 { Order[10]=0;
-                                  sprintf(OrderCalc, "(%s+0)", Order);
+                                  if (DB.db_type!=DT_POSTGRES) sprintf(OrderCalc, "(%s+0)", Order);
+				  else sprintf(OrderCalc, "CAST(%s AS integer)", Order);
                                 }
                                 else
 				{ Order[10]=0;
 			          strcpy(OrderCalc, Order);
 				}
+			        strcpy(OrderExp, OrderCalc);
 				delete vr;
 				continue;	// discard it
 				}
@@ -1855,7 +1866,7 @@ BOOL	QueryOnSeries (
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
-		strcat(ColumnString, Order);
+		strcat(ColumnString, OrderExp);
 		}
 	else if (SeriesQuerySortOrder[0]) 
 		{
@@ -2066,6 +2077,7 @@ BOOL	QueryOnImage (
 	char				*SearchString;
 	char				Order [ 128 ];
 	char				OrderCalc[128];
+	char				OrderExp[128];
 	char				ColumnString [ 4096 ];
 	char				Tables [ 256 ];
         char				*Sort=NULL;
@@ -2109,7 +2121,7 @@ BOOL	QueryOnImage (
         	}
 
 	SystemDebug.printf("Query On Image\n");
-	Order[0] = OrderCalc[0] = 0;
+	Order[0] = OrderCalc[0] = OrderExp[0] = 0;
 
 	while ((vr = DDO->Pop()))
 		{
@@ -2172,12 +2184,14 @@ BOOL	QueryOnImage (
 				Order[vr->Length]=0;
 				if (strstr(Order, "Number")) 
                                 { Order[10]=0;
-                                  sprintf(OrderCalc, "(%s+0)", Order);
+                                  if (DB.db_type!=DT_POSTGRES) sprintf(OrderCalc, "(%s+0)", Order);
+				  else sprintf(OrderCalc, "CAST(%s AS integer)", Order);
                                 }
                                 else
 				{ Order[10]=0;
 			          strcpy(OrderCalc, Order);
 				}
+			        strcpy(OrderExp, OrderCalc);
 				delete vr;
 				continue;	// discard it
 				}
@@ -2376,7 +2390,7 @@ BOOL	QueryOnImage (
 		{
 		if(CCIndex)
 			strcat(ColumnString, ", ");
-		strcat(ColumnString, Order);
+		strcat(ColumnString, OrderExp);
 		}
 	else if (ImageQuerySortOrder[0]) 
 		{

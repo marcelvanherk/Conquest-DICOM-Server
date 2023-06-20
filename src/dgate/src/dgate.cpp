@@ -1199,6 +1199,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20221016        mvh     Handle odd length return data from servercommand; and odd length upload
 			Note: dgate.dic must be updated to read the conquest items properly
 20221220        mvh     Added DelayIncomingFileOpen (ms) for incoming files to avoid reading partial
+20230612        mvh     Allow () for command in process by clause; by clause is tested for uniqueness
 
 ENDOFUPDATEHISTORY
 */
@@ -12143,6 +12144,12 @@ BOOL prefetchprocess(char *data, ExtendedPDU_Service *PDU, char *dum)
   if (memicmp(data+65, "submit2 ",     8)==0) DcmSubmitData (data, data+100, data+165, data+300, data+570, "other", data+366, 22, data+500, 0);
   if (memicmp(data+65, "process ",     8)==0) 
   { char *p = strchr(data+230, ' ');
+    if (!p) 
+    { p = strchr(data+230, '(');
+      *p = ' ';
+      char *q = strrchr(data+230, ')');
+      if (q) *q=0;
+    }
     if (p && memicmp(p-4, ".lua", 4)==0)
     { struct scriptdata sd1 = {PDU, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
       char script[512]; int i, n;
@@ -12222,7 +12229,7 @@ BOOL prefetch_queue(const char *operation, char *patientid, const char *server, 
   { strncpy(data+100, studyuid,  64);
     strncpy(data+165, seriesuid, 64);
     strncpy(data+230, server,   360);
-    return into_queue_unique(q, data, 230);
+    return into_queue_unique(q, data, 490);
   }
   else
   { strncpy(data+82,  server,    17);

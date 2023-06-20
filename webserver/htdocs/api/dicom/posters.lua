@@ -1,10 +1,12 @@
--- add and process a file stored in path (may be zip)
--- script has importconverter format e.g. start with lua: if needed
+-- mvh 20230620 fix for linux (/ vs \)
+
 function iowrite(a)
   if io then io.write(a)
   else write(a) end
 end
 
+-- add and process a file stored in path (may be zip)
+-- script has importconverter format e.g. start with lua: if needed
 function attachfile(path, script, ext)
   script = '[['..script..']]' -- allow ' and " in script
   ext = ext or ".dcm"
@@ -92,7 +94,7 @@ function startscript(script)
     return a
   ]]
   local fn = servercommand('lua:'..remotecode1);
-  local uid = '"' .. string.match(fn, '.+\\(.-)%.lua') .. '"'
+  local uid = '"' .. string.match(string.gsub(fn, '\\', '/'), '.+/(.-)%.lua') .. '"'
   iowrite(uid)
   servercommand('luastart:local filename=[['..fn..']];'..remotecode2, '<'..script);
 end
@@ -102,7 +104,7 @@ function readprogress(uid)
   local remotecode = 
     "local uid=[["..uid.."]];" .. [[
     local fn = tempfile('.lua')
-    local u1 = string.match(fn, '.+\\(.-)%.lua')
+    local u1 = string.match(string.gsub(fn, '\\', '/'), '.+/(.-)%.lua')
     local filename = string.gsub(fn, u1, uid)
     local f = io.open(filename, 'r')
     if f==nil then
@@ -122,7 +124,7 @@ function writeprogress(uid, val)
     "local uid=[["..uid.."]];" ..
     "local val="..val..";" .. [[
     local fn = tempfile('.lua')
-    local u1 = string.match(fn, '.+\\(.-)%.lua')
+    local u1 = string.match(string.gsub(fn, '\\', '/'), '.+/(.-)%.lua')
     local filename = string.gsub(fn, u1, uid)
     local f = io.open(filename, 'w')
     f:write(val)

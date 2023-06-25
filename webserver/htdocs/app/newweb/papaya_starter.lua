@@ -21,6 +21,7 @@
 -- mvh 20181213 server_name does not copy port; use relative link instead
 -- mvh 20181227 Use remotequery to limit contralize access to server 
 -- mvh 20180112 Fix to allow : in patientID
+-- mvh 20230625 Made all links relative
 
 local source = servercommand('get_param:MyACRNema')
 
@@ -146,7 +147,7 @@ local studyuid = getstudyuid(patientid, seriesuid)
 local images = queryimages(patientid, seriesuid)
 
 -- create the url root for the js array
-local urlRoot = script_name
+local urlRoot = '' -- script_name
 urlRoot = urlRoot .. '?requestType=WADO&contentType=application/dicom'
 urlRoot = urlRoot .. '&seriesUID=' .. seriesuid
 urlRoot = urlRoot .. '&studyUID=' .. studyuid

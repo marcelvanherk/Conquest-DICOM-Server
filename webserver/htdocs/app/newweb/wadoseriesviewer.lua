@@ -27,6 +27,7 @@
 -- 20220921   mvh   x=num and y=num parameters to show annotation
 -- 20221012   mvh   Added storeclick call on clicking
 -- 20221017   mvh   Only call storeclick when startslice is passed
+-- 20230625   mvh   Made all links relative
 
 -- default series information - this is here to allow debugging of the code usign ZeroBrane Studio, running from the server
 series2 = series2 or '0009703828:1.3.46.670589.5.2.10.2156913941.892665339.860724'
@@ -282,7 +283,6 @@ print([[
 var bridge = ']]..bridge..[[';
 var size = ]]..size..[[;
 var serverversion = ']]..serverversion..[[';
-var script_name = ']]..(script_name or '')..[[';
 var anonymizer = ']]..(anonymizer or '')..[[';
 var startslice = ]]..(startslice or -1)..[[;
 var annotationX = ]]..(annotationX or -1)..[[;
@@ -413,7 +413,7 @@ function load()
   
   var showText = (modality.substring(0, 2)=='RT' && modality!='RTDOSE' && modality!='RTIMAGE') || modality=='SR';
   if (!showText)
-  { document.images[0].src = script_name+'?requestType=WADO&contentType=image/jpeg'+
+  { document.images[0].src = '?requestType=WADO&contentType=image/jpeg'+
     bridge +
     '&studyUID='+studyuid +
     '&seriesUID='+seriesuid +
@@ -429,7 +429,7 @@ function load()
     if (annotationX>0 && slice==startslice) document.getElementById('annotation').style.display='inline-block';
   }
   else  
-  { document.getElementById("myframe").src   =  script_name+'?requestType=WADO&contentType=text/plain'+
+  { document.getElementById("myframe").src   =  '?requestType=WADO&contentType=text/plain'+
     bridge+
     '&studyUID='+studyuid +
     '&seriesUID='+seriesuid +
@@ -549,7 +549,7 @@ function myKeyFunction(a)
   else if (a.keyCode==33) slicer(1);
   else if (a.keyCode==34) slicer(-1);
   else if (ch=='Q')
-    PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='
+    PopupCenter('?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='
     +seriesuid+anonymizer+'&objectUID=' + document.getElementById("form"+seriesno).slicelister.value.split("|")[0], 'hoi', 700, 512);
 }
 
@@ -648,7 +648,7 @@ function clicker(a)
 	           ', y='+Math.round(((a.offsetY-256)/zoom+(pany*512)));
     document.getElementById('clickinformation').innerHTML=hint;
     if (startslice>=0)
-      readJSON(script_name+'?mode=start&parameter=storeclick&series='+patientid+':'+seriesuid+'&slice='+(slice+1)+
+      readJSON('?mode=start&parameter=storeclick&series='+patientid+':'+seriesuid+'&slice='+(slice+1)+
         '&x='+Math.round(((a.offsetX-256)/zoom+(panx*512)))+
         '&y='+Math.round(((a.offsetY-256)/zoom+(pany*512))));
   }
@@ -747,8 +747,8 @@ print([[
   <INPUT TYPE=BUTTON VALUE='>' onclick=slicer(1) onmousedown="inter=setInterval('slicer(1)', 100)" onmouseup=clearInterval(inter) onmouseout=clearInterval(inter)> Total slices: ]].. #images .. [[
   <INPUT TYPE=CHECKBOX VALUE=0 id=autosave onmouseover="active(9)" onclick="loadsettings();savesettings();">Auto save
 
-  <a href=# onclick="javascript:PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='+seriesuid+'&objectUID=' + document.forms[0].slicelister.value.split('|')[0], 'hoi', 700, 512)">[show header]</a>
-  <a href=# onclick="javascript:PopupCenter(script_name+'?mode=wadoviewerhelp', 'hoi', 700, 512)">[help]</a>
+  <a href=# onclick="javascript:PopupCenter('?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='+seriesuid+'&objectUID=' + document.forms[0].slicelister.value.split('|')[0], 'hoi', 700, 512)">[show header]</a>
+  <a href=# onclick="javascript:PopupCenter('?mode=wadoviewerhelp', 'hoi', 700, 512)">[help]</a>
   <br><i id=hint></i>
   <br><i id=clickinformation></i>
 

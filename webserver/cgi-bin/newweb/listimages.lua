@@ -7,6 +7,7 @@
 -- 20200127   mvh   List ImageID instead of PatientName; fix sort if no InstanceNumber
 -- 20200307   mvh   Avoid query with '***'
 -- 20201025   mvh   Standardised header
+-- 20230625   mvh   Made all links relative
 
 local query_pid = '';
 local query_pna = '';
@@ -148,7 +149,7 @@ print([[
 <script language=JavaScript>
 function servicecommand(a) {
   xmlhttp = new XMLHttpRequest(); 
-  xmlhttp.open('GET',']]..script_name..[[?mode=listpatients&parameter='+a, true);
+  xmlhttp.open('GET',']]..[[?mode=listpatients&parameter='+a, true);
   xmlhttp.timeout = 60000
   xmlhttp.send()
   xmlhttp.onreadystatechange = function() {
@@ -164,7 +165,7 @@ function servicecommand(a) {
 print([[
 <script language=JavaScript>
 function opencommand(a) {
-  window.open (']]..script_name..[[?mode=listpatients&parameter='+a);
+  window.open (']]..[[?mode=listpatients&parameter='+a);
 }  
 </script>
 ]])
@@ -297,15 +298,15 @@ for i=1,#pats do
 	
   local url_header
   local url_img
-  --url_header = '<A href="#" onClick="javascript:PopupCenter('.."'"..script_name
-  url_header = '<A href="#" onClick="javascript:getTextSync('.."'"..script_name
+  --url_header = '<A href="#" onClick="javascript:PopupCenter('.."'"
+  url_header = '<A href="#" onClick="javascript:getTextSync('.."'"
   url_header = url_header .. '?requestType=WADO&contentType=text/html'
   url_header = url_header .. '&seriesUID=' .. seriesUID
   url_header = url_header .. '&studyUID=' .. studyuid
   url_header = url_header .. '&objectUID=' .. oiuid
   url_header = url_header .. "&dum=.txt', 500, 500)"..'">'
 	
-  url_img = '<A href="#" onClick="javascript:PopupCenter('.."'"..script_name
+  url_img = '<A href="#" onClick="javascript:PopupCenter('.."'"
   url_img = url_img .. '?requestType=WADO&contentType=image/gif'
   url_img = url_img .. '&seriesUID=' .. seriesUID
   url_img = url_img .. '&studyUID=' .. studyuid

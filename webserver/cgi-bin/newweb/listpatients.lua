@@ -16,11 +16,10 @@
 -- 20200618   mvh   Fixed hardcoded CONQUESTSRV1 in 'deleter'
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20220830   mvh   Fix proposed patientID; included uids after |
+-- 20230625   mvh   Made all links relative
 
-webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
 version = version  or ''
-local ex = string.match(webscriptaddress, 'dgate(.*)')
-if not ex then ex='' else ex='dgate'..ex end
+
 local query_pid = '';
 local query_pna = '';
 local query_pst = '';
@@ -288,7 +287,7 @@ if CGI('parameter', '')=='viewerstudy' then
   local studyviewer=gpps('webdefaults', 'studyviewer', '');
   local compress=gpps('webdefaults', 'compress', '');
   local items= split(CGI('item'), '|')
-  local u = string.format("%s?level=Study&mode=%s&study=%s:%s&compress=%s", script_name, studyviewer, string.gsub(items[1], ' ', '+'),items[2],compress); 
+  local u = string.format("?level=Study&mode=%s&study=%s:%s&compress=%s", studyviewer, string.gsub(items[1], ' ', '+'),items[2],compress); 
   print([[<a href=# onclick="window.open(']]..u..[[', 'title', 'toolbar=no')">Open study viewer</a><br>]])
   print([[<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="window.open(']]..u..[[', 'title', 'toolbar=no');" />]])
   return
@@ -298,7 +297,7 @@ if CGI('parameter', '')=='viewerseries' then
   local viewer=gpps('webdefaults', 'viewer', '');
   local compress=gpps('webdefaults', 'compress', '');
   local items= split(CGI('item'), '|')
-  local u = string.format("%s?level=Series&mode=%s&series=%s:%s&compress=%s", script_name, viewer, string.gsub(items[1], ' ', '+'),items[3],compress); 
+  local u = string.format("?level=Series&mode=%s&series=%s:%s&compress=%s", viewer, string.gsub(items[1], ' ', '+'),items[3],compress); 
   print([[<a href=# onclick="window.open(']]..u..[[', 'title', 'toolbar=no')">Open series viewer</a><br>]])
   print([[<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="window.open(']]..u..[[', 'title', 'toolbar=no');" />]])
   return
@@ -348,7 +347,7 @@ print([[
 <script language=JavaScript>
 function servicecommand(a) {
   xmlhttp = new XMLHttpRequest(); 
-  xmlhttp.open('GET',']]..script_name..[[?mode=listpatients&parameter='+a, true);
+  xmlhttp.open('GET',']]..[[?mode=listpatients&parameter='+a, true);
   xmlhttp.timeout = 60000
   xmlhttp.send()
   xmlhttp.onreadystatechange = function() {
@@ -365,7 +364,7 @@ print([[
 <script language=JavaScript>
 function progressivecommand(a) {
   xmlhttp = new XMLHttpRequest(); 
-  xmlhttp.open('GET',']]..script_name..[[?mode=listpatients&parameter='+a, true);
+  xmlhttp.open('GET',']]..[[?mode=listpatients&parameter='+a, true);
   xmlhttp.timeout = 60000
   xmlhttp.send()
   xmlhttp.onreadystatechange = function() {
@@ -381,7 +380,7 @@ function progressivecommand(a) {
 print([[
 <script language=JavaScript>
 function opencommand(a) {
-  window.open (']]..script_name..[[?mode=listpatients&parameter='+a);
+  window.open (']]..[[?mode=listpatients&parameter='+a);
 }  
 </script>
 ]])
@@ -467,7 +466,7 @@ function dropdown(i, item)
 end
 
 for i=1,#pats do
-  t = string.format("<A HREF=%s?%s&mode=liststudies&key=%s&query=patientid+=+'%s' title='Click to see studies'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].PatientID));
+  t = string.format("<A HREF=?%s&mode=liststudies&key=%s&query=patientid+=+'%s' title='Click to see studies'>%s</A>", '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].PatientID));
   s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,mc(pats[i].PatientName),mc(pats[i].PatientSex),mc(pats[i].PatientBirthDate), dropdown(i, pats[i].PatientID));
   print(s)
 end

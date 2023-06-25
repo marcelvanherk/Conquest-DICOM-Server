@@ -12,18 +12,15 @@
 -- 20201025   mvh   Standardised header
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20220830   mvh   Add serieslink to add e.g. wadoseriesviewer
+-- 20230625   mvh   Made all links relative; enable default viewer link
 
-webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
-local ex = string.match(webscriptaddress, 'dgate(.*)')
-if not ex then ex='' else ex='dgate'..ex end
 local query_pid = '';
 local query_pna = '';
 local query_pst = '';
 local query_sta = '';
 
 local viewer=gpps('webdefaults', 'viewer', '');
-local serieslink=gpps('webdefaults', 'serieslink', '');
--- serieslink='<TD><A target="_blank" href=/app/newweb/?mode=wadoseriesviewer&series={PatientID}:{SeriesInstanceUID}>View</A>'
+local serieslink=gpps('webdefaults', 'serieslink', '<TD><A target="_blank" href=/app/newweb/?mode=wadoseriesviewer&series={PatientID}:{SeriesInstanceUID}>View</A>');
  
 function InitializeVar()
  if (CGI('patientidmatch') ~='' and CGI('patientidmatch') ~='*') then
@@ -146,7 +143,7 @@ print([[
 <script language=JavaScript>
 function servicecommand(a) {
   xmlhttp = new XMLHttpRequest(); 
-  xmlhttp.open('GET',']]..script_name..[[?mode=listpatients&parameter='+a, true);
+  xmlhttp.open('GET',']]..[[?mode=listpatients&parameter='+a, true);
   xmlhttp.timeout = 60000
   xmlhttp.send()
   xmlhttp.onreadystatechange = function() {
@@ -162,7 +159,7 @@ function servicecommand(a) {
 print([[
 <script language=JavaScript>
 function opencommand(a) {
-  window.open (']]..script_name..[[?mode=listpatients&parameter='+a);
+  window.open (']]..[[?mode=listpatients&parameter='+a);
 }  
 </script>
 ]])
@@ -242,10 +239,10 @@ HTML("<Caption>List of series (%s) on local server</caption>", #pats);
 HTML("<TR><TD>Patient ID<TD>Name<TD>Series date<TD>Series time<TD>Series description<TD>Modality<TD>Thumbs<TD>Menu%s</TR>",linkheader);
 	
 for i=1,#pats do
-  local t = string.format("<A HREF=%s?%s&mode=listimages&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s' title='Click to see images'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),mc(pats[i].PatientID))
+  local t = string.format("<A HREF=?%s&mode=listimages&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s' title='Click to see images'>%s</A>", '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),mc(pats[i].PatientID))
   
-  local v = string.format("<A HREF=%s?%s&mode=listimageswiththumbs&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s'&size=%s>Thumbs</A>", 
-       ex, '', string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size)
+  local v = string.format("<A HREF=?%s&mode=listimageswiththumbs&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s'&size=%s>Thumbs</A>", 
+       '', string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),size)
        
   local link = serieslink
   link = string.gsub(link, '{SeriesInstanceUID}', pats[i].SeriesInstanceUID)

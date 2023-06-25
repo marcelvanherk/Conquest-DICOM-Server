@@ -1,9 +1,7 @@
 -- mvh 20160124: Created
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
+-- 20230625   mvh   Made all links relative
 
-webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
-local ex = string.match(webscriptaddress, 'dgate(.*)')
-if not ex then ex='' else ex='dgate'..ex end
 local query_pid = '';
 local query_pna = '';
 local query_pst = '';
@@ -174,8 +172,8 @@ HTML("<caption>list of subjects (%s) on anonymization system</caption>", #trials
 print("<tr><td>Subject id<td>#studies<td>#series<td>#objects</tr>"); 
 
 for i=1,#trials do
-  t = string.format("<a href=%s?%s&mode=wadostudyviewer&study=%s:&anonymize=%s|%s title='click to see trial patients'>%s</a>", 
-				  ex, '', changeuidback_(trials[i],CGI('trial'), 'PatientID'), trials[i],CGI('trial'),trials[i]);
+  t = string.format("<a href=?%s&mode=wadostudyviewer&study=%s:&anonymize=%s|%s title='click to see trial patients'>%s</a>", 
+				  '', changeuidback_(trials[i],CGI('trial'), 'PatientID'), trials[i],CGI('trial'),trials[i]);
   s = string.format("<tr><td>%s<td>%s<td>%s<td>%s</tr>",t,counttrialstudies(trials[i],CGI('trial')),counttrialseries(trials[i],CGI('trial')),counttrialobjects(trials[i],CGI('trial')));
   print(s)
 end 

@@ -11,18 +11,15 @@
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20220830   mvh   Add studylink to add e.g. ohif (example commented out)
 -- 20220905   mvh   Fix display of ModalitiesInStudy
+-- 20230625   mvh   Made all links relative; enable default ohif link
 
-webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
-local ex = string.match(webscriptaddress, 'dgate(.*)')
-if not ex then ex='' else ex='dgate'..ex end
 local query_pid = '';
 local query_pna = '';
 local query_pst = '';
 local query_sta = '';
 
 local studyviewer=gpps('webdefaults', 'studyviewer', '');
-local studylink=gpps('webdefaults', 'studylink', '');
---studylink='<TD><A target="_blank" href=/app/ohif/viewer/{StudyInstanceUID}>Ohif</A>'
+local studylink=gpps('webdefaults', 'studylink', '<TD><A target="_blank" href=/app/ohif/viewer/{StudyInstanceUID}>Ohif</A>');
 
 function mycomp(a,b)
     if a.PatientName == nil and b.PatientName == nil then
@@ -151,7 +148,7 @@ print([[
 <script language=JavaScript>
 function servicecommand(a) {
   xmlhttp = new XMLHttpRequest(); 
-  xmlhttp.open('GET',']]..script_name..[[?mode=listpatients&parameter='+a, true);
+  xmlhttp.open('GET',']]..[[?mode=listpatients&parameter='+a, true);
   xmlhttp.timeout = 60000
   xmlhttp.send()
   xmlhttp.onreadystatechange = function() {
@@ -167,7 +164,7 @@ function servicecommand(a) {
 print([[
 <script language=JavaScript>
 function opencommand(a) {
-  window.open (']]..script_name..[[?mode=listpatients&parameter='+a);
+  window.open (']]..[[?mode=listpatients&parameter='+a);
 }  
 </script>
 ]])
@@ -255,7 +252,7 @@ if studylink~='' then linkheader='<TD>' end
 HTML("<TR><TD>Patient ID<TD>Name<TD>Study Date<TD>Study description<TD>Study modality<TD>Menu%s</TR>", linkheader)
 
 for i=1,#pats do
-  local t = string.format("<A HREF=%s?%s&mode=listseries&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.studyinsta+=+'%s' title='Click to see series'>%s</A>", ex, '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),mc(pats[i].PatientID))
+  local t = string.format("<A HREF=?%s&mode=listseries&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.studyinsta+=+'%s' title='Click to see series'>%s</A>", '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),mc(pats[i].PatientID))
   
   local link = studylink
   link = string.gsub(link, '{StudyInstanceUID}', pats[i].StudyInstanceUID)

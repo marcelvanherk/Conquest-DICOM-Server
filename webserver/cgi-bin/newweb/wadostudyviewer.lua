@@ -11,6 +11,7 @@
 -- 20180112   mvh   Fix to allow : in patientID
 -- 20200113   mvh   Allow 0 records
 -- 20220830   mvh   Renamed dropdown to slicelister; sync its position with slice
+-- 20230625   mvh   Made all links relative
 
 -- defaults to allow debugging in zbs
 study2 = study2 or 'EG2005:'
@@ -195,7 +196,6 @@ print([[
 <script>
 var size = ]]..size..[[;
 var serverversion = ']]..serverversion..[[';
-var script_name = ']]..(script_name or '')..[[';
 var anonymizer = ']]..(anonymizer or '')..[[';
 ]])
 
@@ -323,7 +323,7 @@ function load()
   
   var showText = (modality.substring(0, 2)=='RT' && modality!='RTDOSE' && modality!='RTIMAGE') || modality=='SR';
   if (!showText)
-  { document.images[0].src = script_name+'?requestType=WADO&contentType=image/jpeg'+
+  { document.images[0].src = '?requestType=WADO&contentType=image/jpeg'+
     bridge +
     '&studyUID='+studyuid +
     '&seriesUID='+seriesuid +
@@ -337,7 +337,7 @@ function load()
     document.images[0].style.display='block';
   }
   else  
-  { document.getElementById("myframe").src   = script_name+'?requestType=WADO&contentType=text/plain'+
+  { document.getElementById("myframe").src   = '?requestType=WADO&contentType=text/plain'+
     bridge+
     '&studyUID='+studyuid +
     '&seriesUID='+seriesuid +
@@ -457,7 +457,7 @@ function myKeyFunction(a)
   else if (a.keyCode==33) slicer(1);
   else if (a.keyCode==34) slicer(-1);
   else if (ch=='Q')
-    PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='
+    PopupCenter('?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='
     +seriesuid+anonymizer+'&objectUID=' + document.getElementById("form"+seriesno).slicelister.value.split("|")[0], 'hoi', 700, 512);
 }
 
@@ -700,8 +700,8 @@ for i=1,#pats do
     <INPUT TYPE=HIDDEN VALUE=]]..windowcenter..[[ id=defwindowcenter]]..i..[[>
     <INPUT TYPE=HIDDEN VALUE=]]..windowwidth..[[ id=defwindowwidth]]..i..[[>
 
-    <a href=# onclick="javascript:PopupCenter(script_name+'?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='+seriesuid+anonymizer+'&objectUID='+document.getElementById('form'+seriesno).slicelister.value.split('|')[0], 'hoi', 700, 512)">[show header]</a>
-    <a href=# onclick="javascript:PopupCenter(script_name+'?mode=wadoviewerhelp', 'hoi', 700, 512)">[help]</a>
+    <a href=# onclick="javascript:PopupCenter('?requestType=WADO'+bridge+'&contentType=text/plain&studyUID='+studyuid+'&seriesUID='+seriesuid+anonymizer+'&objectUID='+document.getElementById('form'+seriesno).slicelister.value.split('|')[0], 'hoi', 700, 512)">[show header]</a>
+    <a href=# onclick="javascript:PopupCenter('?mode=wadoviewerhelp', 'hoi', 700, 512)">[help]</a>
     </FORM>
   ]])
 end

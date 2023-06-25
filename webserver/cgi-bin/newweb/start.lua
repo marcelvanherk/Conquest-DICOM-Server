@@ -49,10 +49,8 @@
 -- mvh 20220831: Avoid overflow - don't use print() in downloadtable
 -- mvh 20221012: storeclick stores link in clicks.txt
 -- mvh 20230605: readOnly disables upload methods and post
+-- mvh 20230625: Made all links relative
 
-webscriptaddress = webscriptaddress or webscriptadress or 'dgate.exe'
-local ex = string.match(webscriptaddress, 'dgate(.*)')
-if not ex then ex='' else ex='dgate'..ex end
 local readOnly = gpps('webdefaults', 'readOnly', '0')~='0'
 
 function tempfile()
@@ -684,7 +682,7 @@ HTML("<HR>");
 HTML("<table>");
 key=''  	
 HTML("<tr>");
-HTML("<FORM ACTION=\"%s\"   onSubmit=\"if (this.patientnamematch.value == '' && this.patientidmatch.value == '') {alert('Please, fill the entry fields');return false;}\">", ex);
+HTML("<FORM ACTION=\"\"   onSubmit=\"if (this.patientnamematch.value == '' && this.patientidmatch.value == '') {alert('Please, fill the entry fields');return false;}\">");
 HTML("<INPUT NAME=mode    TYPE=HIDDEN VALUE=listpatients>");
 HTML("<INPUT NAME=key     TYPE=HIDDEN VALUE=%s>", key);
 HTML("<td>Local Patient List");
@@ -696,7 +694,7 @@ HTML("</FORM>");
 HTML("</tr>");	
 
 HTML("<tr>");
-HTML("<FORM ACTION=\"%s\" onSubmit=\"if (this.patientnamematch.value == '' && this.patientidmatch.value == '' && this.studydatematch.value == '') {alert('Please, fill the entry fields');return false;}\">", ex);
+HTML("<FORM ACTION=\"\" onSubmit=\"if (this.patientnamematch.value == '' && this.patientidmatch.value == '' && this.studydatematch.value == '') {alert('Please, fill the entry fields');return false;}\">");
 HTML("<INPUT NAME=mode    TYPE=HIDDEN VALUE=liststudies>");
 HTML("<INPUT NAME=key     TYPE=HIDDEN VALUE=%s>", key);
 HTML("<td>Local Studies List");
@@ -713,7 +711,7 @@ HTML("</tr>");
 
 if counttrials()>0 then
   HTML("<tr>");
-  HTML("<FORM ACTION=\"%s\">", ex);
+  HTML("<FORM ACTION=\"\">");
   HTML("<INPUT NAME=mode    TYPE=HIDDEN VALUE=listtrials>");
   HTML("<INPUT NAME=key     TYPE=HIDDEN VALUE=%s>", key);
   HTML("<td>Local Trial List");
@@ -728,7 +726,7 @@ end
 HTML("</table>");
 
 if not readOnly then
-  HTML("<FORM ID=upx ACTION=\"%s\" METHOD=POST ENCTYPE=\"multipart/form-data\">", ex);
+  HTML("<FORM ID=upx ACTION=\"\" METHOD=POST ENCTYPE=\"multipart/form-data\">");
   HTML("<INPUT NAME=mode      TYPE=HIDDEN VALUE=start>");
   HTML("<INPUT NAME=parameter TYPE=HIDDEN VALUE=uploadfile>");
   HTML("<INPUT NAME=script    TYPE=HIDDEN VALUE=servercommand('addimagefile:'..filename)>");

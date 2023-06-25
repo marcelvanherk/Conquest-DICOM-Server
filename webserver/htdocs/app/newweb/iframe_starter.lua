@@ -1,6 +1,7 @@
 -- mvh 20181130 Created from wadostudyviewer.lua
 -- mvh 20181227 Use remotequery to limit contralize access to server 
 -- mvh 20180112 Fix to allow : in patientID
+-- mvh 20230625 Made all links relative
 
 -- defaults to allow debugging in zbs
 study2 = study2 or 'EG2005:'
@@ -155,7 +156,6 @@ print([[
 <script>
 var size = ]]..size..[[;
 var serverversion = ']]..serverversion..[[';
-var script_name = ']]..(script_name or '')..[[';
 var anonymizer = ']]..(anonymizer or '')..[[';
 var patid = ']]..(patid or '')..[[';
 </script>
@@ -198,7 +198,7 @@ function loadseries()
 
   document.getElementById("A"+seriesno).innerHTML = "---->";
 
-  document.getElementById("myframe").src   = script_name+'?mode=wadoseriesviewer'+
+  document.getElementById("myframe").src   = '?mode=wadoseriesviewer'+
   '&series='+patid+':'+seriesuid;
 }
 

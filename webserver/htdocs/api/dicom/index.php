@@ -225,6 +225,7 @@ EOD;
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/move$', function ($st,$se) {
        include 'qido.php';
        $script = CGI('script', '');
+       $target = CGI('target', '');
        move(null,$target,$st,$se,'',$script);
     });
 
@@ -232,6 +233,7 @@ EOD;
     $router->get('/rs/studies/([0-9%.]+)/move$', function ($st) {
        include 'qido.php';
        $script = CGI('script', '');
+       $target = CGI('target', '');
        move(null,$target,$st,'','',$script);
     });
 

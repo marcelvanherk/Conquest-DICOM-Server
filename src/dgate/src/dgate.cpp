@@ -1200,11 +1200,13 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			Note: dgate.dic must be updated to read the conquest items properly
 20221220        mvh     Added DelayIncomingFileOpen (ms) for incoming files to avoid reading partial
 20230612        mvh     Allow () for command in process by clause; by clause is tested for uniqueness
+20230701        mvh     Pass ConnectedIP as argument to make it thread safe
+20230701        mvh     ---- RELEASE 1.5.0d -----
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0c"
+#define DGATE_VERSION "1.5.0d"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -14372,9 +14374,9 @@ SetString(VR	*vr, char	*s, int	Max)
 class	DriverApp
 	{
 	public:
-		virtual	BOOL	ServerChild ( int ) = 0;
+		virtual	BOOL	ServerChild ( int, unsigned int ) = 0;
 	public:
-		BOOL		ServerChildThread ( int );
+		BOOL		ServerChildThread ( int, unsigned int);
 		BOOL		Server ( BYTE * );
 		int		ChildSocketfd;
 		volatile int	Lock;
@@ -14799,7 +14801,7 @@ class	StorageApp	:
 
 		//MyModalityWorkListQuery			SOPModalityWorkListQuery;
 	public:
-		BOOL	ServerChild ( int );
+		BOOL	ServerChild ( int, unsigned int );
 		void FailSafeStorage(CheckedPDU_Service *PDU);
 		BOOL PrinterSupport( ExtendedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *PrintData[], int Thread, char *lua);
 		BOOL StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject **CommitData);
@@ -19340,10 +19342,10 @@ BOOL	DriverApp	::	Server ( BYTE	*port )
 	return ( FALSE );
 	}
 
-BOOL	DriverApp	::	ServerChildThread ( int	Socketfd )
+BOOL	DriverApp	::	ServerChildThread ( int	Socketfd, unsigned int ConnectedIP )
 	{
 	//ExitThread ( (int) ServerChild ( Socketfd ) );
-	ServerChild( Socketfd );
+	ServerChild( Socketfd, ConnectedIP );
 	return ( FALSE );
 	}
 
@@ -19359,16 +19361,18 @@ ThreadRoutineType DriverHelper(void *theApp)
 	DriverApp *App = (DriverApp *)theApp;
 #endif
 	int	Socketfd;
+	unsigned int	ConnectedIP;
 
 	// pick up data from passed-in object
 
 	Socketfd = App->ChildSocketfd;
+	ConnectedIP = App->ConnectedIP;
 
 	// release lock on data
 
 	App->Lock = 0;
 
-	App->ServerChildThread ( Socketfd );
+	App->ServerChildThread ( Socketfd, ConnectedIP );
 	// we never technically get here
 	// LJ: in M$VC-debug, we actually do get here, and a crash follows (at least when
 	// ODBC is used)
@@ -23359,7 +23363,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		}
 	}
 
-BOOL StorageApp	::	ServerChild (int theArg )
+BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 	{
 	ExtendedPDU_Service	PDU ( SOPClassFile );
 	DICOMCommandObject	DCO;
@@ -24546,7 +24550,7 @@ main ( int	argc, char	*argv[] )
 	TimeString1[strlen(TimeString1)-1] = '\0';
 	OperatorConsole.printf("UPACS: %s: STARTED AT: %s\n", argv[1],  TimeString1);
 
-	ServerApp.ServerChild(Socketfd);
+	ServerApp.ServerChild(Socketfd, 0);
 
 	TimeOfDay2 = time(NULL);
 	strcpy(TimeString1, ctime_r(&TimeOfDay2, buf));

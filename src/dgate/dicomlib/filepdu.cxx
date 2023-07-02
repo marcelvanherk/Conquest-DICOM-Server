@@ -15,7 +15,7 @@
 20100726	mvh	Merged
 20100823	mvh	Merged small comment fix
 20130508        lsp     Fixed problem in SaveDicomDataObject() indicated by Klocwork
-20220824    	mvh	Added LoadDICOMDataObjectTrunc
+20220824    	mvh	Added LoadDICOMDataObjectTrunc (WIP)
 */
 
 /****************************************************************************

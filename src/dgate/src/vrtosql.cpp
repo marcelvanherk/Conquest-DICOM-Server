@@ -81,7 +81,7 @@
 20220815        mvh     Implemented sorting for all queries except Modality, properly sort on Number fields
 20220817        mvh     Private tags for query limit (9999,0c01) and offset (9999,0c02), report sorting
 20220820        mvh     Overhaul of sorting code
-20220620        mvh     Fix sorting code for PostGres; use CAST and pass expression to columnstring through OrderExp
+20230620        mvh     Fix sorting code for PostGres; use CAST and pass expression to columnstring through OrderExp
 */
 
 #ifndef	WHEDGE

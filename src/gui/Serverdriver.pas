@@ -693,6 +693,7 @@ When            Who     What
 20221031        mvh     Enable jpeg on startup to sync with checkbox
 20230607        mvh     Update version number
 20230620        mvh     Set UTF8FromDB and UTF8ToDB for postgres
+20230701        mvh     1.5.0d release
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -729,7 +730,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0d';
-const BUILDDATE = '20230631';
+const BUILDDATE = '20230701';
 const testmode = 0;
 
 {************************************************************************}

@@ -2,6 +2,7 @@
 -- 20220911 mvh made compatible with Ladle web server
 -- 20220919 mvh only provide rquery; used for all queries; 
 -- 20221017 mvh added remotemove, remotezip, remotemodalities
+-- 20230808 mvh added \r\n before boundary - missed by weasis loader
 
 function iowrite(a)
   if io then io.write(a)
@@ -73,7 +74,7 @@ function getinstances(ae, bd, st, se, sop)
     f:write(g:read('*a'))
     g:close()
   end
-  f:write("--"..bd.."--\r\n\r\n")
+  f:write("\r\n--"..bd.."--\r\n\r\n")
   f:close()
   os.remove(t)
   returnfile=s

@@ -35,6 +35,7 @@
 -- mvh 20221018 Added wasm; fix post without filename; added unlink writefile tempfile to env
 -- mvh 20221018 Fixed STOW (needs multipart/related); writefile must be binary
 -- mvh 20221022 Replaced some \n outputs by \r\n (tripped Quirt HTTP_GET module)
+-- mvh 20230809 Fixed default webroot for Linux
 
 -----------------------------------------------------
 
@@ -615,7 +616,7 @@ else
 	config = {
 	["hostname"] = "*",
 	["port"] = 8086,
-	["webroot"] = (servercommand('lua:return Global.BaseDir') or '../')..[[webserver/htdocs/app/newweb/]],
+	["webroot"] = (servercommand('lua:return Global.BaseDir') or '../')..[[webserver/htdocs/]],
   }
 end
 

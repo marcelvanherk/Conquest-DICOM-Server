@@ -7,9 +7,9 @@ sudo ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so.0 /usr/lib/x86_64-linux-gnu/li
 #sudo a2enmod cgi
 sudo a2enmod rewrite
 sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
-sed -i 's/memory_limit = 128M/memory_limit = 512M/g' /etc/php/7.4/apache2/php.ini
-sed -i 's/upload_max_filesize = 2M/upload_max_filesize = 250M/g' /etc/php/7.4/apache2/php.ini
-sed -i 's/post_max_size = 8M/post_max_size = 250M/g' /etc/php/7.4/apache2/php.ini
+sed -i 's/memory_limit = 128M/memory_limit = 512M/g' /etc/php/8.1/apache2/php.ini
+sed -i 's/upload_max_filesize = 2M/upload_max_filesize = 250M/g' /etc/php/8.1/apache2/php.ini
+sed -i 's/post_max_size = 8M/post_max_size = 250M/g' /etc/php/8.1/apache2/php.ini
 sudo systemctl restart apache2
 
 git clone https://github.com/marcelvanherk/Conquest-DICOM-Server

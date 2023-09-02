@@ -1202,6 +1202,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20230612        mvh     Allow () for command in process by clause; by clause is tested for uniqueness
 20230701        mvh     Pass ConnectedIP as argument to make it thread safe
 20230701        mvh     ---- RELEASE 1.5.0d -----
+20230814        mvh     Fix luadicomread if no SOPInstanceUID was passed
+20230830        mvh     Remove temporary file in "process with"
 
 ENDOFUPDATEHISTORY
 */
@@ -6718,6 +6720,11 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       Array < DICOMDataObject * > *A = new Array < DICOMDataObject * >;
       if (O) 
       { DICOMDataObject *P = MakeCopy(O);
+        if (!P->GetVR(0x0008, 0x0018)) 
+        { VR *vr;
+	  SetStringVR(&vr, 0x0008, 0x0018, ""); 
+	  P->Push(vr);
+	}
         VirtualQuery(P, "IMAGE", 0, A, (char *)MYACRNEMA);
         delete P;
         int N = A->GetSize();
@@ -10311,6 +10318,7 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
       { DDO->Push(pVR);
       }
       delete DO2;
+      unlink(tempfile);
     }
 
     /* converter: tomono */

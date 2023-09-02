@@ -17,6 +17,7 @@
 # mvh 20200311 Lost mariadb change, use mariadb and mysql include folders for ubuntu14 compatibility
 # mvh 20220827 Better warning, add linux scripts
 # mvh 20220829 Compile servertask here and copy to web
+# mvh 20230902 Create printer_files folder here such that is does not belong to root
 
 export CONQUEST=$(pwd)
 export CONQUESTTEMP=$CONQUEST/temp
@@ -151,6 +152,7 @@ then
 	
 	[ ! -d data/dbase ] && mkdir data/dbase
 	[ ! -d data/incoming ] && mkdir data/incoming
+	[ ! -d data/printer_files ] && mkdir data/printer_files
 	
 	chmod 777 linux/console.sh
 	chmod 777 linux/webviewer.sh	

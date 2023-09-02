@@ -11,9 +11,10 @@
 # mvh 20200215 For 1.5.0beta2; Added Wno-format-overflow
 # mvh 20200216 For 1.5.0beta3; Use external lua
 # mvh 20200308 For 1.5.0; Precompiled dgate as fallback, conquest.service
+# mvh 20230902 For 1.5.0d; Use php web interface
 
 SRC=../src/dgate;
-CGI=/usr/lib/cgi-bin; # /var/www/cgi-bin for Fedora
+WWW=/var/www/html; # /var/www/cgi-bin for Fedora
 export CONQUEST=$(cd ..;pwd)
 export CONQUESTTEMP=$CONQUEST/temp
 [ ! -d $CONQUESTTEMP ] && mkdir $CONQUESTTEMP
@@ -41,21 +42,23 @@ cp ../lua/anonymize_script.lua lua
 
 cp ../linux/dgate ./dgatesmall;
 # gcc -o -c $SRC/lua_5.1.5/all.c -I$SRC/lua_5.1.5 -DLUA_USE_DLOPEN -DLUA_USE_POSIX;
-g++ -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DNOINTJPEG -Wno-write-strings -o dgatesmall -I$SRC/src $SRC/src/total.cpp -lpthread -ldl -llua5.1 -I$SRC/dicomlib -I$SRC/lua_5.1.5 -Wno-multichar -Wno-format-overflow;
+g++ -w -std=c++11 -DUNIX -DNATIVE_ENDIAN=1 -DNOINTJPEG -Wno-write-strings -o dgatesmall -I$SRC/src $SRC/src/total.cpp -lpthread -ldl -llua5.1 -I$SRC/dicomlib -I$SRC/lua_5.1.5 -Wno-multichar -Wno-format-overflow;
 
 chmod 777 $SRC/jpeg-6c/configure;
 chmod 777 dgatesmall;
 rm -f nohup.out;
 nohup ./dgatesmall -v &
 
-sudo mkdir -p $CGI/service;
-sudo chmod 777 $CGI/service;
-sudo cp dgatesmall $CGI/service/dgate;
-sudo cp service.lua $CGI/service;
-sudo cp ../dgate.dic $CGI/service;
-sudo cp dicom.ini $CGI/service;
+sudo mkdir -p $WWW/app;
+sudo mkdir -p $WWW/app/service;
+sudo chmod 777 $WWW/app/service;
+sudo cp dgatesmall $WWW/app/service/dgate;
+sudo cp service.lua $WWW/app/service;
+sudo cp ../dgate.dic $WWW/app/service;
+sudo cp dicom.ini $WWW/app/service;
+sudo cp dgate.php $WWW/app/service;
+sudo cp index.php $WWW/app/service;
+sudo cp config.php $WWW/app/service;
+sudo cp .htaccess $WWW/app/service;
 
-sudo mkdir -p $CGI/newweb;
-sudo chmod 777 $CGI/newweb;
-
-sensible-browser http://localhost/cgi-bin/service/dgate?temp=$CONQUESTTEMP;
+sensible-browser http://localhost/app/service/?temp=$CONQUESTTEMP;

@@ -57,6 +57,7 @@
 -- 20230822 Added conf parameter to reduce reliance on CGI, fix compiledgate_all for windows
 -- 20230901 Simplify server detection and no longer relies on script_name (is php now)
 -- 20230902 Fix service command for app/service and continue even if web folder not found
+-- 20230903 Fix test on web folder
 
 local server = 'unknown'
 local sep, dsep = '\\', '\\\\'
@@ -2132,8 +2133,8 @@ returntowelcome = function() {
     return
   end
   if write==nil and script_name~=nil then
-    if not fileexists(cgiweb..'app'..sep..'service'..sep..'dgate.dic') then
-      errorpage('web folder not found: ' .. cgiweb .. 'service'..sep..'dgate.dic')
+    if not fileexists(htmlweb..'app'..sep..'service'..sep..'dgate.dic') then
+      errorpage('web folder not found: ' .. htmlweb .. 'app' .. sep..'service'..sep..'dgate.dic')
       --return
     end
   end

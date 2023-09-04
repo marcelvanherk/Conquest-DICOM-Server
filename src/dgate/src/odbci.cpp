@@ -183,6 +183,7 @@
 20210509   mvh    Reduce ODBC retries to 6 times
 20220817   mvh    Allow LIMIT and OFFSET to be added to the Sort parameter; some postprocessing for SQL server done; () rule for multiple sort was wrong
 20230609   mvh    Added retry on SQLITE_LOCKED
+20230904   mvh    Protect PQsetdbLogin with its own critical section - fixes crash if opening two dbs at once
 */
 
 /*
@@ -2555,6 +2556,7 @@ extern	char	ConfigFile[];
  _PQfinish               __PQfinish=NULL;            
  _PQstatus               __PQstatus=NULL;            
  _PQsetdbLogin           __PQsetdbLogin=NULL;        
+ _PQconnectdb            __PQconnectdb=NULL;        
  _PQclear                __PQclear=NULL;             
  _PQexec                 __PQexec=NULL;              
  _PQresultStatus         __PQresultStatus=NULL;      
@@ -2578,6 +2580,7 @@ extern	char	ConfigFile[];
     { PQfinish = (_PQfinish)GetProcAddress(hInst, "PQfinish");
       PQstatus = (_PQstatus)GetProcAddress(hInst, "PQstatus");
       PQsetdbLogin = (_PQsetdbLogin)GetProcAddress(hInst, "PQsetdbLogin");
+      PQconnectdb = (_PQconnectdb)GetProcAddress(hInst, "PQconnectdb");
       PQclear = (_PQclear)GetProcAddress(hInst, "PQclear");
       PQexec = (_PQexec)GetProcAddress(hInst, "PQexec");
       PQresultStatus = (_PQresultStatus)GetProcAddress(hInst, "PQresultStatus");
@@ -2590,13 +2593,13 @@ extern	char	ConfigFile[];
       PQerrorMessage = (_PQerrorMessage)GetProcAddress(hInst, "PQerrorMessage");
       PQresultErrorField = (_PQresultErrorField)GetProcAddress(hInst, "PQresultErrorField");
 
-      if (!PQfinish || !PQstatus || !PQsetdbLogin || !PQclear || !PQexec || !PQresultStatus || !PQntuples || !PQnfields || !PQfmod || !PQgetvalue || !PQgetlength || !PQresultErrorMessage || !PQerrorMessage || !PQresultErrorField)
-      { MessageBox(NULL, "*** Fatal error: libpq.dll for accessing postgres 8.x is not compatible", "dgate.exe", 0);
+      if (!PQconnectdb || !PQfinish || !PQstatus || !PQsetdbLogin || !PQclear || !PQexec || !PQresultStatus || !PQntuples || !PQnfields || !PQfmod || !PQgetvalue || !PQgetlength || !PQresultErrorMessage || !PQerrorMessage || !PQresultErrorField)
+      { MessageBox(NULL, "*** Fatal error: libpq.dll for accessing postgres is not compatible", "dgate.exe", 0);
         exit(999);
       }
     }
     else
-    { MessageBox(NULL, "*** Fatal error: could not load libpq.dll to access postgres8", "dgate.exe", 0);
+    { MessageBox(NULL, "*** Fatal error: could not load libpq.dll to access postgres", "dgate.exe", 0);
       exit(999);
     }
   }
@@ -3004,6 +3007,8 @@ Database :: ~Database()
 	}
 	
 struct dbase_header *copies[20];
+CRITICAL_SECTION c_Critical;
+BOOL  f_Critical=false;
 
 BOOL	Database :: Open (
 	const char	*lDataSource,  // Made locals.
@@ -3248,6 +3253,10 @@ BOOL	Database :: Open (
 	if (Postgres)
 	{	char *port = NULL;
 		char host[256], *p;
+		if (!f_Critical) 
+		{ f_Critical=true;
+		  InitializeCriticalSection(&c_Critical);
+		}
 
 		strcpy(host, DataHost);	// allows host:port syntax for Postgres
 		if(p=strchr(host, ':'))
@@ -3261,19 +3270,23 @@ BOOL	Database :: Open (
 			InitializeCriticalSection(&m_Critical);
 			return (TRUE);
 		}
+
+		EnterCriticalSection(&c_Critical);
 		conn = PQsetdbLogin(host,port,NULL,NULL,lDataSource,User,lPassword);
 		if (PQstatus(conn) == CONNECTION_BAD)
 		{	// retry once a bit later
 			delay(555);
 			conn = PQsetdbLogin(host,port,NULL,NULL,lDataSource,User,lPassword);
-			if (PQstatus(conn) == CONNECTION_BAD)
+		 	if (PQstatus(conn) == CONNECTION_BAD)
 				{
 				OperatorConsole.printf("*** %s\n",PQerrorMessage(conn));
 				PQfinish(conn);
 				conn = NULL;
+				LeaveCriticalSection(&c_Critical);
 				return (FALSE);
 				}
 		}
+		LeaveCriticalSection(&c_Critical);
 		Connected = TRUE;
 		InitializeCriticalSection(&m_Critical);
 		return (TRUE);

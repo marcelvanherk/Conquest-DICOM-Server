@@ -41,6 +41,7 @@
 20100717   mvh   Merged
 20110502   mvh   Added db:Exec
 20140629   mvh   Added access to last error functions for mysql and pqsql
+20230904   mvh   Updated for new postgres interface
 */
 
 
@@ -61,6 +62,7 @@
 #endif
 
 #ifdef POSTGRES
+#	define pg_int64 long long
 #	include "libpq-fe.h"
 #endif
 
@@ -135,6 +137,7 @@ typedef void (PGCALL *_PQfinish)(PGconn *conn);
 typedef ConnStatusType (PGCALL *_PQstatus)(const PGconn *conn);
 typedef PGconn *(PGCALL *_PQsetdbLogin)(const char *pghost, const char *pgport, const char *pgoptions, const char *pgtty,
 			 const char *dbName, const char *login, const char *pwd);
+typedef PGconn *(PGCALL *_PQconnectdb)(const char *pgconnect);
 typedef void (PGCALL *_PQclear)(PGresult *res);
 typedef PGresult *(PGCALL *_PQexec)(PGconn *conn, const char *query);
 typedef ExecStatusType (PGCALL *_PQresultStatus)(const PGresult *res);
@@ -151,6 +154,7 @@ typedef char *(PGCALL *_PQresultErrorField)(const PGresult *res, int fieldcode);
 extern _PQfinish               __PQfinish;            
 extern _PQstatus               __PQstatus;            
 extern _PQsetdbLogin           __PQsetdbLogin;        
+extern _PQconnectdb            __PQconnectdb;        
 extern _PQclear                __PQclear;             
 extern _PQexec                 __PQexec;              
 extern _PQresultStatus         __PQresultStatus;      
@@ -166,6 +170,7 @@ extern _PQresultErrorField     __PQresultErrorField;
 #define PQfinish              __PQfinish            
 #define PQstatus              __PQstatus            
 #define PQsetdbLogin          __PQsetdbLogin        
+#define PQconnectdb           __PQconnectdb        
 #define PQclear               __PQclear             
 #define PQexec                __PQexec              
 #define PQresultStatus        __PQresultStatus      

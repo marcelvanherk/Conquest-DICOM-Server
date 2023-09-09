@@ -58,6 +58,8 @@
 -- 20230901 Simplify server detection and no longer relies on script_name (is php now)
 -- 20230902 Fix service command for app/service and continue even if web folder not found
 -- 20230903 Fix test on web folder
+-- 20230909 Fixes in string processing in runLocal mode
+-- 20230909 Fixed passing port to dicom.ini
 
 local server = 'unknown'
 local sep, dsep = '\\', '\\\\'
@@ -126,6 +128,7 @@ end
 function create_server_file(f, s)
   if runLocal then
     f = io.open(f, [[wt]]); 
+    local s=string.gsub(s, '\n', '\r\n')
     f:write(s); 
     f:close()  
   else
@@ -139,7 +142,7 @@ function editfile(f, mask, value)
     local s=''
     for x in io.lines(f) do 
       x = string.gsub(x, mask, value)
-      s = s..x.."\\n" 
+      s = s..x.."\r\n" 
     end
     local h=io.open(f, [[wt]])
     if h then h:write(s) h:close() end
@@ -196,11 +199,13 @@ end
 function getfile(f, mask)
   if runLocal then
     local y
-    local h = io.open([['..f..']], [[rt]])
+    local h = io.open(f, [[rt]])
     if h then
       h:close()
-      for x in io.lines([['..f..']]) do
-        x = string.match(x, [['..mask..']])
+      for x in io.lines(f) do
+        x = string.gsub(x, '\n', '')
+        x = string.gsub(x, '\r', '')
+        x = string.match(x, mask)
         y = y or x
       end
     end
@@ -279,13 +284,13 @@ MicroPACS                = sscscp
 # Network configuration: server name and TCP/IP port#
 MyACRNema                = ]]..(conf.AE or CGI('AE', 'CONQUESTSRV1'))..[[
 
-TCPPort                  = ]]..(conf.port or CGI('PORT', '5678'))..[[
+TCPPort                  = ]]..(conf.PORT or CGI('PORT', '5678'))..[[
 
 
 # Host, database, username and password for database
 SQLHost                  = ]]..(conf.SH or CGI('SH', 'localhost'))..[[
 
-SQLServer                = ]]..(conf.SE or CGI('SE', server..'database.db3'))..[[
+SQLServer                = ]]..(conf.SE or CGI('SE', server..'data'..sep..'dbase'..sep..'conquest.db3'))..[[
 
 Username                 = ]]..(conf.SU or CGI('SU', 'conquest'))..[[
 
@@ -1680,31 +1685,38 @@ if CGI('xxx', 'xxx')~='xxx' then
   runLocal=true
   
   -- locate server folder and detect OS type
-  if not string.find(arg[1], '/') and runquiet('..\\install64\\dgate64.exe -w. "--dolua:print([[[OK] ]]..version)"')~='' then
-    print('[OK] 64 bits Windows')
-    sep = '\\' dsep = '\\\\'
-    dgate  = 'dgate64.exe'
-    cgiclient = 'dgate.exe'
-    local f=io.popen('cd'); server = f:read('*all') f:close() server=string.match(server, '(.*)\\.-$')..sep
-  elseif not string.find(arg[1], '/') and runquiet('..\\install32\\dgate.exe -w. "--dolua:print([[[OK] ]]..version)"')~='' then
-    print('[OK] 32 bits Windows')
-    sep = '\\' dsep = '\\\\'
-    dgate  = 'dgate.exe'
-    cgiclient = 'dgate.exe'
-    local f=io.popen('cd'); server = f:read('*all') f:close() server=string.match(server, '(.*)\\.-$')..sep
-  elseif runquiet('../install/dgatesmall -w. "--dolua:print([[[OK] ]]..version)"')~='' then
-    print('[OK] Linux')
+  if arg[5]==nil then
+    if not string.find(arg[1], '/') and runquiet('..\\install64\\dgate64.exe -w. "--dolua:print([[[OK] ]]..version)"')~='' then
+      print('[OK] 64 bits Windows')
+      sep = '\\' dsep = '\\\\'
+      dgate  = 'dgate64.exe'
+      cgiclient = 'dgate.exe'
+      local f=io.popen('cd'); server = f:read('*all') f:close() server=string.match(server, '(.*)\\.-$')..sep
+    elseif not string.find(arg[1], '/') and runquiet('..\\install32\\dgate.exe -w. "--dolua:print([[[OK] ]]..version)"')~='' then
+      print('[OK] 32 bits Windows')
+      sep = '\\' dsep = '\\\\'
+      dgate  = 'dgate.exe'
+      cgiclient = 'dgate.exe'
+      local f=io.popen('cd'); server = f:read('*all') f:close() server=string.match(server, '(.*)\\.-$')..sep
+    elseif runquiet('../install/dgatesmall -w. "--dolua:print([[[OK] ]]..version)"')~='' then
+      print('[OK] Linux')
+      sep = '/' dsep = '/'
+      dgate  = 'dgate'
+      cgiclient = 'dgate'
+      local f=io.popen('pwd'); server = f:read('*all') f:close() server=string.match(server, '(.*)%/.-$')..sep
+      if os.execute('../dgate -w. "--dolua:print([[[OK] ]]..version)"')==0 then
+        print('[OK] Linux dgate compiled')
+      else
+        print('[OK] Linux dgate NOT compiled')
+      end
+    else
+      --print('[ERROR] Unsupported OS or incomplete installation folder')
+    end
+  else
     sep = '/' dsep = '/'
     dgate  = 'dgate'
     cgiclient = 'dgate'
     local f=io.popen('pwd'); server = f:read('*all') f:close() server=string.match(server, '(.*)%/.-$')..sep
-    if os.execute('../dgate -w. "--dolua:print([[[OK] ]]..version)"')==0 then
-      print('[OK] Linux dgate compiled')
-    else
-      print('[OK] Linux dgate NOT compiled')
-    end
-  else
-    print('[ERROR] Unsupported OS or incomplete installation folder')
   end
   print('[OK] Server in '..server)
 
@@ -2227,7 +2239,7 @@ HTML("<option value=xx"..selected("xx", sel)..">Unknown</option>")
 HTML("</SELECT>")
 
 HTML("<td>SQL server<td><INPUT NAME=EditSQLServer TYPE=Text Size='50' VALUE=%s>", 
-getfile(server..'dicom.ini', 'SQLServer *= (.*)') or server..[[data]]..sep..[[conquest.db3]])
+getfile(server..'dicom.ini', 'SQLServer *= (.*)') or server..[[data]]..sep..[[dbase]]..sep..[[conquest.db3]])
 
 HTML("<tr>")
 sel =getfile(server..'dicom.ini', 'FileNameSyntax *= (.*)') or '9'

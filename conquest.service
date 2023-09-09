@@ -6,8 +6,6 @@ ExecStart=${CONQUEST}/dgate -w${CONQUEST} -v
 KillMode=process
 Restart=always
 RestartSec=10
-StandardOutput=syslog
-StandardError=syslog
 SyslogIdentifier=conquest-server
 [Install]
 WantedBy=multi-user.target

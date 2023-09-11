@@ -11,6 +11,8 @@
 -- mvh 20230903 creation
 -- mvh 20230909 extended to fairly complete installer
 -- mvh 20230909 fixed passing port to dicom.ini; fixed web install
+-- mvh 20230910 databases, verbose mode, command line options
+-- mvh 20230911 Fix editfile, update help
 
 package.path = package.path .. ';../lua/?.lua'
 --package.cpath = package.path .. ';clibs/lib?.so'
@@ -81,9 +83,11 @@ local toinstall = ''
 local phpversion = ''
 local luaversion = ''
 local sep = '/'
+local verbose=false
 
 -- run a shell command
 function runquiet(s)
+  if verbose then print(s) end
   local f, t
   
   if string.find(s, 'sudo')==1 and sudopw=='' then
@@ -111,6 +115,31 @@ function runquiet(s)
   end
 end
 
+local server = string.gsub(runquiet('pwd'), '\n', '')
+local servername = 'CONQUESTSRV1'
+local serverport = '5678'
+local database   = 'sqlite'
+local recompile  = false
+local reconfigure = false
+local myconf = {}
+
+for k, v in ipairs(arg) do 
+  if v=='-v' or v=='--verbose' then verbose=true end
+  if v=='-d' or v=='--database' then database = arg[k+1] or 'sqlite' end
+  if v=='-r' or v=='--recompile' then recompile=true end
+  if v=='-c' or v=='--configure' then reconfigure=true end
+  if v=='-h' or v=='--help' then 
+    print('installer program for Conquest DICOM server on Linux')
+    print('run as: lua5.1 installer.lua options')
+    print('  options:')
+    print('  -v --verbose')
+    print('  -d --database sqlite|mariadb|dbaseiii|pgsql')
+    print('  -r --recompile (needed when changing database)')
+    print('  -c --configure (force reconfigure)')
+    os.exit()
+  end
+end
+
 function fileexists(f)
   local h=io.open(f)
   if h then 
@@ -119,8 +148,13 @@ function fileexists(f)
   end
 end
 
+function directoryexists(f)
+  return os.rename(f, f)
+end
+
 -- copy file f to g
 function copyfile(f, g)
+  if verbose then print('copying', f, 'to', g) end
   local h=io.open(f, [[rb]])
   if h==nil then
     print('Cannot copy file: ' .. f)
@@ -140,8 +174,11 @@ end
 
 -- substitute mask with new value in textfile
 function editfile(f, mask, value)
+  if verbose then print('adapting', f, mask, value) end
   local s=''
   for x in io.lines(f) do 
+    x = string.gsub(x, '\n', '')
+    x = string.gsub(x, '\r', '')
     x = string.gsub(x, mask, value)
     s = s..x.."\r\n" 
   end
@@ -165,6 +202,7 @@ function getfile(f, mask)
 end
 
 function create_server_file(f, s)
+  if verbose then print('creating', f) end
   f = io.open(f, [[wt]]); 
   local s = string.gsub(s, '\n', '\r\n')
   f:write(s); 
@@ -178,8 +216,9 @@ end
 
 -----------------------------------------
 -----------------------------------------
-function compile(param, server)
-  local conf={} conf.DB = 'sqlite3'
+function compile(param, conf, server)
+  if verbose then print('Compiling', param, conf.DB) end
+  local conf= conf or {}
   if param=='jpeg6c' then
     runquiet('mkdir -p '..server..'/src/dgate/build')
     runquiet('rm -f '..server..'/src/dgate/build/libjpeg.a')
@@ -246,10 +285,16 @@ function compile(param, server)
       dbi = '-I/usr/local/mysql/include -I/usr/include/mysql '
       dbd = '-DUSEMYSQL '     
     end
+    if (conf.DB or CGI('DB', ''))=='mariadb' then
+      dbo = '-lmariadb '
+      dbl = '-L/usr/lib/x86_64-linux-gnu '
+      dbi = '-I/usr/include/mariadb -I/usr/include/mariadb/mysql -I/usr/include/mysql -I/usr/local/mariadb/include '
+      dbd = '-DUSEMYSQL '     
+    end
     if (conf.DB or CGI('DB', ''))=='pgsql' then
       dbo = '-lpq '
       dbl = '-L/usr/local/pgsql/lib '
-      dbi = '-I/usr/include/postgresql ' 
+      dbi = '-I/usr/include/postgresql/ ' 
       dbd = '-DPOSTGRES '     
     end
     runquiet('mkdir -p '..server..'/src/dgate/build')
@@ -260,9 +305,7 @@ function compile(param, server)
     '-DHAVE_LIBCHARLS '..
     '-DHAVE_LIBOPENJPEG2 '..
     dbd..
-    dbo..
     dbi..
-    dbl..
     --server..'src/dgate/build/lua.o '..
     --server..'src/dgate/build/luasocket.a '..
   
@@ -281,10 +324,12 @@ function compile(param, server)
     '-I'..server..'/src/dgate/openjpeg '..
   
     '-I'..server..'/src/dgate/jpeg-6c '..
-    '-L'..server..'/src/dgate/jpeg-6c -ljpeg '
+    '-L'..server..'/src/dgate/jpeg-6c -ljpeg '..
+    dbl..
+    dbo
     )
     if fileexists(server..'/src/dgate/build'..'/dgate') then
-      print('[OK] Compiled dgate application (server core)')
+      print('[OK] Compiled dgate application (server core) for '..conf.DB)
     end
   end
   -----------------------------------------
@@ -325,15 +370,15 @@ function compile(param, server)
   end
   -----------------------------------------
   if param=='dgateall' then
-    compile('jpeg6c', server)
-    compile('openjpeg', server)
-    compile('charls', server)
-    compile('sqlite3', server)
-    compile('dgate', server)
+    compile('jpeg6c', myconf, server)
+    compile('openjpeg', myconf, server)
+    compile('charls', myconf, server)
+    compile('sqlite3', myconf, server)
+    compile('dgate', myconf, server)
     copyfile(server..'/src/dgate/build/dgate', server..'/dgate')
     runquiet('chmod 777 '..server..'/dgate')
 
-    compile('servertask', server)
+    compile('servertask', myconf, server)
     runquiet('sudo -S cp '..server..'/src/servertask/servertask /var/www/html/api/dicom/servertask');
   end
 end
@@ -347,18 +392,19 @@ function CGI(a, b) return b end
 -- functions for initial server config
 function create_server_dicomini(conf, server)
   conf = conf or {}
-  local sqlite, dbaseiii, mysql, pgsql
+  local sqlite, dbaseiii, mysql, pgsql, mariadb
   sqlite=0; if (conf.DB or CGI('DB', ''))=='sqlite' then dbaseiii=0; sqlite=1 end
   dbaseiii=1; if (conf.DB or CGI('DB', ''))=='dbaseiii' then dbaseiii=1 end
   mysql=0; if (conf.DB or CGI('DB', ''))=='mysql' then dbaseiii=0; mysql=1 end
+  mariadb=0; if (conf.DB or CGI('DB', ''))=='mariadb' then dbaseiii=0; mariadb=1 end
   pgsql=0; if (conf.DB or CGI('DB', ''))=='pgsql' then dbaseiii=0; pgsql=1 end
   local doublebackslashtodb = 0
   local useescapestringconstants = 0
   if (conf.SE or CGI('SE', ''))=='' then dbaseiii=0 end
   if pgsql==1 then useescapestringconstants=1 end
-  if mysql==1 or pgsql==1 then doublebackslashtodb=1 end
+  if mysql==1 or pgsql==1 or mariadb==1 then doublebackslashtodb=1 end
 
-  if not fileexists(server..'/dicom.ini') then
+  if not fileexists(server..'/dicom.ini') or reconfigure then
     create_server_file(server..'/dicom.ini', [[
 # This file contains configuration information for the DICOM server
 # Do not edit unless you know what you are doing
@@ -384,7 +430,7 @@ Password                 = ]]..(conf.SP or CGI('SP', 'conquest'))..[[
 
 SqLite                   = ]]..sqlite..[[
 
-MySQL                    = ]]..mysql..[[
+MySQL                    = ]]..math.max(mariadb, mysql)..[[
 
 Postgres                 = ]]..pgsql..[[
 
@@ -439,8 +485,8 @@ function create_newweb_app(conf, server)
 		 '.htaccess',
 	       }
   if true then -- not fileexists(cgiweb..'newweb'..sep..'dicom.ini') then
-    runquiet('sudo -S mkdir '..conf.htmlweb..'/app')
-    runquiet('sudo -S mkdir '..conf.htmlweb..'/app'..sep..'newweb')
+    runquiet('sudo -S mkdir -p '..conf.htmlweb..'/app')
+    runquiet('sudo -S mkdir -p '..conf.htmlweb..'/app'..sep..'newweb')
 
     local s='exceptions='
     local source=server..'/webserver'..sep..'htdocs'..sep..'app'..sep..'newweb'..sep
@@ -536,8 +582,8 @@ function create_dicom_api(conf, server)
   conf = conf or {}
   local list = {'posters','test','rquery','index','qido','servertask','posters','wado','readme','.htaccess','Router'}
   local exts={'.html', '.lua', '', '.php', '.exe'}
-  runquiet('sudo -S mkdir '..conf.htmlweb..'/api')
-  runquiet('sudo -S mkdir '..conf.htmlweb..'/api'..sep..'dicom')
+  runquiet('sudo -S mkdir -p '..conf.htmlweb..'/api')
+  runquiet('sudo -S mkdir -p '..conf.htmlweb..'/api'..sep..'dicom')
 
   local s='exceptions='
   local source=server..'/webserver'..sep..'htdocs'..sep..'api'..sep..'dicom'..sep
@@ -572,8 +618,8 @@ end
 function create_ohif_app(conf, server)
   local list = {'ohif1.03_min','index','.htaccess'}
   local exts={'.html', '.js', ''}
-  runquiet('sudo -S mkdir '..conf.htmlweb..'/app')
-  runquiet('sudo -S mkdir '..conf.htmlweb..'/app'..sep..'ohif')
+  runquiet('sudo -S mkdir -p '..conf.htmlweb..'/app')
+  runquiet('sudo -S mkdir -p '..conf.htmlweb..'/app'..sep..'ohif')
 
   local source=server..'/webserver'..sep..'htdocs'..sep..'app'..sep..'ohif'..sep
   local dest=conf.htmlweb..sep..'app'..sep..'ohif'..sep
@@ -1069,6 +1115,28 @@ else
   print('[ERROR] No git')
 end
 
+runquiet('mariadb --version >t.txt 2>nul')
+resp = {}
+for v in io.lines('t.txt') do table.insert(resp, v) end
+if resp[1] then print('[OK] '..resp[1])
+else 
+  if database=='mariadb' then
+    toinstall= toinstall..' mariadb libmariadb-dev libmariadb-dev-compat '
+    print('[ERROR] No Mariadb')
+  end
+end
+
+runquiet('psql --version >t.txt 2>nul')
+resp = {}
+for v in io.lines('t.txt') do table.insert(resp, v) end
+if resp[1] then print('[OK] '..resp[1])
+else 
+  if database=='pgsql' then
+    toinstall= toinstall..' postgresql libpq-dev'
+    print('[ERROR] No PostgreSQL')
+  end
+end
+
 runquiet('lua5.1 -v 2>t.txt 1>nul')
 resp = {}
 for v in io.lines('t.txt') do table.insert(resp, v) end
@@ -1102,6 +1170,9 @@ else
   toinstall= toinstall..' apache2 php libapache2-mod-php'
   print('[ERROR] No apache2')
 end
+
+if fileexists('t.txt') then runquiet('rm t.txt') end
+if fileexists('nul') then runquiet('rm nul') end
 
 if toinstall~='' then
   local y = ask('Continue installing following packages? y/n: ', toinstall)
@@ -1162,12 +1233,6 @@ if pcall(function()require('wx') end) then
 --  print('[ERROR] wx')
 end
 
-local server = string.gsub(runquiet('pwd'), '\n', '')
-local servername = 'CONQUESTSRV1'
-local serverport = '5678'
-local database   = 'sqlite'
-local myconf = {}
-
 if server then 
   if fileexists(server .. '/ConquestDICOMServer.exe') then
     print('[OK] Server is located at: '..server)
@@ -1180,7 +1245,7 @@ if server then
       if y=='y' then
         servername=ask('Give server AE (also folder name) (CONQUESTSRV1): ')
 	if servername=='' then servername='CONQUESTSRV1' end
-	if os.rename(servername, servername)==true then
+	if directoryexists(servername) then
           local y=ask('Folder exists - overwite? Yes/No: ')
 	  if y~='Yes' then os.exit() end
           runquiet('sudo -S rm -R '..servername)
@@ -1195,30 +1260,39 @@ if server then
   end
 end
 
+if recompile and fileexists(server..'/dgate') then 
+  os.remove(server..'/dgate')
+end
+
 if fileexists(server..'/dgate') then
   print('[OK] server already compiled, delete dgate if need to recompile')
 else
   local y=ask('Compile the server (this takes a while) y/n: ')
   if y=='y' then
-    compile('dgateall', server)
+    myconf = {AE=servername, DB=database}
+    if database=='pgsql' then myconf.SE='conquest' end
+    if database=='mysql' then myconf.SE='conquest' end
+    if database=='mariadb' then myconf.SE='conquest' end
+    compile('dgateall', myconf, server)
     if fileexists(server..'/dgate') then
       print('[OK] server compiled')
     end
   end
 end
 
-if fileexists(server..'/dicom.ini') then
+if fileexists(server..'/dicom.ini') and not reconfigure then
   print('[OK] server already configured, delete dicom.ini to reconfigure')
   servername = getfile(server..'/dicom.ini', 'MyACRNema *= (.*)')
   serverport = getfile(server..'/dicom.ini', 'TCPPort *= (.*)')
-  local sqlite, dbaseiii, mysql, pgsql
+  local sqlite, dbaseiii, mysql, pgsql, mariadb
   sqlite=getfile(server..'/dicom.ini', 'SqLite *= (.*)') or '0'
   dbaseiii=getfile(server..'/dicom.ini', 'DbaseIII *= (.*)') or '0'
-  mysql=getfile(server..'/dicom.ini', 'MySQL *= (.*)') or '0'
+  mariadb=getfile(server..'/dicom.ini', 'MySQL *= (.*)') or '0'
   pgsql=getfile(server..'/dicom.ini', 'Postgres *= (.*)') or '0'
   if sqlite then database='sqlite' end
   if dbaseiii then database='dbaseiii' end
   if mysql then database='mysql' end
+  if mariadb then database='mariadb' end
   if pgsql then database='pgsql' end
 else
   runquiet('sudo -S systemctl stop '..servername..'.service')
@@ -1235,6 +1309,10 @@ else
   local y=ask('Configure the server? y/n: ')
   if y=='y' then
     myconf = {AE=servername, DB=database, PORT=serverport, htmlweb='/var/www/html'}
+    if database=='pgsql' then myconf.SE='conquest' end
+    if database=='mysql' then myconf.SE='conquest' end
+    if database=='mariadb' then myconf.SE='conquest' end
+
     if not fileexists(server..'/dicom.sql') then
       create_server_dicomsql(server)
     end
@@ -1245,19 +1323,28 @@ else
       --
     end
   
-    if not fileexists(server..'/dicom.ini') then
+    if not fileexists(server..'/dicom.ini') or reconfigure then
       create_server_dicomini(myconf, server)
+      if database=='pgsql' then
+        runquiet([[cd /;sudo -u postgres -H psql -c "create role conquest login password 'conquest' valid until 'infinity'" 2>/dev/null]])
+        runquiet([[cd /;sudo -u postgres -H psql -c "create database conquest owner conquest" 2>/dev/null]])
+      elseif database=='mariadb' or database=='mysql' then
+        runquiet([[sudo mysql -e "create user if not exists 'conquest'@'localhost' identified by 'conquest'"]])
+        runquiet([[sudo mysql -e "create database if not exists conquest"]])
+        runquiet([[sudo mysql -e "grant all on conquest.* to 'conquest'@'localhost'"]])
+      end
     else
-      local sqlite, dbaseiii, mysql, pgsql
+      local sqlite, dbaseiii, mysql, pgsql, mariadb
       sqlite=0; if (myconf.DB or CGI('DB', ''))=='sqlite' then dbaseiii=0; sqlite=1 end
       dbaseiii=1; if (myconf.DB or CGI('DB', ''))=='dbaseiii' then dbaseiii=1 end
       mysql=0; if (myconf.DB or CGI('DB', ''))=='mysql' then dbaseiii=0; mysql=1 end
+      mariadb=0; if (myconf.DB or CGI('DB', ''))=='mariadb' then dbaseiii=0; mariadb=1 end
       pgsql=0; if (myconf.DB or CGI('DB', ''))=='pgsql' then dbaseiii=0; pgsql=1 end
       local doublebackslashtodb = 0
       local useescapestringconstants = 0
       if (myconf.SE or CGI('SE', ''))=='' then dbaseiii=0 end
       if pgsql==1 then useescapestringconstants=1 end
-      if mysql==1 or pgsql==1 then doublebackslashtodb=1 end
+      if mysql==1 or pgsql==1 or mariadb==1 then doublebackslashtodb=1 end
   
       editfile(server..'/dicom.ini', '(MyACRNema *= ).*', '%1' .. (myconf.AE or CGI('AE', servername)))
       editfile(server..'/dicom.ini', '(TCPPort *= ).*', '%1' .. (myconf.PORT or CGI('PORT', serverport)))
@@ -1269,7 +1356,7 @@ else
       editfile(server..'/dicom.ini', '(MAGDevice0 *= ).*', '%1' .. (myconf.M0 or CGI('M0', server .. '/data' .. sep)))
                         
       editfile(server..'/dicom.ini', '(SqLite *= ).*', '%1' .. sqlite)
-      editfile(server..'/dicom.ini', '(MySQL *= ).*', '%1' .. mysql)
+      editfile(server..'/dicom.ini', '(MySQL *= ).*', '%1' .. math.max(mariadb, mysql))
       editfile(server..'/dicom.ini', '(Postgres *= ).*', '%1' .. pgsql)
       editfile(server..'/dicom.ini', '(DoubleBackSlashToDB *= ).*', '%1' .. doublebackslashtodb)
       editfile(server..'/dicom.ini', '(UseEscapeStringConstants *= ).*', '%1' .. useescapestringconstants)
@@ -1295,7 +1382,7 @@ else
   end
 end
 
-if fileexists('/var/www/html/app/newweb/dicom.ini') then
+if fileexists('/var/www/html/app/newweb/dicom.ini') and not reconfigure then
   print('[OK] web server already configured, delete /var/www/html/app and /api to reconfigure')
 else
   local y=ask('Configure the web server? y/n: ')
@@ -1314,7 +1401,7 @@ end
 
 local y=ask('Regen the database, this can take a long time if there is loads of data? y/n: ')
 if y=='y' then
-  runquiet('mkdir '..server..'/data/dbase')
+  runquiet('mkdir -p '..server..'/data/dbase')
   print(runquiet(server..'/dgate -w'..server..' -v -r'))
 end
 

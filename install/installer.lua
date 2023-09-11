@@ -13,6 +13,7 @@
 -- mvh 20230909 fixed passing port to dicom.ini; fixed web install
 -- mvh 20230910 databases, verbose mode, command line options
 -- mvh 20230911 Fix editfile, update help
+-- mvh 20230911 Fix mariadb package mariadb-server
 
 package.path = package.path .. ';../lua/?.lua'
 --package.cpath = package.path .. ';clibs/lib?.so'
@@ -84,6 +85,7 @@ local phpversion = ''
 local luaversion = ''
 local sep = '/'
 local verbose=false
+local mariadb_packages = ' mariadb-server libmariadb-dev libmariadb-dev-compat '
 
 -- run a shell command
 function runquiet(s)
@@ -1121,7 +1123,7 @@ for v in io.lines('t.txt') do table.insert(resp, v) end
 if resp[1] then print('[OK] '..resp[1])
 else 
   if database=='mariadb' then
-    toinstall= toinstall..' mariadb libmariadb-dev libmariadb-dev-compat '
+    toinstall= toinstall..mariadb_packages
     print('[ERROR] No Mariadb')
   end
 end

@@ -14,6 +14,7 @@
 -- mvh 20230910 databases, verbose mode, command line options
 -- mvh 20230911 Fix editfile, update help
 -- mvh 20230911 Fix mariadb package mariadb-server
+-- mvh 20230916 Changed input order for linker for older gcc; add /usr/sbin to apache command paths
 
 package.path = package.path .. ';../lua/?.lua'
 --package.cpath = package.path .. ';clibs/lib?.so'
@@ -315,7 +316,6 @@ function compile(param, conf, server)
     server..'/src/dgate/build/openjpeg.o '..
   
     '-o '..server..'/src/dgate/build/dgate '..
-    '-lpthread -ldl '..
     '-I'..server..'/src/dgate/src '..
     server..'/src/dgate/src/total.cpp '..
     '-llua5.1 '..
@@ -328,7 +328,8 @@ function compile(param, conf, server)
     '-I'..server..'/src/dgate/jpeg-6c '..
     '-L'..server..'/src/dgate/jpeg-6c -ljpeg '..
     dbl..
-    dbo
+    dbo..
+    '-lpthread -ldl '
     )
     if fileexists(server..'/src/dgate/build'..'/dgate') then
       print('[OK] Compiled dgate application (server core) for '..conf.DB)
@@ -1154,12 +1155,12 @@ if not fileexists('/usr/lib/x86_64-linux-gnu/liblua5.1.so') then
   toinstall= toinstall..' liblua5.1-0 lua-socket'
 end
 
-runquiet('apache2 -v >t.txt 2>nul')
+runquiet('export PATH="/usr/sbin:$PATH"; apache2 -v >t.txt 2>nul')
 resp = {}
 for v in io.lines('t.txt') do table.insert(resp, v) end
 if resp[1] then 
   print('[OK] Apache '..resp[1])
-  runquiet('a2query -m | grep "php"  >t.txt 2>nul')
+  runquiet('export PATH="/usr/sbin:$PATH"; a2query -m | grep "php"  >t.txt 2>nul')
   resp = {}
   for v in io.lines('t.txt') do table.insert(resp, v) end
   if resp[1] then print('[OK] Apache PHP '..resp[1])

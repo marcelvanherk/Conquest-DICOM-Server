@@ -184,6 +184,7 @@
 20220817   mvh    Allow LIMIT and OFFSET to be added to the Sort parameter; some postprocessing for SQL server done; () rule for multiple sort was wrong
 20230609   mvh    Added retry on SQLITE_LOCKED
 20230904   mvh    Protect PQsetdbLogin with its own critical section - fixes crash if opening two dbs at once
+20230920   mvh    Added PostGreSQLStartup and MySQLStartup; only execute all startups when set
 */
 
 /*
@@ -3068,7 +3069,7 @@ BOOL	Database :: Open (
 
   	  	MyGetPrivateProfileString ( RootSC, "SQLiteStartup", "PRAGMA synchronous = OFF", // makes it MUCH faster
 			(char*) Temp, 128, ConfigFile);
-		SQLITEExec(Temp, FALSE);	
+		if (Temp[0]) SQLITEExec(Temp, FALSE);	
 
 		return (TRUE);
 	}
@@ -3253,6 +3254,9 @@ BOOL	Database :: Open (
 	if (Postgres)
 	{	char *port = NULL;
 		char host[256], *p;
+	  	char RootSC[64];
+	  	char Temp[128];
+
 		if (!f_Critical) 
 		{ f_Critical=true;
 		  InitializeCriticalSection(&c_Critical);
@@ -3289,6 +3293,12 @@ BOOL	Database :: Open (
 		LeaveCriticalSection(&c_Critical);
 		Connected = TRUE;
 		InitializeCriticalSection(&m_Critical);
+
+		MyGetPrivateProfileString ( RootConfig, "MicroPACS", RootConfig,
+	  		(char*) RootSC, 64, ConfigFile);
+  	  	MyGetPrivateProfileString ( RootSC, "PostGreSQLStartup", "",
+			(char*) Temp, 128, ConfigFile);
+		if (Temp[0]) PGSQLExec(Temp);
 		return (TRUE);
 	}
 #endif
@@ -3297,6 +3307,8 @@ BOOL	Database :: Open (
 	if (Mysql)
 	{	int port = 3306; // MYSQL_PORT
 		char host[256], *p;
+	  	char RootSC[64];
+	  	char Temp[128];
 
 		strcpy(host, DataHost);	// allows host:port syntax for MySQL
 		if((p=strchr(host, ':')))
@@ -3355,6 +3367,12 @@ BOOL	Database :: Open (
 		}
 		Connected = TRUE;
 		InitializeCriticalSection(&m_Critical);
+
+		MyGetPrivateProfileString ( RootConfig, "MicroPACS", RootConfig,
+	  		(char*) RootSC, 64, ConfigFile);
+  	  	MyGetPrivateProfileString ( RootSC, "MySQLStartup", "",
+			(char*) Temp, 128, ConfigFile);
+		if (Temp[0]) MYSQLExec(Temp, FALSE);
 		return (TRUE);
 	}
 #endif

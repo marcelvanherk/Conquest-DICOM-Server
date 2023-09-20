@@ -15,6 +15,8 @@
 -- mvh 20230911 Fix editfile, update help
 -- mvh 20230911 Fix mariadb package mariadb-server
 -- mvh 20230916 Changed input order for linker for older gcc; add /usr/sbin to apache command paths
+-- mvh 20230919 Fixed dbaseiii config; added null database
+-- mvh 20230920 Small reconfigure of above; -r recompiles without asking
 
 package.path = package.path .. ';../lua/?.lua'
 --package.cpath = package.path .. ';clibs/lib?.so'
@@ -136,7 +138,7 @@ for k, v in ipairs(arg) do
     print('run as: lua5.1 installer.lua options')
     print('  options:')
     print('  -v --verbose')
-    print('  -d --database sqlite|mariadb|dbaseiii|pgsql')
+    print('  -d --database sqlite|mariadb|dbaseiii|pgsql|null')
     print('  -r --recompile (needed when changing database)')
     print('  -c --configure (force reconfigure)')
     os.exit()
@@ -373,15 +375,15 @@ function compile(param, conf, server)
   end
   -----------------------------------------
   if param=='dgateall' then
-    compile('jpeg6c', myconf, server)
-    compile('openjpeg', myconf, server)
-    compile('charls', myconf, server)
-    compile('sqlite3', myconf, server)
-    compile('dgate', myconf, server)
+    compile('jpeg6c', conf, server)
+    compile('openjpeg', conf, server)
+    compile('charls', conf, server)
+    compile('sqlite3', conf, server)
+    compile('dgate', conf, server)
     copyfile(server..'/src/dgate/build/dgate', server..'/dgate')
     runquiet('chmod 777 '..server..'/dgate')
 
-    compile('servertask', myconf, server)
+    compile('servertask', conf, server)
     runquiet('sudo -S cp '..server..'/src/servertask/servertask /var/www/html/api/dicom/servertask');
   end
 end
@@ -1263,8 +1265,20 @@ if server then
   end
 end
 
+myconf = {AE=servername, DB=database}
+if database=='pgsql' then myconf.SE='conquest' end
+if database=='mysql' then myconf.SE='conquest' end
+if database=='mariadb' then myconf.SE='conquest' end
+if database=='dbaseiii' then myconf.SE=server..'/data'..sep..'dbase'..sep end
+if database=='sqlite' then myconf.SE=server..'/data'..sep..'dbase'..sep..'conquest.db3' end
+if database=='null' then myconf.SE='' end
+
 if recompile and fileexists(server..'/dgate') then 
   os.remove(server..'/dgate')
+  compile('dgateall', myconf, server)
+  if fileexists(server..'/dgate') then
+    print('[OK] server compiled')
+  end
 end
 
 if fileexists(server..'/dgate') then
@@ -1272,10 +1286,6 @@ if fileexists(server..'/dgate') then
 else
   local y=ask('Compile the server (this takes a while) y/n: ')
   if y=='y' then
-    myconf = {AE=servername, DB=database}
-    if database=='pgsql' then myconf.SE='conquest' end
-    if database=='mysql' then myconf.SE='conquest' end
-    if database=='mariadb' then myconf.SE='conquest' end
     compile('dgateall', myconf, server)
     if fileexists(server..'/dgate') then
       print('[OK] server compiled')
@@ -1315,6 +1325,9 @@ else
     if database=='pgsql' then myconf.SE='conquest' end
     if database=='mysql' then myconf.SE='conquest' end
     if database=='mariadb' then myconf.SE='conquest' end
+    if database=='dbaseiii' then myconf.SE=server..'/data'..sep..'dbase'..sep end
+    if database=='sqlite' then myconf.SE=server..'/data'..sep..'dbase'..sep..'conquest.db3' end
+    if database=='null' then myconf.SE='' end
 
     if not fileexists(server..'/dicom.sql') then
       create_server_dicomsql(server)
@@ -1395,7 +1408,7 @@ else
     create_dicom_api(myconf, server)
     create_ohif_app(myconf, server)
     if fileexists('/var/www/html/app/newweb/dicom.ini') then
-      print('[OK] server configured')
+      print('[OK] web server configured')
     else
       print('[OK] web server NOT configured')
     end

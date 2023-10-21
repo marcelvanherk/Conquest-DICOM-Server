@@ -21,6 +21,7 @@
 -- 20200314: release 1.5.0
 -- 20220322: Added sort parameter to dbquery
 -- 20220718: Updated documentation for json interfaces and new features
+-- 20231021: Added :Reset; Data:Read now allowed
 
 --[[
 -- read/write data, create sequences, and write into sequences (if [] not passed, [0] is assumed)
@@ -236,8 +237,9 @@ return {
         SetColumn = { args = "(x: int, frame: int, a: table)", description = "set column of pixels in dicom object",  returns = "()",  type = "method", },
         GetImage = { args = "(frame: int)", description = "get entire image from dicom object",  returns = "(string: binary pixel data)", type = "method", },
         SetImage = { args = "(frame: int, a: string)", description = "set 2D image in dicom object",  returns = "()",  type = "method", },
-        Read = { args = "(filename: string)", description = "read dicom object; NOTE: Data:Read not allowed! use readdicom() instead",  returns = "()",  type = "method", },
+        Read = { args = "(filename: string)", description = "read dicom object",  returns = "()",  type = "method", },
         Write = { args = "(filename: string)", description = "write dicom object",  returns = "()",  type = "method", },
+        Reset = { args = "()", description = "empty dicom object",  returns = "()",  type = "method", },
         Dump = { args = "(filename: string)", description = "write dicom object header as text file",  returns = "()",  type = "method", },
         GetVR = { args = "(group: int, element: int, asstring: boolean)", description = "get vr as byte sequence from dicom object",  returns = "(DicomArray/table/string: sequence/array of vr values/binary data)", type = "method", },
         SetVR = { args = "(group: int, element: int, a: table/string)", description = "set vr from DicomArray/table of bytes/binary string/json string(for sequence)",  returns = "()",  type = "method", },
@@ -515,6 +517,12 @@ return {
   writedicom = {
   args = "(filename: string)",
   description = "write dicom object",
+  returns = "()",
+  type = "function"
+  },
+  resetdicom = {
+  args = "()",
+  description = "reset dicom object",
   returns = "()",
   type = "function"
   },

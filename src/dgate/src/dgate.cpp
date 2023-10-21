@@ -1204,6 +1204,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20230701        mvh     ---- RELEASE 1.5.0d -----
 20230814        mvh     Fix luadicomread if no SOPInstanceUID was passed
 20230830        mvh     Remove temporary file in "process with"
+20231018	mvh	Added ppDDO parameter to CallImportConverterN to fix readdicom; added resetdicom & O:Reset()
+20231021	mvh	Fixed :Reset (added to method string list); reverted ppDDO change
+20231021	mvh	Fixed dicomread() and now allows Data:Read() too
 
 ENDOFUPDATEHISTORY
 */
@@ -7323,6 +7326,37 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     return 0;
   }
 
+  // copy Dicom Object into existing Dicom object
+  void CopyInto(DICOMDataObject *in, DICOMDataObject	*out)
+  { DICOMDataObject	DO2;
+    VR		*vr;
+    VR		*newVR;
+    
+    out->Reset();
+    while (( vr = in->Pop() ))
+    { if (vr->SQObjectArray)
+      {  newVR = new VR(vr->Group, vr->Element, 0, (void *) NULL, FALSE);
+         Array < DICOMDataObject * > *ADDO = (Array<DICOMDataObject*>*) vr->SQObjectArray;
+         Array < DICOMDataObject * > *SQE  = new Array <DICOMDataObject *>;
+         for (int j=0; j<ADDO->GetSize(); j++)
+         { DICOMDataObject *dd = MakeCopy(ADDO->Get(j)); 
+           SQE->Add(dd);
+         }
+         newVR->SQObjectArray = (void*) SQE;
+       }
+       else
+       { newVR = new VR(vr->Group, vr->Element, vr->Length, (BOOL) TRUE);
+         memcpy(newVR->Data, vr->Data, vr->Length);
+       }
+       DO2.Push(vr);
+       out->Push(newVR);
+    }
+    in->Reset();
+    while (( vr = DO2.Pop() ))
+    { in->Push(vr);
+    }
+  }
+  
   // readdicom(filename) into Data, or readdicom(x, filename)
   static int luareaddicom(lua_State *L)
   { struct scriptdata *sd = getsd(L);
@@ -7331,35 +7365,44 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     { char name[512];
       strcpy(name, (char *)lua_tostring(L,1));
       O = LoadForGUI(name);
-      if (!O) return 0;
-      if (sd->DDO && sd->DDO!=dummyddo) delete (sd->DDO);
-      sd->DDO = O;
-      lua_getglobal   (L, "Data");  
-      lua_getmetatable(L, -1);
-        lua_pushlightuserdata(L, sd->DDO); lua_setfield(L, -2, "DDO");
-      lua_pop(L, 2);
+      if (!O) 
+      { luaL_error(L, "Failed to read dicom file");
+        return 0;
+      }
+      CopyInto(O, sd->DDO);
     }
     else if (lua_isuserdata(L,1)) 
     { lua_getmetatable(L, 1);
         lua_getfield(L, -1, "DDO");  P = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
 	char name[512];
         strcpy(name, (char *)lua_tostring(L,2));
-        if (sd->DDO == P)
-        { lua_pop(L, 1);
-          return 0;
-        }
         O = LoadForGUI(name);
         if (!O) 
         { lua_pop(L, 1);
+          luaL_error(L, "Failed to read dicom file");
           return 0;
         }
-        if (P) delete P;
-        lua_pushlightuserdata(L, O); lua_setfield(L, -2, "DDO");
+        CopyInto(O, P);
       lua_pop(L, 1);
     }
     lua_pushinteger(L, 1);
     return 1;
   }
+
+  static int luaresetdicom(lua_State *L)
+  { struct scriptdata *sd = getsd(L);
+    if (lua_isuserdata(L,1)) 
+    { DICOMDataObject *O = NULL;
+      lua_getmetatable(L, 1);
+        lua_getfield(L, -1, "DDO");  O = (DICOMDataObject *) lua_topointer(L, -1); lua_pop(L, 1);
+      lua_pop(L, 1);
+      if (O) O->Reset();
+    }
+    else if (sd->DDO) 
+      sd->DDO->Reset();
+    return 0;
+  }
+
   // writedicom(filename), writedicom(Data, filename); Data:writedicom(filename)
   static int luawritedicom(lua_State *L)
   { struct scriptdata *sd = getsd(L);
@@ -8288,6 +8331,7 @@ static char uploadedfile[256];
   static int luaSeqClosure(lua_State *L)
   { const char *s = lua_tostring(L, lua_upvalueindex(1));
     if (strcmp(s, "Read" )==0)    return luareaddicom(L);
+    if (strcmp(s, "Reset" )==0)   return luaresetdicom(L);
     if (strcmp(s, "Write")==0)    return luawritedicom(L);
     if (strcmp(s, "Dump" )==0)    return luawriteheader(L);
     if (strcmp(s, "SetVR")==0)    return luasetvr(L);
@@ -8425,7 +8469,7 @@ static char uploadedfile[256];
       { lua_pushstring(L, sd->Storage);
         return 1;
       }
-      else if (strstr("Write|Read|Dump|GetVR|SetVR|GetPixel|SetPixel|GetRow|SetRow|GetColumn|SetColumn|GetImage|SetImage|Script|new|newarray|free|AddImage|Copy|Compress|ListItems|Serialize|DeleteFromSequence", lua_tostring(L,2))) 
+      else if (strstr("Write|Read|Dump|GetVR|SetVR|GetPixel|SetPixel|GetRow|SetRow|GetColumn|SetColumn|GetImage|SetImage|Script|new|newarray|free|AddImage|Copy|Compress|ListItems|Serialize|DeleteFromSequence|Reset", lua_tostring(L,2))) 
       { lua_pushvalue(L, 2);
 	lua_pushcclosure(L, luaSeqClosure, 1);
 	return 1;
@@ -8864,6 +8908,7 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     lua_register      (*L, "getimage",      luagetimage);
     lua_register      (*L, "setimage",      luasetimage);
     lua_register      (*L, "readdicom",     luareaddicom);
+    lua_register      (*L, "resetdicom",    luaresetdicom);
     lua_register      (*L, "copydicom",     luacopydicom);
     lua_register      (*L, "compressdicom", luacompressdicom);
     lua_register      (*L, "writedicom",    luawritedicom);

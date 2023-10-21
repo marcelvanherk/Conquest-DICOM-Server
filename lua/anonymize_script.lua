@@ -32,6 +32,8 @@
 --                      configure log level; allow hiding any Name tag from log
 -- 20230925     mvh     fix typos and changed order
 -- 20230928     mvh     Fixed reading empty newid, configuration file, added newlines to output
+-- 20231018     mvh     No reset dicom object in TagsToKeep - use temporary file; reset reversible after cfg read
+-- 20231021     mvh     Now use newly added Data:Reset
 
 -- =============================================================================
 
@@ -150,7 +152,6 @@ if string.find(command_line, '|')==1 then table.insert(c, 1, '') end
 local newid = c[1] or ''
 local stage = c[2] or ''
 local newname = c[3] or ''
-if string.find(stage, '#') then reversible=false end -- uid generation by MD5 is not reversible
 
 -- optionally read stage.cfg to change anonymisation settings
 local g=io.open(string.gsub(Global.BaseDir..stage..'.cfg', '#', ''), 'r')
@@ -161,6 +162,8 @@ if g then
 else
   print("Anomymisation stage              : ", stage, "\n") 
 end
+
+if string.find(stage, '#') then reversible=false end -- uid generation by MD5 is not reversible
 
 -- Log file handling (trailing directory separator required for mkdir)
 local logdir = logroot..pid..DirSep
@@ -295,7 +298,7 @@ end
 -- keep tags (empties TagsToEmpty and TagsToRemove tables above)
 if TagsToKeep[1] then
   Data2 = Data:Copy()
-  Data:Clear()
+  Data:Reset() -- requires update > 20231021
   for key, val in ipairs(TagsToKeep) do
     local g, e = dictionary(val)
     Data:SetVR(g, e, Data2:GetVR(g, e))

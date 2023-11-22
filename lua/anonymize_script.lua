@@ -34,6 +34,8 @@
 -- 20230928     mvh     Fixed reading empty newid, configuration file, added newlines to output
 -- 20231018     mvh     No reset dicom object in TagsToKeep - use temporary file; reset reversible after cfg read
 -- 20231021     mvh     Now use newly added Data:Reset
+-- 20231107     mvh     Also accept (hex) group numbers in lists instead of name
+-- 20231122     mvh     Keep TagsToEmpty and TagsToRemove to combine (after) TagsToKeep
 
 -- =============================================================================
 
@@ -96,6 +98,7 @@ TagsToModify = {
 "PatientID", "PatientName", "PatientBirthDate", "PatientSex"}
 
 -- alternative: only these entries are kept (if table loaded from configuration file)
+-- e.g. TagsToKeep = {"PatientID", "SOPInstanceUID", "0008", "0010", "0028", "7FE0"}
 TagsToKeep = {}
 
 MaintainAge = false
@@ -137,12 +140,6 @@ function split(str, pat)
    return t
 end
 
--- either define tage to keep or to remove
-if TagsToKeep[1] then
-  TagsToRemove = {}
-  TagsToEmpty = {}
-end
-
 -- remove characters that are not allowed in a filename (used as folder for the log file)
 local pid = string.gsub(Data.PatientID or 'unknown', '[\\/:*?"<>|]', '_')
 
@@ -182,9 +179,9 @@ f:write("Logfile name                     : ", logfile, "\n")
 f:write("Processing at                    : ", os.date(), "\n")
 
 -- Check dictionary to avoid crash on undefined tags
-for key2, val2 in ipairs({TagsToModify, TagsToPrint, TagsToEmpty, TagsToRemove, TagsToKeep}) do
-  for key, val in ipairs(val2) do
-    if dictionary(val)==nil and string.sub(val,1,1)~='0' then
+for _, val2 in ipairs({TagsToModify, TagsToPrint, TagsToEmpty, TagsToRemove, TagsToKeep}) do
+  for _, val in ipairs(val2) do
+    if tonumber(val, 16)==nil and dictionary(val)==nil and string.sub(val,1,1)~='0' then
       f:write("*** Error: '", val, "' not in dictionary - object will not be processed\n")
       print("*** Error anonymize_script: configured tag '", val, "' is not in dictionary - object not processed\n")
       destroy() -- do not process image at all
@@ -196,9 +193,11 @@ end
 -- Log data in original object (optionally suppress all names for privacy)
 if logoriginal then
   f:write("===== ORIGINAL DICOM DATA =====\n")
-  for key2, val2 in ipairs({TagsToModify, TagsToPrint, TagsToEmpty, TagsToRemove, TagsToKeep}) do
-    for key, val in ipairs(val2) do
-      if string.find(val, 'Name') then
+  for _, val2 in ipairs({TagsToModify, TagsToPrint, TagsToEmpty, TagsToRemove, TagsToKeep}) do
+    for _, val in ipairs(val2) do
+      if tonumber(val, 16)~=nil then
+        -- nothing
+      elseif string.find(val, 'Name') then
         if lognames then
           f:write(val, ': ', tostring(Data[val]), "\n")
         else
@@ -295,32 +294,72 @@ if logmodified then
   end
 end
 
+-- list items in object for enumeration of entire groups
+local names,types,groups,elements = Data:ListItems()
+names = split(names, '|')
+types = split(types, '|')
+groups = split(groups, '|')
+elements = split(elements, '|')
+
 -- keep tags (empties TagsToEmpty and TagsToRemove tables above)
 if TagsToKeep[1] then
-  Data2 = Data:Copy()
+  local Data2 = Data:Copy()
   Data:Reset() -- requires update > 20231021
-  for key, val in ipairs(TagsToKeep) do
-    local g, e = dictionary(val)
-    Data:SetVR(g, e, Data2:GetVR(g, e))
+  for _, val in ipairs(TagsToKeep) do
+    if tonumber(val, 16) then
+      if logmodified then
+        f:write('Keep group ', val, "\n")
+      end
+      for i=1, #groups do
+        if tonumber(groups[i])==tonumber(val, 16) and tonumber(elements[i])~=0 then
+          Data:SetVR(groups[i], elements[i], Data2:GetVR(groups[i], elements[i]))
+	end
+      end
+    else
+      local g, e = dictionary(val)
+      Data:SetVR(g, e, Data2:GetVR(g, e))
+      if logmodified then
+        f:write('Kept ', val .. ': ', tostring(Data[val]), "\n")
+      end
+    end
+  end
+end
+  
+-- empty tags
+for _, val in ipairs(TagsToEmpty) do
+  if tonumber(val, 16) then
     if logmodified then
-      f:write('Kept ', val .. ': ', tostring(Data[val]), "\n")
+      f:write('Made group ', val, " empty\n")
+    end
+    for i=1, #groups do
+      if tonumber(groups[i])==tonumber(val, 16) and tonumber(elements[i])~=0 then
+        Data[names[i]]=''
+      end
+    end
+  else
+    Data[val]=''
+    if logmodified then
+      f:write('Made ', val, ' empty: ', tostring(Data[val]), "\n")
     end
   end
 end
 
--- empty tags
-for key, val in ipairs(TagsToEmpty) do
-  Data[val]=''
-  if logmodified then
-    f:write('Made ', val, ' empty: ', tostring(Data[val]), "\n")
-  end
-end
-
 -- remove tags
-for key, val in ipairs(TagsToRemove) do
-  Data[val]=nil
-  if logmodified then
-    f:write('Removed ', val, ': ', tostring(Data[val]), "\n")
+for _, val in ipairs(TagsToRemove) do
+  if tonumber(val, 16) then
+    if logmodified then
+      f:write('Remove group ', val, "\n")
+    end
+    for i=1, #groups do
+      if tonumber(groups[i])==tonumber(val, 16) and tonumber(elements[i])~=0 then
+        Data[names[i]]=nil
+      end
+    end
+  else
+    Data[val]=nil
+    if logmodified then
+      f:write('Removed ', val, ': ', tostring(Data[val]), "\n")
+    end
   end
 end
 

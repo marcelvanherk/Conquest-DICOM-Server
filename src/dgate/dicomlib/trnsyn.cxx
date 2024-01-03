@@ -79,6 +79,7 @@
 20210113   mvh   Added new types UR, UC, OD and OV with 32 bits VR length; added swapping of OD and OV
 20210118   mvh   WIP: Added code to read implicitly coded sequences in explicit content
 20210118   mvh   Every length exceeding warning phrased differently for easy of finding
+20240103   mvh   Added information about previous tag when parsing goes wrong
 */
 
 /*
@@ -505,6 +506,8 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 
 	unsigned int	CurrentGroup = 0;
 	unsigned int	CurrentElement = 0;
+	unsigned int	PreviousGroup = 0;
+	unsigned int	PreviousElement = 0;
 	unsigned int	CurrentGroupLength = 0xffffffff;
 	
 	if ( ! DCMObject )
@@ -516,6 +519,9 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 		if ( ! vr )
 			return ( FALSE );	// memory error
 		
+		PreviousGroup=CurrentGroup;
+		PreviousElement=CurrentElement;
+		
 		lVRBuffer >> vr->Group;
 		lVRBuffer >> vr->Element;
 
@@ -523,6 +529,7 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			{
 			if (DicomError(DCM_ERROR_PARSE, "(Imp) Encountered an invalid group order during load of DCM file (after %08x)\n", (CurrentGroup<<16)+CurrentElement))
 				return FALSE;
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			}
 
 		if (vr->Group != CurrentGroup)
@@ -536,6 +543,7 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			{
 			if (DicomError(DCM_ERROR_PARSE, "(Imp) Encountered an invalid element order during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement))
 				return FALSE;
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			}
 
 		CurrentElement = vr->Element;
@@ -571,6 +579,7 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 				{
 				BOOL b=DicomError(DCM_ERROR_PARSE, "Implicit Parse encountered an invalid element length during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement);
 				DicomError(DCM_ERROR_PARSE, "Length = %d\n", vr->Length);
+				DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 				if (vr->Length > CurrentGroupLength) 
 					DicomError(DCM_ERROR_PARSE, "Group Length = %u\n", CurrentGroupLength);
 				if (b && vr->Length > 0xffff && CurrentGroupLength!=0) return FALSE; // pass if not dangerous
@@ -581,6 +590,7 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 				{
 				if (DicomError(DCM_ERROR_PARSE, "Length exceeding remaining file size: %08x\n", vr->Length))
 					return FALSE;
+				DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 				return ( TRUE );
 				}
 
@@ -610,6 +620,7 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 
 			// Not quite sure what to say here...
 			DicomError(DCM_ERROR_PARSE, "Sequence parse error during load of DCM file (after %08x)\n", (CurrentGroup<<16)+CurrentElement);
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			return ( FALSE );
 			}
 
@@ -670,6 +681,7 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			{
 			if (DicomError(DCM_ERROR_PARSE, "Length exceeds remainder file size: %08x\n", vr->Length))
 			  return FALSE;
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			return ( TRUE );
 			}
 
@@ -679,6 +691,7 @@ BOOL	PDU_Service	::	Implicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 				{
 				BOOL b=DicomError(DCM_ERROR_PARSE, "Implicit_Parse encountered an invalid element length during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement);
 				DicomError(DCM_ERROR_PARSE, "Length = %d\n", vr->Length);
+				DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 				if (vr->Length > CurrentGroupLength) 
 					DicomError(DCM_ERROR_PARSE, "Group Length = %u\n", CurrentGroupLength);
 				if (b && vr->Length > 0xffff && CurrentGroupLength!=0) return FALSE; // pass if not dangerous
@@ -866,6 +879,8 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 
 	unsigned int	CurrentGroup = 0;
 	unsigned int	CurrentElement = 0;
+	unsigned int	PreviousGroup = 0;
+	unsigned int	PreviousElement = 0;
 	unsigned int	CurrentGroupLength = 0xffffffff;
 
 	if ( ! DCMObject )
@@ -876,6 +891,9 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 		vr = new VR;
 		if ( ! vr )
 			return ( FALSE );	// memory error
+
+		PreviousGroup=CurrentGroup;
+		PreviousElement=CurrentElement;
 
 		lVRBuffer >> vr->Group;
 		if (swapEndian && vr->Group > 0x02)//after 0x02 change back
@@ -892,6 +910,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			{
 			if (DicomError(DCM_ERROR_PARSE, "(Exp) Encountered an invalid group order during load of DCM file (after %08x)\n", (CurrentGroup<<16)+CurrentElement))
 				return FALSE;
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			}
 
 		if (vr->Group != CurrentGroup)
@@ -905,6 +924,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			{
 			if (DicomError(DCM_ERROR_PARSE, "(Exp) Encountered an invalid element order during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement))
 				return FALSE;
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			}
 
 		CurrentElement = vr->Element;
@@ -929,6 +949,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 					{
 					BOOL b=DicomError(DCM_ERROR_PARSE, "Explicit Parse encountered an invalid element length during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement);
 					DicomError(DCM_ERROR_PARSE, "Length = %d\n", vr->Length);
+					DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 					if (vr->Length > CurrentGroupLength) 
 						DicomError(DCM_ERROR_PARSE, "Group Length = %u\n", CurrentGroupLength);
  					if (b && vr->Length > 0xffff && CurrentGroupLength!=0) return FALSE; // pass if not dangerous
@@ -979,6 +1000,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 				{
 				BOOL b=DicomError(DCM_ERROR_PARSE, "Implicit_Parse encountered an invalid element length during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement);
 				DicomError(DCM_ERROR_PARSE, "Length = %d\n", vr->Length);
+				DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 				if (vr->Length > CurrentGroupLength) 
 					DicomError(DCM_ERROR_PARSE, "Group Length = %u\n", CurrentGroupLength);
 				if (b && vr->Length > 0xffff && CurrentGroupLength!=0) return FALSE; // pass if not dangerous
@@ -989,6 +1011,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 				{
 				if (DicomError(DCM_ERROR_PARSE, "Length exceeding remainder file size: %08x\n", vr->Length))
 				  return FALSE;
+				DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 				return ( TRUE );
 				}
 
@@ -1019,6 +1042,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 
 			// Not quite sure what to say here...
 			DicomError(DCM_ERROR_PARSE, "Sequence parse error during load of DCM file (after %08x)\n", (CurrentGroup<<16)+CurrentElement);
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			return ( FALSE );
 			}
 
@@ -1128,6 +1152,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			//DicomError(DCM_ERROR_PARSE, "In: %08x\n", 0x10000*vr->Group+vr->Element);
 			if (DicomError(DCM_ERROR_PARSE, "Item Length exceeds remaining file size: %08x\n", vr->Length))
 			  return FALSE;
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			return ( TRUE );
 			}
 
@@ -1138,6 +1163,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 				{
 				BOOL b=DicomError(DCM_ERROR_PARSE, "Explicit_ParseRaw encountered an invalid element length during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement);
 				DicomError(DCM_ERROR_PARSE, "Length = %d\n", vr->Length);
+				DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 				if (vr->Length > CurrentGroupLength) 
 					DicomError(DCM_ERROR_PARSE, "Group Length = %u\n", CurrentGroupLength);
 				if (b && vr->Length > 0xffff && CurrentGroupLength!=0) return FALSE; // pass if not dangerous
@@ -1428,6 +1454,8 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 	int		iOrgMode;	// LJ + MVH: Added to save the original mode
 	unsigned int	CurrentGroup = 0;
 	unsigned int	CurrentElement = 0;
+	unsigned int	PreviousGroup = 0;
+	unsigned int	PreviousElement = 0;
 	unsigned int	CurrentGroupLength = 0xffffffff;
 		
 // Init for warnings.
@@ -1454,12 +1482,16 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 			return FALSE;
 			}
 		
+		PreviousGroup=CurrentGroup;
+		PreviousElement=CurrentElement;
+
 		lVRBuffer >> vr->Group;
 
 		if (vr->Group < CurrentGroup)
 			{
 			if (DicomError(DCM_ERROR_PARSE, "(Dyn) Encountered an invalid group order during load of DCM file (after %08x)\n", (CurrentGroup<<16)+CurrentElement))
 				return FALSE;
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			}
 
 		if(vr->Group > 0x0002)
@@ -1545,6 +1577,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 
 			if (DicomError(DCM_ERROR_PARSE, "(Dyn) Encountered an invalid element order during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement))
 				return FALSE;
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			}
 
 		CurrentElement = vr->Element;
@@ -1594,6 +1627,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 				{
 				BOOL b=DicomError(DCM_ERROR_PARSE, "Dynamic Parse encountered an invalid element length during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement);
 				DicomError(DCM_ERROR_PARSE, "Length = %d\n", vr->Length);
+				DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 				if (vr->Length > CurrentGroupLength) 
 					DicomError(DCM_ERROR_PARSE, "Group Length = %u\n", CurrentGroupLength);
 				if (b && vr->Length > 0xffff && CurrentGroupLength!=0) return FALSE; // pass if not dangerous
@@ -1604,6 +1638,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 				{
 				if (DicomError(DCM_ERROR_PARSE, "Item Length exceeding remaining file size: %08x\n", vr->Length))
 				  return FALSE;
+				DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 				return ( TRUE );
 				}
 
@@ -1649,6 +1684,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 			// Not quite sure what to say here...
 			delete vr;
 			DicomError(DCM_ERROR_PARSE, "Sequence parse error during load of DCM file (after %08x)\n", (CurrentGroup<<16)+CurrentElement);
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			return ( FALSE );
 			}
 
@@ -1786,6 +1822,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 			{
 			BOOL b=DicomError(DCM_ERROR_PARSE, "Dynamic_Parse encountered an invalid element length during load of DCM file (in %08x)\n", (CurrentGroup<<16)+CurrentElement);
 			DicomError(DCM_ERROR_PARSE, "Length = %d\n", vr->Length);
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			if (vr->Length > CurrentGroupLength) 
 				DicomError(DCM_ERROR_PARSE, "Group Length = %u\n", CurrentGroupLength);
 			if (b && vr->Length > 0xffff && CurrentGroupLength!=0) return FALSE; // pass if not dangerous
@@ -1796,6 +1833,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 			{
 			if (DicomError(DCM_ERROR_PARSE, "Item Length exceeds remainder file size: %08x\n", vr->Length))
 			  return FALSE;
+			DicomError(DCM_ERROR_PARSE, "Previous = %08x\n", (PreviousGroup<<16)+PreviousElement);
 			return ( TRUE );
 			}
 

@@ -1207,6 +1207,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20231018	mvh	Added ppDDO parameter to CallImportConverterN to fix readdicom; added resetdicom & O:Reset()
 20231021	mvh	Fixed :Reset (added to method string list); reverted ppDDO change
 20231021	mvh	Fixed dicomread() and now allows Data:Read() too
+20240103	mvh	Maintain typecodes in MakeCopy
 
 ENDOFUPDATEHISTORY
 */
@@ -7347,6 +7348,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
        else
        { newVR = new VR(vr->Group, vr->Element, vr->Length, (BOOL) TRUE);
          memcpy(newVR->Data, vr->Data, vr->Length);
+	 newVR->TypeCode = vr->TypeCode;
        }
        DO2.Push(vr);
        out->Push(newVR);

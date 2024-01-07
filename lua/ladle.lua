@@ -36,6 +36,7 @@
 -- mvh 20221018 Fixed STOW (needs multipart/related); writefile must be binary
 -- mvh 20221022 Replaced some \n outputs by \r\n (tripped Quirt HTTP_GET module)
 -- mvh 20230809 Fixed default webroot for Linux
+-- mvh 20240107 Fixed HTTP 200 OK response
 
 -----------------------------------------------------
 
@@ -309,7 +310,7 @@ function generic.handler(request, client, config)
 
 	local served = io.open(config["webroot"] .. file, flags)
 	if served ~= nil then
-		client:send("HTTP/1.1 200/OK\r\nServer: Ladle\r\n")
+		client:send("HTTP/1.1 200 OK\r\nServer: Ladle\r\n")
 		client:send("Content-Type:" .. mimetype .. "\r\n\r\n")
 
 		local content = served:read("*all")
@@ -556,7 +557,7 @@ function dgatecgi.handler(request, client, config)
   Env.HTML = 
     function (a, b, c, d, e, f, g, h) 
       if Env.__tmp_output_buffer=='' then
-        Env.__tmp_output_buffer = "HTTP/1.1 200/OK\r\nServer: Ladle\r\n"
+        Env.__tmp_output_buffer = "HTTP/1.1 200 OK\r\nServer: Ladle\r\n"
       end
       Env.write(string.format(a, b or '', c or '', d or '', e or '', f or '', g or '', h or ''))
       Env.write('\r\n') 

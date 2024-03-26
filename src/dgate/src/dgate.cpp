@@ -1208,6 +1208,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20231021	mvh	Fixed :Reset (added to method string list); reverted ppDDO change
 20231021	mvh	Fixed dicomread() and now allows Data:Read() too
 20240103	mvh	Maintain typecodes in MakeCopy
+20240104	mvh	lua changeuid with 2 parameters is (uid, to) 3/4 parameters (uid, to, stage, <type>)
+20240104	mvh	Added IgnoreRewrite parameter
 
 ENDOFUPDATEHISTORY
 */
@@ -12788,8 +12790,19 @@ SaveToDisk(Database	*DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 				sprintf(Device, "MAG%d", PreferredDevice);
 			}
 		}
-	else
+	else    {
 	  	rewrite=TRUE;
+                char szRootSC[64], temp[64];
+                if (MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile))
+                        {
+                        MyGetPrivateProfileString(szRootSC, "IgnoreRewrite", "0", temp, 64, ConfigFile);
+                                if (atoi(temp))
+                                {
+                                        delete DDOPtr;
+                                        return TRUE;
+                                }
+                        }
+                }
 
 	// If MAG is full, may write to MIRROR, but database will say MAG
 	if (memicmp(Device, "MIRROR", 6)==0)

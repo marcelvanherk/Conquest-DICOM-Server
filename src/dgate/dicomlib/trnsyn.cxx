@@ -80,6 +80,7 @@
 20210118   mvh   WIP: Added code to read implicitly coded sequences in explicit content
 20210118   mvh   Every length exceeding warning phrased differently for easy of finding
 20240103   mvh   Added information about previous tag when parsing goes wrong
+20240326   mvh   Added type 'OL' with 32 bits length
 */
 
 /*
@@ -1067,6 +1068,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
                                 //        (vr->TypeCode=='OF')||
                                 //        (vr->TypeCode=='OD')||
                                 //        (vr->TypeCode=='OV')||
+                                //        (vr->TypeCode=='OL')||
                                 //        (vr->TypeCode=='UR')||
                                 //        (vr->TypeCode=='UC')||
                                 //        (vr->TypeCode=='SQ'))
@@ -1088,6 +1090,7 @@ BOOL	PDU_Service	::	Explicit_ParseRawVRIntoDCM(LinkedBuffer	&lVRBuffer, DICOMObj
 			(vr->TypeCode=='OF')||
 			(vr->TypeCode=='OD')||
 			(vr->TypeCode=='OV')||
+			(vr->TypeCode=='OL')||
 			(vr->TypeCode=='UR')||
 			(vr->TypeCode=='UC')||
 			(vr->TypeCode=='SQ'))
@@ -1255,6 +1258,7 @@ BOOL	PDU_Service	::	Explicit_ParseDCMIntoRawVR (
 			(vr->TypeCode=='OF')||
 			(vr->TypeCode=='OD')||
 			(vr->TypeCode=='OV')||
+			(vr->TypeCode=='OL')||
 			(vr->TypeCode=='UR')||
 			(vr->TypeCode=='UC')||
 			(vr->TypeCode=='SQ')))
@@ -1280,6 +1284,7 @@ BOOL	PDU_Service	::	Explicit_ParseDCMIntoRawVR (
 			(vr->TypeCode=='OF')||
 			(vr->TypeCode=='OD')||
 			(vr->TypeCode=='OV')||
+			(vr->TypeCode=='OL')||
 			(vr->TypeCode=='UR')||
 			(vr->TypeCode=='UC')||
 			(vr->TypeCode=='SQ'))
@@ -1386,6 +1391,7 @@ void SwapBigEndianData(VR* pVR)
     case 'OF':	// float array
     case 'SL':	// signed long
     case 'UL':	// unsigned long
+    case 'OL':	// int32 array
     pcData = (char*)pVR->Data;
     iNbValues = pVR->Length / 4;
     for (i=0; i<iNbValues; i++)
@@ -1735,6 +1741,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 				(vr->TypeCode=='OF')||
 				(vr->TypeCode=='OD')||
 				(vr->TypeCode=='OV')||
+				(vr->TypeCode=='OL')||
 				(vr->TypeCode=='UR')||
 				(vr->TypeCode=='UC')||
 				(vr->TypeCode=='SQ'))
@@ -2032,6 +2039,7 @@ BOOL	PDU_Service	::	Dynamic_ParseDCMIntoRawVR(
 				(vr->TypeCode=='OF')||
 				(vr->TypeCode=='OD')||
 				(vr->TypeCode=='OV')||
+				(vr->TypeCode=='OL')||
 				(vr->TypeCode=='UR')||
 				(vr->TypeCode=='UC')||
 				(vr->TypeCode=='SQ')))
@@ -2050,6 +2058,7 @@ BOOL	PDU_Service	::	Dynamic_ParseDCMIntoRawVR(
 				(vr->TypeCode=='OF')||
 				(vr->TypeCode=='OD')||
 				(vr->TypeCode=='OV')||
+				(vr->TypeCode=='OL')||
 				(vr->TypeCode=='UR')||
 				(vr->TypeCode=='UC')||
 				(vr->TypeCode=='SQ'))

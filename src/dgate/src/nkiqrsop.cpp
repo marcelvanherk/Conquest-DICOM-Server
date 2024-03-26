@@ -278,6 +278,9 @@
 20220820        mvh     Also allow scrub on typecode e.g. -SQ,OB,OW,OF,0010,00080008
 20220821        mvh     Optimized scrub a bit; do not test on unused features
 20230607        mvh     Set cget back compression to 'un'; acceptedCompression not set
+20240321      lncoll    Set lut acording to PhotoMetricInterpretation (0x0028,0x0004) in function To8bitMonochromeOrRGB
+                        Use Window Width (0x0028,0x1051) and Window Center (0x0028,0x1050) as in dicom object, or BitsStored (0x0028, 0x0101)
+20240326	mvh	Merged code; accepting all changes by lncoll but reformatted, replaced compile error pow(2,x)  by 1<<x
 */
 
 //#define bool BOOL
@@ -5248,13 +5251,39 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
   INT32*        piSrc;
   int			r, g, b;
   int                   pixeloffset = 0;
+  int			bitsStored;
+  int			valMax = 2047;
+  int			valDiv = 8;
   unsigned char lut[256];
-  for (i=0; i<256; i++) lut[i]=i;
-  if (gamma!=1)
-    for (i=0; i<256; i++) lut[i]=(int)(255.0*pow((float)i/255, gamma)+0.5);
 
   ExtractFrame(pDDO, frame);
 
+  // lncoll read PhotoMetricInterpretation before generating the lut
+  pVR = pDDO->GetVR(0x0028,0x0004);		// PhotometricInterpretation
+  // generate inverse lut for MONOCHROME1	
+  if (pVR && strncmp((char*)pVR->Data, "MONOCHROME1", 11) == 0) {
+    for (i=0; i<256; i++) lut[i]=255-i;
+  } else {
+    for (i=0; i<256; i++) lut[i]=i;
+  }
+
+  if (gamma!=1)
+    for (i=0; i<256; i++) lut[i]=(int)(255.0*pow((float)i/255, gamma)+0.5);
+
+  // lncoll Read window & level from dicom object
+  if (!window) {
+    level = pDDO->Getatoi(0x0028, 0x1050);
+    window = pDDO->Getatoi(0x0028, 0x1051);
+  }    
+
+  // lncoll get BitsStored to calculate window
+  if (!window){
+    bitsStored = pDDO->GetBYTE(0x0028, 0x0101);      // BitsStored
+    if (!bitsStored) bitsStored = 11;
+    valMax = (1 << bitsStored)-1;
+    valDiv = (1 << (bitsStored-8));
+  }
+  
   if (size==0) iMaxRowsColumns = 16384;
   else         iMaxRowsColumns = size;
 
@@ -5402,9 +5431,11 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
             r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
             if (r > max) max=r;
-            if (r>2047) r=2047;
+// lncoll            if (r>2047) r=2047;
+            if (r>valMax) r=valMax;
             if (r<0)    r=0;
-            r = r/8;
+// lncoll            r = r/8;
+            r = r/valDiv;
             *pcDest++ = lut[r];
   	    psSrc += iDownsizeFactor;
   	  }

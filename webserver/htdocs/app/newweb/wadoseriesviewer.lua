@@ -28,6 +28,8 @@
 -- 20221012   mvh   Added storeclick call on clicking
 -- 20221017   mvh   Only call storeclick when startslice is passed
 -- 20230625   mvh   Made all links relative
+-- 20240330   lncoll  If not WindowCenter or WindowWidth; use BitsStored to get them, with a default of 11 bits
+-- 20240331   mvh   Merged
 
 -- default series information - this is here to allow debugging of the code usign ZeroBrane Studio, running from the server
 series2 = series2 or '0009703828:1.3.46.670589.5.2.10.2156913941.892665339.860724'
@@ -246,8 +248,13 @@ windowcenter, windowwidth, slope, intercept =
   [[
   local a=newdicomobject(); 
   a:Read("]]..imagelocation..[[");
-  local c = (a.WindowCenter or 1000)  if c=='' then c=1000 end
-  local w = (a.WindowWidth or 1000)   if w=='' then w=1000 end
+  local c = (a.WindowCenter or 0)
+  local w = (a.WindowWidth or 0)
+  if (c==0 or w==0) then
+    b = (a.BitsStored or 11)
+    w = 2^b
+    c = math.floor(w/2)
+  end
   local s = (a.RescaleSlope or 1)     if s=='' then s=1 end
   local i = (a.RescaleIntercept or 0) if i=='' then i=0 end
   --print('getting image for wado viewer', c, w)

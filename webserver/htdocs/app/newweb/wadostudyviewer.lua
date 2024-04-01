@@ -14,6 +14,7 @@
 -- 20230625   mvh   Made all links relative
 -- 20240330   lncoll  If not WindowCenter or WindowWidth; use BitsStored to get them, with a default of 11 bits
 -- 20240331   mvh   Merged
+-- 20240401   lncoll+mvh restored check for empty WindowCenter and WindowWidth
 
 -- defaults to allow debugging in zbs
 study2 = study2 or 'EG2005:'
@@ -657,7 +658,7 @@ for i=1,#pats do
   a:Read("]]..imagelocation..[[");
   local c = (a.WindowCenter or 0)
   local w = (a.WindowWidth or 0)
-  if (c==0 or w==0) then
+  if (c==0 or w==0 or c=='' or w=='') then
     b = (a.BitsStored or 11)
     w = 2^b
     c = math.floor(w/2)

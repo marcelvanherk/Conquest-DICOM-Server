@@ -75,6 +75,7 @@
 20131013	mvh	Default FileNameSyntax set to 4
 20160316	mvh	Avoid buffer overflow reading string[-1]
 20220227	mvh	Added RenameOnRewrite flag: will force rename of any object rewritten 
+20240522	mvh	Fix lua: FilenameSyntax (998), incorrectly replaced .lua with .dcm
 */
 
 #ifndef	WHEDGE
@@ -134,8 +135,8 @@ GetFileNameSyntax(unsigned int *maxfilenamelength)
 		MyGetPrivateProfileString ( RootSC, "FileNameSyntax", "4",
 			(char*) FileNameSyntaxString, 256, ConfigFile);
 		FileNameSyntax = atoi(FileNameSyntaxString);
-		if (strchr(FileNameSyntaxString, '%'))          FileNameSyntax=999;	// configured by string
 		if (memcmp(FileNameSyntaxString, "lua:", 4)==0) FileNameSyntax=998;	// lua done by caller (dcm assumed)
+		else if (strchr(FileNameSyntaxString, '%'))     FileNameSyntax=999;	// configured by string
 
 		MyGetPrivateProfileString ( RootSC, "MaxFileNameLength", "255",
 			(char*) Temp, 128, ConfigFile);
@@ -670,7 +671,9 @@ GenerateFileName(
 	    (iFileNameSyntax != 9) &&
 	    (iFileNameSyntax != 10) &&
 	    (iFileNameSyntax != 11) &&
-	    (iFileNameSyntax != 12))
+	    (iFileNameSyntax != 12) &&
+	    (iFileNameSyntax != 998)
+	    )
 		{
 		VR*	pVR;
 		char	s[256];

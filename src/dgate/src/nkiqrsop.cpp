@@ -281,6 +281,8 @@
 20240321      lncoll    Set lut acording to PhotoMetricInterpretation (0x0028,0x0004) in function To8bitMonochromeOrRGB
                         Use Window Width (0x0028,0x1051) and Window Center (0x0028,0x1050) as in dicom object, or BitsStored (0x0028, 0x0101)
 20240326	mvh	Merged code; accepting all changes by lncoll but reformatted, replaced compile error pow(2,x)  by 1<<x
+20240511	mvh	Added e.g. j#3,150 compression: uses j2 clipping all<150 to zero, and scaling pixels by 3
+20240522	mvh	Added e.g. n#3,150 compression: uses faster n5 clipping all<150 to zero, and scaling pixels by 3
 */
 
 //#define bool BOOL
@@ -2507,6 +2509,61 @@ static int TestDownsize(DICOMDataObject* pDDO, DICOMCommandObject* pDCO, int siz
     return FALSE;
 
   return TRUE;				/* image would be downsized */
+}
+
+// scale and clip short data to improve compression
+int ScaleClip(DICOMDataObject* pDDO, int factor, int clip)
+{ int			i, j;
+  VR			*pVR1=NULL;
+  unsigned int		iImageSize, iNbBytesPerPixel, iRows, iColumns, iNbPixels;
+  short*		psSrc;
+  short*		psDest;
+
+  /* NumberOfFrames */
+  if(pDDO->Getatoi(0x0028, 0x0008) > 1) return FALSE;/* not implemented for multi-frame */
+
+  /* OK. Now check whether all necessary PixelData-info is present in pDDO */
+  iRows    = pDDO->GetUINT16(0x0028, 0x0010);
+  iColumns = pDDO->GetUINT16(0x0028, 0x0011);
+  iNbPixels = iRows * iColumns;
+
+  if (!iNbPixels)
+    return TRUE;
+  
+  if (!DecompressNKI(pDDO))		/* Pixeldata must first be decompressed */
+    return FALSE;
+
+  pVR1 = pDDO->GetVR(0x7fe0, 0x0010);	/* Pixeldata */
+  if (!pVR1)
+    return TRUE;
+  iImageSize = pVR1->Length;
+  if ((iImageSize < iNbPixels) ||
+      (iImageSize % iNbPixels > 1))	/* allow 1 byte padding */
+    return TRUE;			/* Image doesn't make sense */
+  iNbBytesPerPixel = iImageSize / iNbPixels;
+  if (iNbBytesPerPixel != 2)
+    return TRUE;			/* Image is not short */
+
+  psSrc  = (short*)pVR1->Data;
+  psDest = psSrc;
+  for (int i=0; i<iNbPixels; i++)
+  { short val = *psSrc++;
+    if (val<clip) val=0;
+    val = (val+factor/2) / factor;
+    *psDest++ = val;
+  }
+
+  pVR1 = pDDO->GetVR(0x0028, 0x1053);	/* change RescaleSlope */
+  if (pVR1)
+  { char s[64];
+    memcpy(s, pVR1->Data, pVR1->Length);
+    s[pVR1->Length]=0;
+    float slope = atof(s)*factor;
+    sprintf(s, "%.2f", slope);
+    pDDO->ChangeVR(0x0028, 0x1053, s, 'DS');
+  }
+
+  return 2;				// ScaleClip actually occurred
 }
 
 // scrub VR items using 9999,0202; use e.g. +00100010,0020000D to keep only those two; use e.g. -00100010,0020000D to delete those two
@@ -4883,12 +4940,23 @@ BOOL recompress(DICOMDataObject **pDDO, const char *Compression, const char *Fil
 			    	}*/
 				}
 	
-		int qual = 0; // default as configured in dicom.ini
-		if (Compression[2]) qual = atoi(Compression+2);
 
 		if (!DecompressImage(pDDO, &status)) return FALSE;
-		rc = CompressJPEGImage(pDDO, Compression[1], &status, qual);
-		if (strchr("3456lL", Compression[1]))
+
+		if (Compression[1]=='#' && strlen(Compression)>4) 
+		//e.g. j#3,150 sets all pixels<150 to zero and then divides pixels by 3 
+		{ int scale=atoi(Compression+2);
+		  int clip=atoi(Compression+4);
+		  if (Compression[4]==',') clip=atoi(Compression+5);
+		  ScaleClip(*pDDO, scale, clip);
+		  rc = CompressJPEGImage(pDDO, '2', &status, 100);
+		}
+		else
+		{ int qual = 0; // default as configured in dicom.ini
+		  if (Compression[2]) qual = atoi(Compression+2);
+		  rc = CompressJPEGImage(pDDO, Compression[1], &status, qual);
+		}
+		if (strchr("3456lL#", Compression[1]))
 		  (*pDDO)->ChangeVR(0x0028, 0x2110, "01", 'CS'); // 20120624: set lossy compression
 		}
 
@@ -4950,6 +5018,19 @@ BOOL recompress(DICOMDataObject **pDDO, const char *Compression, const char *Fil
 		if (!DecompressImage(pDDO, &status)) return FALSE;
 
 		if (Compression[1]=='0') rc = TRUE;
+
+		else if (Compression[1]=='#' && strlen(Compression)>4) 
+		//e.g. n#3,150 sets all pixels<150 to zero and then divides pixels by 3 ; followed by nki compression 5
+			{ 
+			int scale=atoi(Compression+2);
+			int clip=atoi(Compression+4);
+			if (Compression[4]==',') clip=atoi(Compression+5);
+			ScaleClip(*pDDO, scale, clip);
+			rc = CompressNKI(*pDDO, 5);
+			(*pDDO)->ChangeVR(0x0028, 0x2110, "01", 'CS'); // set lossy compression
+			status = rc;
+			}
+
 		else                     
 			{
 			rc = CompressNKI(*pDDO, Compression[1]-'0');

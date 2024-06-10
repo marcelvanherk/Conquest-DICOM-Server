@@ -1210,6 +1210,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20240103	mvh	Maintain typecodes in MakeCopy
 20240104	mvh	lua changeuid with 2 parameters is (uid, to) 3/4 parameters (uid, to, stage, <type>)
 20240104	mvh	Added IgnoreRewrite parameter
+20240610	mvh	Added AllowNKIAsDICOM; process DS as string in luaserialize
 
 ENDOFUPDATEHISTORY
 */
@@ -7841,10 +7842,10 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
               Index+=sprintf(result+Index, "%s%c%c", name, eq, br1);
 	      int count1=0;
 	      while(p)
-	      {  float a;
-                 a = atof(p+1);
-		 Index+=sprintf(result+Index, "%f,", a);
+	      {  char *q=p+1;
 	         p=strchr(p+1, '\\');
+		 if (p) *p=0;
+		 Index+=sprintf(result+Index, "%s,", q);
 		 count1++;
 	      }
 	      if (count1) Index--;
@@ -12926,9 +12927,15 @@ SaveToDisk(Database	*DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 
 	// is it nki compressed and attempt to store as .dcm --> decompress ?
 	if (DDOPtr->GetVR(0x7fdf, 0x0010)!=NULL && DDOPtr->GetVR(0x7fe0, 0x0010)==NULL && has_dcm_extension)
-		{
-		OperatorConsole.printf("SaveToDisk: *** warning: cannot write NKI compressed in dcm format, decompressing: %s\n", Filename);
-		DecompressNKI(DDOPtr);
+		{ int allow=0; char buffer[64], szRootSC[64];
+	          if (MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile))
+                  { MyGetPrivateProfileString(szRootSC, "AllowNKIAsDICOM", "0", buffer, 64, ConfigFile);
+                    allow = atoi(buffer);
+                  }
+		  if (!allow)
+		  { OperatorConsole.printf("SaveToDisk: *** warning: cannot write NKI compressed in dcm format, decompressing: %s\n", Filename);
+		    DecompressNKI(DDOPtr);
+		  }
 		}
 		
 	int t = time(NULL);

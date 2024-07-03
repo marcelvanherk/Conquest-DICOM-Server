@@ -6,7 +6,7 @@ Its USP is simplicity for starters, speed for serious users, and endless configu
 
 [Forum] (https://forum.image-systems.biz/forum/index.php?board/33-conquest-users/)
 
-[Download current stable release 1.5.0d] (http://ingenium.home.xs4all.nl/dicomserver/dicomserver150d.zip)
+[Download current stable release 1.5.0d] (http://natura-ingenium.nl/dicomserver/dicomserver150d.zip)
 
 The commit corresponding to 1.5.0d is here: https://github.com/marcelvanherk/Conquest-DICOM-Server/commit/7b8a36d2f836ec2f4bbb0704c463b706405331c2
 

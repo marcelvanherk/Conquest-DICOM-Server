@@ -1211,11 +1211,14 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20240104	mvh	lua changeuid with 2 parameters is (uid, to) 3/4 parameters (uid, to, stage, <type>)
 20240104	mvh	Added IgnoreRewrite parameter
 20240610	mvh	Added AllowNKIAsDICOM; process DS as string in luaserialize
+20240922	mvh	SM1312 supress '+' in DS to json conversion in luaserialize
+			Allow NightlyCleanThreshhold and NightlyCleanThreshold
+20240922        mvh     ---- RELEASE 1.5.0e -----
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0d"
+#define DGATE_VERSION "1.5.0e"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -7845,6 +7848,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	      {  char *q=p+1;
 	         p=strchr(p+1, '\\');
 		 if (p) *p=0;
+		 if (*q == '+') q++;
 		 Index+=sprintf(result+Index, "%s,", q);
 		 count1++;
 	      }
@@ -13047,7 +13051,8 @@ static BOOL WINAPI zipthread(void)
 
     if (MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile))
     { MyGetPrivateProfileString(szRootSC, "ziptime", "", ziptime, 64, ConfigFile);
-      MyGetPrivateProfileString(szRootSC, "NightlyCleanThreshhold", "0", NightlyCleanThreshhold, 64, ConfigFile);
+      if (!MyGetPrivateProfileString(szRootSC, "NightlyCleanThreshhold", "0", NightlyCleanThreshhold, 64, ConfigFile))
+        MyGetPrivateProfileString(szRootSC, "NightlyCleanThreshold", "0", NightlyCleanThreshhold, 64, ConfigFile);
     }
     
     if (memicmp(timehhmmss, ziptime, strlen(ziptime))==0 && strlen(ziptime))

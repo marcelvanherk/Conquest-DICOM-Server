@@ -694,6 +694,8 @@ When            Who     What
 20230607        mvh     Update version number
 20230620        mvh     Set UTF8FromDB and UTF8ToDB for postgres
 20230701        mvh     1.5.0d release
+20240922        mvh     Limit time in UIDPrefix default to 5 digits
+20240922        mvh     1.5.0e release
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -729,8 +731,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0d';
-const BUILDDATE = '20230701';
+const VERSION = '1.5.03';
+const BUILDDATE = '20240922';
 const testmode = 0;
 
 {************************************************************************}
@@ -3312,7 +3314,7 @@ begin
   if UIDPrefix='' then
   begin
     t := DateTimeToTimeStamp(Now);
-    UIDPrefix := '1.2.826.0.1.3680043.2.135.' + IntToStr(t.Date) + '.' + IntToStr(t.Time);
+    UIDPrefix := '1.2.826.0.1.3680043.2.135.' + IntToStr(t.Date) + '.' + IntToStr(t.Time mod 100000);
   end;
 
   // Read the dicom.ini file with server configuration

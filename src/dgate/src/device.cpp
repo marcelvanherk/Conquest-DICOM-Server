@@ -114,6 +114,7 @@ Spectra0018 Thu, 6 Mar 2014 15:43:54 -0300: Fix mismatched new/delete in device.
 20150730	mvh	Expose KeepFile parameter of ModifyData
 20181115	mvh	Changed default of MAGDeviceThreshHold to 0
 20191221        mvh     Fix MakeListOfOldestPatientsOnDevice for no device passed
+20240922	mvh	Allow xxThreshHold and xxThreshold (3 times)
 */
 
 #ifndef UNUSED_ARGUMENT
@@ -423,15 +424,21 @@ InitializeDeviceTable(
 
 	///////////////////// Threshold for panic kill off /////////////////////
 
-	MyGetPrivateProfileString ( SCRoot, "MAGDeviceThreshHold", "0",
+	if (!MyGetPrivateProfileString ( SCRoot, "MAGDeviceThreshHold", "0",
+		(char*)Temp, 64, ConfigFile))
+		MyGetPrivateProfileString ( SCRoot, "MAGDeviceThreshold", "0",
 		(char*)Temp, 64, ConfigFile);
 	MAGDeviceThreshHold = atoi(Temp);
 
-	MyGetPrivateProfileString ( SCRoot, "MAGDeviceFullThreshHold", "30",
+	if (!MyGetPrivateProfileString ( SCRoot, "MAGDeviceFullThreshHold", "30",
+		(char*)Temp, 64, ConfigFile))
+		MyGetPrivateProfileString ( SCRoot, "MAGDeviceFullThreshold", "30",
 		(char*)Temp, 64, ConfigFile);
 	MAGDeviceFullThreshHold = atoi(Temp);
 
-	MyGetPrivateProfileString ( SCRoot, "IgnoreMAGDeviceThreshHold", "0",
+	if (!MyGetPrivateProfileString ( SCRoot, "IgnoreMAGDeviceThreshHold", "0",
+		(char*)Temp, 64, ConfigFile))
+		MyGetPrivateProfileString ( SCRoot, "IgnoreMAGDeviceThreshold", "0",
 		(char*)Temp, 64, ConfigFile);
 	IgnoreMAGDeviceThreshHold = atoi(Temp);
 

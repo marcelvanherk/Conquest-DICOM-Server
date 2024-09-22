@@ -32,6 +32,7 @@
 20180315	mvh	Started on C-GET
 20181222	mvh	Added WriteGet for C-GET client; results in image information in ADDO
 20200203	mvh	Added LUA51EXTERN option for dynamic loading of lua5.1.dll
+20240617	mvh	Add PDUSize to ExtendedPDU_Service for testing
 */
 
 #ifdef LUA51EXTERN
@@ -57,6 +58,14 @@ class	ExtendedPDU_Service	:
 		{ L = NULL;
 		  memset(VariableVRs, 0, sizeof(VariableVRs));
 		  ThreadNum = 0;
+		  
+               	  char	szRootSC[64];
+               	  char	szTemp[32];
+                  if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig,
+               			szRootSC, 64, ConfigFile)) return;
+               	  if (!MyGetPrivateProfileString(szRootSC, "PDUSize", "",
+               			szTemp, 32, ConfigFile)) return;
+               	  if (szTemp[0]) pdusize = atoi(szTemp);
 		};
 		~ExtendedPDU_Service () 
 		{ if (L) lua_close(L);

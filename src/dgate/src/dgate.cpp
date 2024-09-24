@@ -1213,7 +1213,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20240610	mvh	Added AllowNKIAsDICOM; process DS as string in luaserialize
 20240922	mvh	SM1312 supress '+' in DS to json conversion in luaserialize
 			Allow NightlyCleanThreshhold and NightlyCleanThreshold
-20240922        mvh     ---- RELEASE 1.5.0e -----
+20240924        mvh     Added lncoll message on rewrite
+20240924        mvh     Read level and window as float and round to int in convert_to_gif etc
+20240924        mvh     ---- RELEASE 1.5.0e -----
 
 ENDOFUPDATEHISTORY
 */
@@ -12803,7 +12805,8 @@ SaveToDisk(Database	*DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
                         MyGetPrivateProfileString(szRootSC, "IgnoreRewrite", "0", temp, 64, ConfigFile);
                                 if (atoi(temp))
                                 {
-                                        delete DDOPtr;
+                                        OperatorConsole.printf("File already exists: %s\n", rFilename);  
+                                        Filename[0]=0;                                          delete DDOPtr;
                                         return TRUE;
                                 }
                         }
@@ -22627,10 +22630,10 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			if (p==NULL)    p = p256;
 			//if (atoi(p)==0) p = p32;
 			if (r1==NULL)    r1 = p00;
-			level  = atoi(r1);
+			level  = (int)(atof(r1)+0.5);
 			r1 = strchr(r1, '/');
 			if (r1==NULL)    r1 = p0; else r1++;
-			window = atoi(r1);
+			window = (int)(atof(r1)+0.5);
 			r1 = strchr(r1, '/');
 			if (r1==NULL)    r1 = p0; else r1++;
 			frame = (unsigned int)atoi(r1);

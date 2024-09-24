@@ -75,6 +75,7 @@ When            Who     What
 20100202        mvh     version to 1.4.16alpha
 20100207        mvh     version comes from define in the serverdriver
 20160313        mvh     Update
+20240923        mvh     Take eZdicom out of acknowledgements; add Ladle
 *}
 
 {************************************************************************}
@@ -132,9 +133,11 @@ Memo1.Lines.Text :=
 'In addition, we have used the excellent Delphi TCP/IP components from François Piette '+
 '(http://www.overbyte.be), '+
 'the MiTeC DBFTable by MichaL MutL, '+
-'the EZDicom viewer by Chris Rorden (chris.rorden@nottingham.ac.uk) modified by'+
-' Andreas Knopke (andreas@k-pacs.de), the fine Lua language for scripting, '+
-'the sqlite database by Richard Hipp (http://www.sqlite.org/index.html) '+
+//'the EZDicom viewer by Chris Rorden (chris.rorden@nottingham.ac.uk) modified by'+
+//' Andreas Knopke (andreas@k-pacs.de)
+'the fine Lua language for scripting, '+
+'the sqlite database by Richard Hipp (http://www.sqlite.org/index.html), '+
+'the Ladle lua webserver by Samuel Saint-Pettersen and Daniel Rempel), '+
 'and JPEG (JpegLS and Jpeg2000) compression and decompression tools from Bruce Barton. ' + #13 +
 #13 +
 'The user interface was developed at the Radiotherapy Department of the Netherlands '+

@@ -3,6 +3,7 @@
 -- In examples dicom.ini lines preceded by [lua]\n most be put in the [lua] section at the end of the file
 
 -- mvh 20200125 created to support multithreaded move initiated by script
+-- lncoll 202400404 fix single line comments in read_amap
 
 -- splits a move command into multiple connections (typically ~2 if reciever supports to avoid too much overhead)
 -- simple use: RetrieveConverter0=lua:mtmove(2) or [lua]\nRetrieveConverter0=mtmove(2)
@@ -38,24 +39,25 @@ end
 
 -- read and scan acrnema.map, mainly useful to get extra parameters not interpreted by dicom server 
 -- but made available to configure lua scripts such as mthread above.
-function read_amap()
-  local map = {}
-  local incomment=false
-  for t in io.lines(Global.BaseDir..'acrnema.map') do
-    if string.match(t, '/%*') then
-      incomment=true
-    elseif string.match(t, '%*/') then
-      incomment=false
-    elseif incomment==false then
-      local a,b,c,d,e,f,g,h = string.match(t, string.rep('([0-9a-zA-Z_%.%*]*)%s*', 8))
-      if a~='' then
-        a = {a,b,c,d,e,f,g,h}
-        table.insert(map, a) 
-      end
-    end
-  end
-  return map
-end
+function read_amap()  
+  local map = {}  
+  local incomment=false  
+  for t in io.lines(Global.BaseDir..'acrnema.map') do  
+    t = string.gsub(t, "/%*.-%*/", "")  
+    if string.match(t, '/%*') then  
+      incomment=true  
+    elseif string.match(t, '%*/') then  
+      incomment=false  
+    elseif incomment==false then  
+      local a,b,c,d,e,f,g,h = string.match(t, string.rep('([0-9a-zA-Z_%.%*]*)%s*', 8))  
+      if a~='' then  
+        a = {a,b,c,d,e,f,g,h}  
+        table.insert(map, a)  
+      end  
+    end  
+  end  
+  return map  
+end  
 
 -- creates this global in each association
 acrnema_map=read_amap()

@@ -37,6 +37,7 @@
 -- mvh 20221022 Replaced some \n outputs by \r\n (tripped Quirt HTTP_GET module)
 -- mvh 20230809 Fixed default webroot for Linux
 -- mvh 20240107 Fixed HTTP 200 OK response
+-- mvh 20240924 Reset request after quit to avoid failure to restart
 
 -----------------------------------------------------
 
@@ -573,6 +574,7 @@ function dgatecgi.handler(request, client, config)
   Env.series2 = request.query.series
 
   if request.query['mode']=='quit' then 
+    request.query['mode']=''
     error('quiting ladle server')
   end
   request.uri = (request.query['mode'] or 'xxxx')..'.lua' 

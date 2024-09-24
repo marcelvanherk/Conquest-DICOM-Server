@@ -695,7 +695,9 @@ When            Who     What
 20230620        mvh     Set UTF8FromDB and UTF8ToDB for postgres
 20230701        mvh     1.5.0d release
 20240922        mvh     Limit time in UIDPrefix default to 5 digits
-20240922        mvh     1.5.0e release
+20240923        mvh     Check ladle button when opening webviewer
+20240924        lncoll  Allow simple comments in acrnema.map; wordwrap its editor
+20240924        mvh     1.5.0e release
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -725,14 +727,14 @@ uses
   StdCtrls, Mask, ComCtrls, OleCtrls, FileCtrl, ExtCtrls, ActiveX,
   Db, Grids, DBGrids, DBCtrls, Menus, Launch, WSocket, Winapi.WinSock,
   Buttons, Registry, shellapi, SmtpProt, MDBFTable, ADODB,
-  Spin, System.UITypes;
+  Spin, System.UITypes, System.RegularExpressions;
 
 {************************************************************************}
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.03';
-const BUILDDATE = '20240922';
+const VERSION = '1.5.0e';
+const BUILDDATE = '20240924';
 const testmode = 0;
 
 {************************************************************************}
@@ -6848,6 +6850,7 @@ begin
   webaddress := 'http://127.0.0.1:'+LadlePort+'/app/newweb/dgate.exe?mode=wadoseriesviewer&series=' +
                  Table1.FieldByName('PATIENTID').AsString+':'+Table3.FieldByName('SERIESINST').AsString;
   ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];arg[2]=Global.BaseDir..[[webserver/htdocs/]];dofile(Global.Basedir..[[lua/ladle.lua]])');
+  CheckBoxWebServer.Checked := true;
   ShellExecute(0, 'open', PWideChar(webaddress), nil, nil, SW_SHOWNORMAL);
 {$ENDIF KPACS}
 end;
@@ -8671,14 +8674,31 @@ var i, j: integer;
     c: char;
     s, t: string;
     inspace: boolean;
+    incomment: boolean;
+    regex: TRegEx;
 begin
   Form1.DicomSystem.Items.Clear;
   Form1.TargetSystem.Items.Clear;
+  incomment := False;
+  Form1.DICOMMap.WordWrap := False;
+  regex.Create('\/\*.*\*\/');
 
   for i:=0 to Form1.DicomMap.Lines.Count-1 do
   begin
     s := Form1.DicomMap.Lines[i];
-    if Pos('*', s)>0 then continue;
+    s := regex.Replace(s, '');
+    if incomment then
+    begin
+      if Pos('*/', s)>0 then incomment := False;
+      continue;
+    end else begin
+      if Pos('/*', s)>0 then
+      begin
+        incomment := True;
+        continue;
+      end;
+    end;
+    // Pos('*', s)>0 then continue;
     if Length(s)<>0 then
     begin
       c := s[1];
@@ -8710,6 +8730,7 @@ begin
     end;
   end;
 
+  Form1.DICOMMap.WordWrap := True;
   Form1.DicomSystem.ItemIndex := 0;
   Form1.TargetSystem.ItemIndex := 0;
 

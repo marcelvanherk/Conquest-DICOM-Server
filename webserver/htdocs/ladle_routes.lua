@@ -8,13 +8,15 @@
 -- mvh 20221018 fix zip mime type; added attach and attachdicom; stow in right place
 -- mvh 20221220 unlink temp file after startscript
 -- mvh 20230808 Correct response is 200 OK instead of 200/OK; detected by weasis loader
+-- mvh 20240205 Added cache option
+-- mvh 20240924 Blocked out cache option
 
 ---------------------------------------------
 --preflight
 routes:options('/rs/studies/:suid/series/:euid/instances/:ouid', function (params)
-   write('Access-Control-Allow-Headers: *')
-   write('Access-Control-Allow-Origin: *')
-   write('Content-Type: multipart/related\r\n\r\n')
+   --write('Access-Control-Allow-Headers: *')
+   --write('Access-Control-Allow-Origin: *')
+   --write('Content-Type: multipart/related\r\n\r\n')
 end )
 
 routes:options('/.*', function (params)
@@ -204,6 +206,112 @@ routes:get('/api/dicom/rs/studies/:suid/thumbnail', function (params)
    thumbnail(request.query, params.suid,'','',0,128)
 end );
 
+---------------------------------------------------------------
+--DICOMWeb with cache - suitable to create offline content
+---------------------------------------------------------------
+
+---- wado though uri: wadouri
+--routes:get('/api/dicomcache/wadouri/', function (params)
+--   cache(request.query.studyUID..'/', request.query.objectUID, '.dcm')
+--   redirect('/app/newweb/dgate.exe')
+--end )
+--
+---- query all studies
+--routes:get('/api/dicomcache/rs/studies', function (params)
+--   cache(nil, 'studies', '.json')
+--   querystudies(request.query)
+--end )
+--
+---- query series of a study
+--routes:get('/api/dicomcache/rs/studies/:suid/series', function (params)
+--   cache(params.suid..'/', 'series', '.json')
+--   queryseries(request.query, params.suid)
+--end )
+--
+---- query all series
+--routes:get('/api/dicomcache/rs/series', function (params)
+--   cache(nil, 'series', '.json')
+--   queryseries(request.query, '')
+--end )
+--
+---- query instances of series
+--routes:get('/api/dicomcache/rs/studies/:suid/series/:euid/instances', function (params)
+--   cache(params.suid..'/', params.euid, '.json')
+--   queryinstances(request.query, params.suid, params.euid)
+--end )
+--
+---- query all instances
+--routes:get('/api/dicomcache/rs/instances', function ()
+--   cache(nil, 'instances', '.json')
+--   queryinstances(request.query, '', '')
+--end )
+--
+---- metadata of a study
+--routes:get('/api/dicomcache/rs/studies/:suid/metadata', function (params)
+--   cache(params.suid..'/', 'metadata', '.json')
+--   metadata(request.query,params.suid,'','')
+--end )
+--
+---- metadata of a series
+--routes:get('/api/dicomcache/rs/studies/:suid/series/:euid/metadata', function (params)
+--   cache(params.suid..'/', params.euid, '.json')
+--   metadata(request.query, params.suid,params.euid,'')
+--end )
+--
+---- metadata of an instance
+--routes:get('/api/dicomcache/rs/studies/:suid/series/:euid/instances/:ouid/metadata', function (params)
+--   cache(params.suid..'/', params.ouid, '.json')
+--   metadata(request.query, params.suid,params.euid,params.ouid)
+--end )
+--
+---- single frame (binary pixel data)
+--routes:get('/api/dicomcache/rs/studies/:suid/series/:euid/instances/:ouid/frames/:frame', function (params)
+--   cache(params.suid..'/', params.ouid..params.frame, '.bin')
+--   frame(request.query, params.suid,params.euid,params.ouid,params.frame)
+--end )
+--
+---- dicom instance
+--routes:get('/api/dicomcache/rs/studies/:suid/series/:euid/instances/:ouid', function (params)
+--   cache(params.suid..'/', params.ouid, '.dcm')
+--   instances(request.query, params.suid,params.euid,params.ouid)
+--end )
+--
+---- dicom instances of series
+--routes:get('/api/dicomcache/rs/studies/:suid/series/:euid', function (params)
+--   cache(params.suid..'/', params.euid, '.bin')
+--   instances(request.query, params.suid,params.euid,'')
+--end )
+--
+---- dicom instances of study
+--routes:get('/api/dicomcache/rs/studies/:suid', function (params)
+--   cache(params.suid..'/', 'study', '.bin')
+--   instances(request.query, params.suid,'','')
+--end )
+--
+---- thumbnail of a frame
+--routes:get('/api/dicomcache/rs/studies/:suid/series/:euid/instances/:ouid/thumbnail/frames/:frame', function (params)
+--   cache(params.suid..'/', params.ouid..params.frame, '.jpg')
+--   thumbnail(request.query, params.suid,params.euid,params.ouid,params.frame,128)
+--end )
+--
+---- thumbnail of an image
+--routes:get('/api/dicomcache/rs/studies/:suid/series/:euid/instances/:ouid/thumbnail', function (params)
+--   cache(params.suid..'/', params.ouid, '.jpg')
+--   thumbnail(request.query, params.suid,params.euid,params.ouid,0,128)
+--end )
+--
+---- thumbnail for series (middle one)
+--routes:get('/api/dicomcache/rs/studies/:suid/series/:euid/thumbnail', function (params)
+--   cache(params.suid..'/', params.euid, '.jpg')
+--   thumbnail(request.query, params.suid,params.euid,'',0,128)
+--end )
+--
+---- thumbnail for study (middle one)
+--routes:get('/api/dicomcache/rs/studies/:suid/thumbnail', function (params)
+--   cache(params.suid..'/', 'thumbnail', '.jpg')
+--   thumbnail(request.query, params.suid,'','',0,128)
+--end );
+--
 ------------------------------------------------------------
 -- dicom api, Ladle version, orginal source code in qido.php 
 ------------------------------------------------------------
@@ -280,14 +388,20 @@ function instances(query,st,se,sop)
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Headers: *\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
-  write('Content-Type: multipart/related; boundary='..bd..'\r\n\r\n')
+  if false and sop~='' then
+    write("Content-Type: application/dicom\r\n")
+    write("Content-Transfer-Encoding: binary\r\n\r\n")
+	bd=''
+  else
+    write('Content-Type: multipart/related; boundary='..bd..'\r\n\r\n')
+  end
   getinstances(nil,bd,st,se,sop)
 end
 
 function frame(query,st,se,sop,fr)
   include('/api/dicom/rquery.lua')
   local bd = 'Hallo'..generateRandomString(32)
-  write('HTTP/1.1 200OK\r\nServer: Ladle\r\n')
+  write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Headers: *\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
   write('Content-Type: multipart/related; boundary='..bd..'\r\n\r\n')

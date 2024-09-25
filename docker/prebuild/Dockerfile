@@ -3,13 +3,17 @@
 # Create a prebuild conquest dgate
 #
 # to build:
+#    (edit line 29 to force rebuild)
 #    docker build -t prebuild .
 #
 # to run the container interactively with bash:
 #    docker run -it prebuild bash
 #
-# docker cp CONTAINER:/Conquest-DICOM-Server/dgate .
-# docker cp CONTAINER:/Conquest-DICOM-Server/src/servertask/servertask .
+# to get the container name (other console):
+#    docker ps
+#
+# docker cp NAME:/Conquest-DICOM-Server/dgate .
+# docker cp NAME:/Conquest-DICOM-Server/src/servertask/servertask .
 #
 ##########
 

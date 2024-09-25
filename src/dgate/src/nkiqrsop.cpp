@@ -283,6 +283,7 @@
 20240326	mvh	Merged code; accepting all changes by lncoll but reformatted, replaced compile error pow(2,x)  by 1<<x
 20240511	mvh	Added e.g. j#3,150 compression: uses j2 clipping all<150 to zero, and scaling pixels by 3
 20240522	mvh	Added e.g. n#3,150 compression: uses faster n5 clipping all<150 to zero, and scaling pixels by 3
+20240925        mvh     Read level and window as float and round to int in convert_to_gif etc
 */
 
 //#define bool BOOL
@@ -5353,8 +5354,17 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 
   // lncoll Read window & level from dicom object
   if (!window) {
-    level = pDDO->Getatoi(0x0028, 0x1050);
-    window = pDDO->Getatoi(0x0028, 0x1051);
+    char text[256];
+    pVR=pDDO->GetVR(0x0028, 0x1050);
+    memset(text, 0, 256);
+    if (pVR->Length<256) memcpy(text, (char *)(pVR->Data), pVR->Length);
+    level = (int)(atof(text)+0.5);
+    pVR=pDDO->GetVR(0x0028, 0x1051);
+    memset(text, 0, 256);
+    if (pVR->Length<256) memcpy(text, (char *)(pVR->Data), pVR->Length);
+    window = (int)(atof(text)+0.5);
+    //level = pDDO->Getatoi(0x0028, 0x1050);
+    //window = pDDO->Getatoi(0x0028, 0x1051);
   }    
 
   // lncoll get BitsStored to calculate window

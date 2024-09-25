@@ -1215,7 +1215,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			Allow NightlyCleanThreshhold and NightlyCleanThreshold
 20240924        mvh     Added lncoll message on rewrite
 20240924        mvh     Read level and window as float and round to int in convert_to_gif etc
-20240924        mvh     ---- RELEASE 1.5.0e -----
+20240925        mvh     ---- RELEASE 1.5.0e -----
 
 ENDOFUPDATEHISTORY
 */

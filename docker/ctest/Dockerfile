@@ -1,6 +1,6 @@
 #########
 #
-# Create a running conquest 1.5.0d with web access and bash in Docker. 
+# Create a running conquest 1.5.0e with web access and bash in Docker. 
 # Note that this container DOES NOT RETAIN DATA after restart, 
 # needs to be configured differently to achieve this.
 #

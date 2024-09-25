@@ -12,6 +12,7 @@
 # mvh 20200216 For 1.5.0beta3; Use external lua
 # mvh 20200308 For 1.5.0; Precompiled dgate as fallback, conquest.service
 # mvh 20230902 For 1.5.0d; Use php web interface
+# mvh 20240925 For 1.5.0e
 
 SRC=../src/dgate;
 WWW=/var/www/html; # /var/www/cgi-bin for Fedora

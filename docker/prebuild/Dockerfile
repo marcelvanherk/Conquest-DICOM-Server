@@ -27,7 +27,7 @@ RUN ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so.0 /usr/lib/x86_64-linux-gnu/lib
 
 #get conquest source code
 COPY Dockerfile .
-RUN git clone https://github.com/marcelvanherk/Conquest-DICOM-Server
+RUN git  clone https://github.com/marcelvanherk/Conquest-DICOM-Server
 #COPY Conquest-DICOM-Server Conquest-DICOM-Server
 
 #mark scripts as executable

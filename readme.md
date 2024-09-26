@@ -6,9 +6,9 @@ Its USP is simplicity for starters, speed for serious users, and endless configu
 
 [Forum] (https://forum.image-systems.biz/forum/index.php?board/33-conquest-users/)
 
-[Download current stable release 1.5.0d] (http://natura-ingenium.nl/dicomserver/dicomserver150d.zip)
+[Download current stable release 1.5.0e] (http://natura-ingenium.nl/dicomserver/dicomserver150e.zip)
 
-The commit corresponding to 1.5.0d is here: https://github.com/marcelvanherk/Conquest-DICOM-Server/commit/7b8a36d2f836ec2f4bbb0704c463b706405331c2
+The commit corresponding to 1.5.0e is here: https://github.com/marcelvanherk/Conquest-DICOM-Server/commit/<todo>
 
 **Conquest DICOM Server** is a group effort and I would like to thank Mark Oskin for the initial library; Lambert Zijp for years of development while at NKI, especially fixing bugs in the transport layers, and adding initial jpeg codecs; Lennert Ploeger for optimising the array implementation and the Delphi exe launcher; Bruce Barton for greatly extending compression and decompression, many many bug fixes and startup code; and Luiz Oliveira for enthousiastically helping developing WEBDicom, providing a sample webDICOM/Cornerstone based viewer, and endless bug finding.
 

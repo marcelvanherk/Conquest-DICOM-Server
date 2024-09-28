@@ -12,6 +12,7 @@
 -- 20220830   mvh   Add studylink to add e.g. ohif (example commented out)
 -- 20220905   mvh   Fix display of ModalitiesInStudy
 -- 20230625   mvh   Made all links relative; enable default ohif link
+-- 20240928   mvh   Added #UID hash with full UID tooltip
 
 local query_pid = '';
 local query_pna = '';
@@ -206,6 +207,31 @@ table.altrowstable Caption {
     color: yellow;
     background: green;
 }
+/* Tooltip container */
+.tooltip {
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+}
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+  visibility: hidden;
+  background-color: black;
+  color: #fff;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 6px;
+ 
+  /* Position the tooltip text - see examples below! */
+  position: absolute;
+  z-index: 1;
+}
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+}
 </style>
 </head> 
 <body BGCOLOR='CFDFCF'>
@@ -249,7 +275,7 @@ end
 local linkheader=''
 if studylink~='' then linkheader='<TD>' end
 
-HTML("<TR><TD>Patient ID<TD>Name<TD>Study Date<TD>Study description<TD>Study modality<TD>Menu%s</TR>", linkheader)
+HTML("<TR><TD>Patient ID<TD>Name<TD>#UID<TD>Study Date<TD>Study description<TD>Study modality<TD>Menu%s</TR>", linkheader)
 
 for i=1,#pats do
   local t = string.format("<A HREF=?%s&mode=listseries&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.studyinsta+=+'%s' title='Click to see series'>%s</A>", '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].StudyInstanceUID),mc(pats[i].PatientID))
@@ -258,7 +284,9 @@ for i=1,#pats do
   link = string.gsub(link, '{StudyInstanceUID}', pats[i].StudyInstanceUID)
   link = string.gsub(link, '{PatientID}', pats[i].PatientID)
   
-  local s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s%s</TR>",t,mc(pats[i].PatientName),mc(pats[i].StudyDate),
+  local s = string.format('<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s%s</TR>',t,mc(pats[i].PatientName),
+'<div class="tooltip">'..md5(pats[i].StudyInstanceUID):sub(1,5)..'<span class="tooltiptext">'..pats[i].StudyInstanceUID..'</span/div>',
+  mc(pats[i].StudyDate),
     mc(pats[i].StudyDescription),mc(pats[i].ModalitiesInStudy),
     dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'|'..pats[i].StudyInstanceUID),
     link

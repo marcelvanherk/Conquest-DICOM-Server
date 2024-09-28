@@ -38,6 +38,7 @@
 -- mvh 20230809 Fixed default webroot for Linux
 -- mvh 20240107 Fixed HTTP 200 OK response
 -- mvh 20240924 Reset request after quit to avoid failure to restart
+-- mvh 20240928 Export md5
 
 -----------------------------------------------------
 
@@ -456,6 +457,7 @@ function luascript.genEnv(_Env, request, config, handleIt, client)
 	Env.table=table
 	Env.math=math
 	Env.tempfile=tempfile
+	Env.md5=md5
 	Env.writefile=function(nam, dat) local f=io.open(nam, 'wb') f:write(dat) f:close() end
 	Env.unlink=function(nam) os.remove(nam) end
 	Env.JSON=require('json')
@@ -524,6 +526,8 @@ function dgatecgi.handler(request, client, config)
   Env.loadstring = loadstring
   Env.require = require
   Env.dofile = dofile
+  Env.md5=md5
+
 
   -- conquest specific
   Env.get_amap = get_amap

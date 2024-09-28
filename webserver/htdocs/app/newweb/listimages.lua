@@ -8,6 +8,7 @@
 -- 20200307   mvh   Avoid query with '***'
 -- 20201025   mvh   Standardised header
 -- 20230625   mvh   Made all links relative
+-- 20240928   mvh   Added #UID hash with full UID tooltip
 
 local query_pid = '';
 local query_pna = '';
@@ -207,6 +208,31 @@ table.altrowstable Caption {
     color: yellow;
     background: green;
 }
+/* Tooltip container */
+.tooltip {
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+}
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+  visibility: hidden;
+  background-color: black;
+  color: #fff;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 6px;
+ 
+  /* Position the tooltip text - see examples below! */
+  position: absolute;
+  z-index: 1;
+}
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+}
 </style>
 ]]
 )
@@ -285,7 +311,7 @@ local pats=queryimagem_remote()
 
 print("<table class='altrowstable' id='alternatecolor' RULES=ALL BORDER=1>");
 HTML("<Caption>List of images on local server (%s)</caption>", #pats);
-HTML("<TR><TD>Patient ID<TD>Image ID<TD>Date<TD>Image number<TD>Slice location<TD>Header<TD>Menu</TR>");
+HTML("<TR><TD>Patient ID<TD>#UID<TD>Image ID<TD>Date<TD>Image number<TD>Slice location<TD>Header<TD>Menu</TR>");
 	
 local studyviewer=gpps('webdefaults', 'studyviewer', '');
 
@@ -318,7 +344,9 @@ for i=1,#pats do
   t = url_img..string.format("%s</A>",mc(pats[i].PatientID));
  
   v = url_header.."Header</A>";
-  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,mc(pats[i].ImageID), 
+  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s</TR>",t,
+'<div class="tooltip">'..md5(pats[i].SOPInstanceUID):sub(1,5)..'<span class="tooltiptext">'..pats[i].SOPInstanceUID..'</span/div>',
+  mc(pats[i].ImageID), 
             mc(pats[i].ImageDate), mc(pats[i].InstanceNumber), mc(pats[i].SliceLocation), v,
 	    dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'|||'..pats[i].SOPInstanceUID));
   print(s)

@@ -8,6 +8,7 @@
 -- 20201025   mvh   Standardised header
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20230625   mvh   Made all links relative
+-- 20240928   mvh   Added #UID hash with full UID tooltip
 
 local query_pid = '';
 local query_pna = '';
@@ -189,6 +190,31 @@ table.altrowstable Caption {
     color: yellow;
     background: green;
 }
+/* Tooltip container */
+.tooltip {
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+}
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+  visibility: hidden;
+  background-color: black;
+  color: #fff;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 6px;
+ 
+  /* Position the tooltip text - see examples below! */
+  position: absolute;
+  z-index: 1;
+}
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+}
 </style>
 ]]
 )
@@ -270,7 +296,7 @@ local b = #pats
 
 HTML("<table  class='altrowstable' id='alternatecolor'  RULES=ALL BORDER=1>");
 HTML("<Caption>List of images with thumbnails on local server (%s out of %s)</caption>", b, a);
-HTML("<TR><TD>Patient ID<TD>Image ID<TD>Date<TD>Image number<TD>Slice location<TD>Icon</TR>");
+HTML("<TR><TD>Patient ID<TD>#UID<TD>Image ID<TD>Date<TD>Image number<TD>Slice location<TD>Icon</TR>");
 	
 for i=1,#pats do
   studyuid=pats[i].StudyInstanceUID;
@@ -311,7 +337,9 @@ for i=1,#pats do
   v = string.format("<IMG SRC=?%s&mode=slice&slice=%s:%s&size=%s&graphic=%s width='100%%' height='%s' alt='' title='Click to see header'></A>", '', string.gsub(pats[i].PatientID, ' ', '+'),  mcoalesce(pats[i].SOPInstanceUID),iconsize, graphic, iconsize);
   v = url_header..v
  
-  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s</TR>",t,mcoalesce(pats[i].ImageID), mcoalesce(pats[i].ImageDate),mcoalesce(pats[i].InstanceNumber), mcoalesce(pats[i].SliceLocation),v);
+  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s</TR>",t,
+'<div class="tooltip">'..md5(pats[i].SOPInstanceUID):sub(1,5)..'<span class="tooltiptext">'..pats[i].SOPInstanceUID..'</span/div>',
+  mcoalesce(pats[i].ImageID), mcoalesce(pats[i].ImageDate),mcoalesce(pats[i].InstanceNumber), mcoalesce(pats[i].SliceLocation),v);
   sl2=sl
   print(s)
 end 

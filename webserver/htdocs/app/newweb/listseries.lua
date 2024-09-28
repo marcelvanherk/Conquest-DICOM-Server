@@ -13,6 +13,7 @@
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20220830   mvh   Add serieslink to add e.g. wadoseriesviewer
 -- 20230625   mvh   Made all links relative; enable default viewer link
+-- 20240928   mvh   Added #UID hash with full UID tooltip
 
 local query_pid = '';
 local query_pna = '';
@@ -201,6 +202,31 @@ table.altrowstable Caption {
     color: yellow;
     background: green;
 }
+/* Tooltip container */
+.tooltip {
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+}
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+  visibility: hidden;
+  background-color: black;
+  color: #fff;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 6px;
+ 
+  /* Position the tooltip text - see examples below! */
+  position: absolute;
+  z-index: 1;
+}
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+}
 </style>
 </head> 
 <body BGCOLOR='CFDFCF'>
@@ -236,7 +262,7 @@ local linkheader=''
 if serieslink~='' then linkheader='<TD>' end
 
 HTML("<Caption>List of series (%s) on local server</caption>", #pats);
-HTML("<TR><TD>Patient ID<TD>Name<TD>Series date<TD>Series time<TD>Series description<TD>Modality<TD>Thumbs<TD>Menu%s</TR>",linkheader);
+HTML("<TR><TD>Patient ID<TD>Name<TD>#UID<TD>Series date<TD>Series time<TD>Series description<TD>Modality<TD>Thumbs<TD>Menu%s</TR>",linkheader);
 	
 for i=1,#pats do
   local t = string.format("<A HREF=?%s&mode=listimages&key=%s&query=DICOMStudies.patientid+=+'%s'+and+DICOMSeries.seriesinst+=+'%s' title='Click to see images'>%s</A>", '', tostring(key or ''),string.gsub(pats[i].PatientID, ' ', '+'),mc(pats[i].SeriesInstanceUID),mc(pats[i].PatientID))
@@ -249,7 +275,8 @@ for i=1,#pats do
   link = string.gsub(link, '{StudyInstanceUID}', pats[i].StudyInstanceUID)
   link = string.gsub(link, '{PatientID}', pats[i].PatientID)
 
-  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s%s</TR>",t,mc(pats[i].PatientName),
+  s = string.format("<TR><TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s<TD>%s%s%s</TR>",t,mc(pats[i].PatientName),
+'<div class="tooltip">'..md5(pats[i].SeriesInstanceUID):sub(1,5)..'<span class="tooltiptext">'..pats[i].SeriesInstanceUID..'</span/div>',
     mc(pats[i].SeriesDate),mc(pats[i].SeriesTime), mc(pats[i].SeriesDescription),mc(pats[i].Modality),v,
     dropdown(i, string.gsub(pats[i].PatientID, ' ', '+')..'||'..pats[i].SeriesInstanceUID),
     link);

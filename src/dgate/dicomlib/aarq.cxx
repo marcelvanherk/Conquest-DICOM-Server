@@ -863,7 +863,7 @@ AAssociateRQ	::	AAssociateRQ()
 	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
 	CalledApTitle[16] = 0;
 	SpaceMem(CallingApTitle, 16);
-	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
+	if (ConfigPadAEWithZeros) memset(CallingApTitle, 0, 16);
 	CallingApTitle[16] = 0;
 	ZeroMem(Reserved3, 32);
 	}
@@ -882,7 +882,7 @@ AAssociateRQ	::	AAssociateRQ(BYTE	*CallingAp, BYTE	*CalledAp)
 	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
 	CalledApTitle[16] = 0;
 	SpaceMem(CallingApTitle, 16);
-	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
+	if (ConfigPadAEWithZeros) memset(CallingApTitle, 0, 16);
 	CallingApTitle[16] = 0;
 	ZeroMem(Reserved3, 32);
 	memcpy(CallingApTitle, CallingAp, MIN(strlen((char *)CallingAp), 16u));
@@ -913,7 +913,7 @@ void	AAssociateRQ	::	SetCalledApTitle(BYTE	*CalledAp)
 void	AAssociateRQ	::	SetCallingApTitle(BYTE	*CallingAp)
 	{
 	SpaceMem(CallingApTitle, 16);
-	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
+	if (ConfigPadAEWithZeros) memset(CallingApTitle, 0, 16);
 	memcpy(CallingApTitle, CallingAp, MIN(strlen((char *)CallingAp), 16u));
 	}
 

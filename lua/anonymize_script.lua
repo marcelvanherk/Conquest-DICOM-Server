@@ -36,6 +36,7 @@
 -- 20231021     mvh     Now use newly added Data:Reset
 -- 20231107     mvh     Also accept (hex) group numbers in lists instead of name
 -- 20231122     mvh     Keep TagsToEmpty and TagsToRemove to combine (after) TagsToKeep
+-- 20250214     mvh     Catch missing command_line (when direcly called as lua file)
 
 -- =============================================================================
 
@@ -145,7 +146,7 @@ local pid = string.gsub(Data.PatientID or 'unknown', '[\\/:*?"<>|]', '_')
 
 -- get suggested patient ID, stage for staged operation and suggested patient name
 local c = split(command_line or '', '|')
-if string.find(command_line, '|')==1 then table.insert(c, 1, '') end
+if string.find(command_line or '', '|')==1 then table.insert(c, 1, '') end
 local newid = c[1] or ''
 local stage = c[2] or ''
 local newname = c[3] or ''

@@ -81,6 +81,7 @@
 20210118   mvh   Every length exceeding warning phrased differently for easy of finding
 20240103   mvh   Added information about previous tag when parsing goes wrong
 20240326   mvh   Added type 'OL' with 32 bits length
+20250214   mvh   Made mis-encoded pixel data a warning
 */
 
 /*
@@ -267,8 +268,9 @@ PDU_Service	::	ParseImagePixelDataRawToDCM(
 		delete vr;		
 		}	
 
-	DicomError(DCM_ERROR_PARSE, "Mis-encoded pixel data during load of DCM file\n", 0);
-	return ( FALSE );	// mis-encoded
+	DicomError(DCM_ERROR_PARSE, "Warning: mis-encoded pixel data during load of DCM file\n", 0);
+	return ( TRUE );	// accept mis-encoded data
+	//return ( FALSE );	// reject mis-encoded data
 	}
 
 // Encapsulate image pixel data into an encapsulated format.

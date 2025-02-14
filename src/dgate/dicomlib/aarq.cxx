@@ -17,6 +17,7 @@ mvh 20181113: replace min() by MIN() for Ubuntu 18 compile
 mvh 20201224: Added error handling
 mvh 20221108: Added SCPSCURoleSelect array in UserInfo
 mvh 20230607: Fix ReadDynamic of SCPSCURoleSelect
+dom 20250214: Fixed copy-paste errors that didn't replace CalledApTitle with `CallingApTitle`
 */
 
 /****************************************************************************
@@ -863,7 +864,7 @@ AAssociateRQ	::	AAssociateRQ()
 	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
 	CalledApTitle[16] = 0;
 	SpaceMem(CallingApTitle, 16);
-	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
+	if (ConfigPadAEWithZeros) memset(CallingApTitle, 0, 16);
 	CallingApTitle[16] = 0;
 	ZeroMem(Reserved3, 32);
 	}
@@ -882,7 +883,7 @@ AAssociateRQ	::	AAssociateRQ(BYTE	*CallingAp, BYTE	*CalledAp)
 	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
 	CalledApTitle[16] = 0;
 	SpaceMem(CallingApTitle, 16);
-	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
+	if (ConfigPadAEWithZeros) memset(CallingApTitle, 0, 16);
 	CallingApTitle[16] = 0;
 	ZeroMem(Reserved3, 32);
 	memcpy(CallingApTitle, CallingAp, MIN(strlen((char *)CallingAp), 16u));
@@ -913,7 +914,7 @@ void	AAssociateRQ	::	SetCalledApTitle(BYTE	*CalledAp)
 void	AAssociateRQ	::	SetCallingApTitle(BYTE	*CallingAp)
 	{
 	SpaceMem(CallingApTitle, 16);
-	if (ConfigPadAEWithZeros) memset(CalledApTitle, 0, 16);
+	if (ConfigPadAEWithZeros) memset(CallingApTitle, 0, 16);
 	memcpy(CallingApTitle, CallingAp, MIN(strlen((char *)CallingAp), 16u));
 	}
 

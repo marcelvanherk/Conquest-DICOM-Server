@@ -285,6 +285,7 @@
 20240522	mvh	Added e.g. n#3,150 compression: uses faster n5 clipping all<150 to zero, and scaling pixels by 3
 20240925        mvh     Read level and window as float and round to int in convert_to_gif etc
 20240927        mvh     Fix crash on non-images there
+20250216        mvh     Implement pixelRepresentation in To8bitMonochromeOrRGB
 */
 
 //#define bool BOOL
@@ -5337,6 +5338,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
   int			bitsStored;
   int			valMax = 2047;
   int			valDiv = 8;
+  int			pixelRepresentation;
   unsigned char lut[256];
 
   ExtractFrame(pDDO, frame);
@@ -5380,6 +5382,8 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
     valDiv = (1 << (bitsStored-8));
   }
   
+  pixelRepresentation = pDDO->GetBYTE(0x0028, 0x0103);
+
   if (size==0) iMaxRowsColumns = 16384;
   else         iMaxRowsColumns = size;
 
@@ -5508,7 +5512,8 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 #else //Big Endian like Apple power pc
             r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
-            r = 255 * (r - level + window/2) / window;
+            if (pixelRepresentation==0) r = r&65535;
+	    r = 255 * (r - level + window/2) / window;
             if (r>255) r=255;
             if (r<0)   r=0;
             *pcDest++ = lut[r];
@@ -5526,11 +5531,10 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 #else //Big Endian like Apple power pc
             r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
+            if (pixelRepresentation==0) r = r&65535;
             if (r > max) max=r;
-// lncoll            if (r>2047) r=2047;
             if (r>valMax) r=valMax;
             if (r<0)    r=0;
-// lncoll            r = r/8;
             r = r/valDiv;
             *pcDest++ = lut[r];
   	    psSrc += iDownsizeFactor;
@@ -5554,6 +5558,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 #else //Big Endian like Apple power pc
               r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
+              if (pixelRepresentation==0) r = r&65535;
               r = r/factor;
               if (r>255) r=255;
               if (r<0)   r=0;
@@ -5657,6 +5662,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 #else //Big Endian like Apple power pc
             r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
+            if (pixelRepresentation==0) r = r&65535;
             r = 255 * (r - level + window/2) / window;
             if (r>255) r=255;
             if (r<0)   r=0;
@@ -5677,6 +5683,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 #else //Big Endian like Apple power pc
             r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
+            if (pixelRepresentation==0) r = r&65535;
             if (r > max) max=r;
             if (r>2047) r=2047;
             if (r<0)    r=0;
@@ -5704,6 +5711,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 #else //Big Endian like Apple power pc
               r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
+              if (pixelRepresentation==0) r = r&65535;
               r = r/factor;
               if (r>255) r=255;
               if (r<0)   r=0;
@@ -5811,6 +5819,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 #else //Big Endian like Apple power pc
             r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
+            if (pixelRepresentation==0) r = r&65535;
             r = 255 * (r - level + window/2) / window;
             if (r>255) r=255;
             if (r<0)   r=0;
@@ -5831,6 +5840,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 #else //Big Endian like Apple power pc
             r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
+            if (pixelRepresentation==0) r = r&65535;
             if (r > max) max=r;
             if (r>2047) r=2047;
             if (r<0)    r=0;
@@ -5858,6 +5868,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
 #else //Big Endian like Apple power pc
               r = SwitchEndian(*psSrc) + pixeloffset;
 #endif
+              if (pixelRepresentation==0) r = r&65535;
               r = r/factor;
               if (r>255) r=255;
               if (r<0)   r=0;

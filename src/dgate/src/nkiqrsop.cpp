@@ -286,6 +286,7 @@
 20240925        mvh     Read level and window as float and round to int in convert_to_gif etc
 20240927        mvh     Fix crash on non-images there
 20250216        mvh     Implement pixelRepresentation in To8bitMonochromeOrRGB
+20250218        mvh     Fixed outgoing J7: must propose lossy first, then lossless
 */
 
 //#define bool BOOL
@@ -5199,9 +5200,9 @@ ExtendedPDU_Service	::	AddTransferSyntaxs(PresentationContext &PresContext)
 				  PresContext.AddTransferSyntax(TrnSyntax);
 				  break;
 			case '7': // LS lossy or lossless
-				  uid.Set("1.2.840.10008.1.2.4.80"); TrnSyntax.Set(uid);
-				  PresContext.AddTransferSyntax(TrnSyntax);
 				  uid.Set("1.2.840.10008.1.2.4.81"); TrnSyntax.Set(uid);
+				  PresContext.AddTransferSyntax(TrnSyntax);
+				  uid.Set("1.2.840.10008.1.2.4.80"); TrnSyntax.Set(uid);
 				  PresContext.AddTransferSyntax(TrnSyntax);
 				  break;
 #endif

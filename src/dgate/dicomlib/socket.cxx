@@ -22,6 +22,7 @@
 20200617        mvh     Replaced UNIX version of SendBinary with luasocket inspired waiting code
 20200618        mvh     Made send() timeout ~20s by increasingly longer nanosleep
 20220922        mvh     Host names like 2.aap.mies are looked up; 1.2.3 taken as is
+20270701	mvh	Added error messages and connection retries
 */
 
 /****************************************************************************
@@ -393,16 +394,23 @@ BOOL	Socket	::	Open ( char	*ip, char	*port)
 	if ( !se )
 		{
 //		fprintf(stderr, "Could not resolve port\n");
+		DicomError(DCM_ERROR_DEBUG, "Could not resolve port", 0);
 		return ( FALSE );	// could not resolv port
 		}
 	
 	memcpy ((void *) &secopy, (void *) se, sizeof(struct servent));
 	if(!hecopy.h_addr_list)
+		{
+		DicomError(DCM_ERROR_DEBUG, "no h_addr_list", 0);
 		return ( FALSE );
+		}
 	
 	Socketfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if(Socketfd<0)
+		{
+		DicomError(DCM_ERROR_DEBUG, "could not create socket", 0);
 		return ( FALSE );	// could not create socket
+		}
 	Linger.l_onoff  = 0; // 20121214 was 1
 	Linger.l_linger = 0;
 	setsockopt(Socketfd, SOL_SOCKET, SO_LINGER, (char*)&Linger, sizeof(struct linger));
@@ -416,15 +424,21 @@ BOOL	Socket	::	Open ( char	*ip, char	*port)
 	sa.sin_family = AF_INET;
 	sa.sin_port = secopy.s_port;
 
-	Error = connect(Socketfd, (struct sockaddr *) &sa, sizeof(struct sockaddr_in));
-	if( ! Error )
+	for (int i=0; i<5; i++)
 		{
-		Connected = TRUE;
-		return ( TRUE );
+		Error = connect(Socketfd, (struct sockaddr *) &sa, sizeof(struct sockaddr_in));
+		if( ! Error )
+			{
+			Connected = TRUE;
+			return ( TRUE );
+			}
+		Sleep(rand()&31);
 		}
 
 	closesocket(Socketfd);
 	Socketfd = 0;
+	Sleep(10);
+	DicomError(DCM_ERROR_DEBUG, "connect error %d", WSAGetLastError());
 	return ( FALSE );
 	}
 

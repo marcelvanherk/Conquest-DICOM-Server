@@ -1236,6 +1236,13 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			Fix 2x parsing of tm_mon in "now " clause in delayed forward etc; affects object selection by age from now
 			Fix 2x parsing of tm_mon in "age " clause in delayed forward etc; affects object selection by age from study
 			Fix printing  tm_mon in VirtualQueryCached; now disables caching relating to today for e.g., VirtualServerFor0 = AE,CACHESERIES
+20260614	mvh	Optimized lua globals; Added backupdatabase and backupschedule server commands		
+20260615   	mvh     Update backupschedule to include keep, at hour, and filepath; tested h, d and keep
+20260616   	mvh     Fix that lua-poststartup would block lua-timer and backupschedule
+20260616   	mvh     Added blocks and delay option; doc; added 'n' for minute backup to simplify testing
+20260620   	mvh     Small fix, extended doc
+20260622   	mvh     Fix week and month; added # and $ to backupschedule to pass blocks and delay to backupdatabase
+20260701	mvh	Define LUA51BUILTIN; use "socket" not "socket.core"; only allow 1 week backup schedule
 
 ENDOFUPDATEHISTORY
 */
@@ -1620,6 +1627,8 @@ def(FileCompressMode)
 "", NULL
 };
 
+char *MyACRNema = (char *)MYACRNEMA;
+
 struct sglobal sglobals[]=
 { 
 def2(RootConfig)
@@ -1635,6 +1644,7 @@ def2(ArchiveCompression)
 def2(TestMode)
 def2(StatusString)
 def2(DGATEVERSION)
+def2(MyACRNema)
 
 "", NULL
 };
@@ -8473,17 +8483,22 @@ static char uploadedfile[256];
     char szRootSC[64], Parameter[512];
     for (n=0;;n++)
     { if (!iglobals[n].data) break;
-      if (stricmp(lua_tostring(L,2), iglobals[n].name)==0) idata = iglobals[n].data;
+      if (stricmp(lua_tostring(L,2), iglobals[n].name)==0) 
+      { idata = iglobals[n].data;
+        lua_pushinteger(L, *idata);
+	return 1; 
+      }
     }
     for (n=0;;n++)
     { if (!sglobals[n].data) break;
-      if (stricmp(lua_tostring(L,2), sglobals[n].name)==0) sdata = sglobals[n].data;
+      if (stricmp(lua_tostring(L,2), sglobals[n].name)==0) 
+      { sdata = sglobals[n].data;
+        lua_pushstring (L, sdata);
+	return 1; 
+      }
     }
     if (MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile))
       MyGetPrivateProfileString(szRootSC, lua_tostring(L,2), "", Parameter, 512, ConfigFile);
-
-    if (idata)      { lua_pushinteger(L, *idata);     return 1; }
-    if (sdata)      { lua_pushstring (L,  sdata);     return 1; }
     if (*Parameter) { lua_pushstring (L,  Parameter); return 1; }
     return 0;
   }
@@ -8779,7 +8794,7 @@ ExtendedPDU_Service globalPDU; // for global script context
 * Luiz Henrique de Figueiredo <lhf@tecgraf.puc-rio.br>
 * 29 Jun 2007 19:27:20
 * This code is hereby placed in the public domain.
-* with contributions from Ignacio Castaño <castanyo@yahoo.es> and
+* with contributions from Ignacio CastaÃ±o <castanyo@yahoo.es> and
 * Roberto Ierusalimschy <roberto@inf.puc-rio.br>.
 */
 
@@ -9073,9 +9088,9 @@ int luaopen_pack(lua_State *L)
 
 // endof pack library
 
-//#ifndef LUA51EXTERN
-//extern "C" int luaopen_socket_core(lua_State *L);
-//#endif
+#ifdef LUA51BUILTIN
+extern "C" int luaopen_socket_core(lua_State *L);
+#endif
 
 const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
 { if (!*L) 
@@ -9169,10 +9184,10 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     
     lua_getfield(*L, LUA_GLOBALSINDEX, "package");
     lua_getfield(*L, -1, "preload");
-//#ifndef LUA51EXTERN
-//    lua_pushcfunction(*L, luaopen_socket_core);
-//    lua_setfield(*L, -2, "socket.core");
-//#endif
+#ifdef LUA51BUILTIN
+    lua_pushcfunction(*L, luaopen_socket_core);
+    lua_setfield(*L, -2, "socket");
+#endif
     lua_pushcfunction(*L, luaopen_pack);
     lua_setfield(*L, -2, "pack");
   }
@@ -13340,7 +13355,7 @@ static BOOL WINAPI zipthread(void)
     }
     else
       CleanTriggered = FALSE;
-      
+
     if (memicmp(timehhmmss, "03:00", strlen("03:00"))==0)
     { if (!ScriptTriggered)
       { ScriptTriggered = TRUE;
@@ -13398,18 +13413,21 @@ void StopZipThread(void)
 }
 
 BOOL firsttimer=TRUE;
+char backupschedule[128];
 
 static BOOL WINAPI timerthread(int ms)
 { while (TRUE)
   { char cmd[1024];
     Sleep(ms);
     if (firsttimer)
-    { MyGetPrivateProfileString("lua", "poststartup", "", cmd, 1024, ConfigFile);
+    { strcpy(cmd, "luastart:");
+      MyGetPrivateProfileString("lua", "poststartup", "", cmd+9, 1024-9, ConfigFile);
       firsttimer = FALSE;
       Sleep(5000);
+      SendServerCommand("", cmd, console);
     }
-    else
-      MyGetPrivateProfileString("lua", "timer", "", cmd, 1024, ConfigFile);
+
+    MyGetPrivateProfileString("lua", "timer", "", cmd, 1024, ConfigFile);
     if (cmd[0])
     { EnterCriticalSection(&dolua_critical);
       globalPDU.SetLocalAddress ( (BYTE *)"timer" );
@@ -13419,6 +13437,143 @@ static BOOL WINAPI timerthread(int ms)
       if (cmd[0]) do_lua(&(globalPDU.L), cmd, &sd);
       LeaveCriticalSection(&dolua_critical);
     }
+    
+    // backupschedule with limited parser 
+    // e.g.: backupschedule=2h12,d7,w5,m12,y@7:c:\backup will:
+    // backup every two hours reducing to 12 recent backups before adding new
+    // backup every day at 7am reducing to 7  most recent backups before adding new
+    // backup every week (Monday) at 7am reducing to 5 most recent backups before adding new
+    // backup every month (1st) at 7am reducing to 12 most recent backups before adding new
+    // backup every year on the 1st of January at 7am and keep forever
+    //
+    // Each backup schedule may have its own target (the one following), but parsing fails on letters 'hdwmy'
+    // e.g. 2h12,d7,w5,m12:c:\backup,y@7:d:\backup is valid but 2h12,d7,w5,m12:y:\backup,y@7:d:\backup fails
+    // 2h12,d7,w5,m12:Y:\backup,y@7:d:\backup will work though; 
+    // without :folder it will use current dir e.g, 2h12,d7,w5,m12:d:\backup,y@7 year backup 
+    // goes in current directory and all other in d:\backup
+    //
+    // Per multiple, e.g. 2 in 2h12 can be 1-9 or omitted, e.g. 6h4 is valid 12h2 not
+    // Note that there is also an option 'n' to backup each 1-9 minutes to simplify testing
+    // backupschedule=2h12,d7,w5,m12,y#1024$100@7:c:\backup 1024 blocks per step, 100ms delay
+    //
+    // Note: reducing to recent backups (e.g. 12 in 2h12) is only implemented for Windows for now
+    
+    char szRootSC[64];
+    MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile);
+    backupschedule[0]=' ';
+    MyGetPrivateProfileString(szRootSC, "backupschedule", "", backupschedule+1, 128, ConfigFile);
+    static BOOL BackupTriggered=FALSE;
+
+    if (strlen(backupschedule) && !BackupTriggered)
+    { struct tm tmbuf;
+      time_t t = time(NULL);
+      localtime_r(&t, &tmbuf);
+
+      char *p = strchr(backupschedule, ':');
+      if (p) *p=0;
+      char *n = strchr(backupschedule, 'n'); 
+      int nminutes=n?atoi(n-1):0; if (nminutes==0) nminutes=1;
+      char *h = strchr(backupschedule, 'h'); 
+      int nhours=h?atoi(h-1):0; if (nhours==0) nhours=1;
+      char *d = strchr(backupschedule, 'd'); 
+      int ndays=d?atoi(d-1):0; if (ndays==0) ndays=1;
+      char *w = strchr(backupschedule, 'w');
+      int nweeks=w?atoi(w-1):0; if (nweeks==0) nweeks=1;
+      char *m = strchr(backupschedule, 'm');
+      int nmonths=m?atoi(m-1):0; if (nmonths==0) nmonths=1;
+      char *y = strchr(backupschedule, 'y');
+      int nyears=y?atoi(y-1):0; if (nyears==0) nyears=1;
+      if (p) *p=':';
+            
+      int hour=0;
+      p=strchr(backupschedule, '@');
+      if (p) hour = atoi(p+1);
+          
+      int blocks=640;
+      p=strchr(backupschedule, '#');
+      if (p) blocks = atoi(p+1);
+
+      int delay=250;
+      p=strchr(backupschedule, '$');
+      if (p) delay = atoi(p+1);
+
+      char method=0;
+      if (tmbuf.tm_yday==0 && (tmbuf.tm_year%nyears)==0 && tmbuf.tm_hour==hour && tmbuf.tm_min==0 && tmbuf.tm_sec<3 && y) method='y';
+      else if (tmbuf.tm_mday==1 && (tmbuf.tm_mon%nmonths)==0 && tmbuf.tm_hour==hour && tmbuf.tm_min==0 && tmbuf.tm_sec<3 && m) method='m';
+      else if (tmbuf.tm_wday==0 && tmbuf.tm_hour==hour && tmbuf.tm_min==0 && tmbuf.tm_sec<3 && w) method='w';
+      else if (tmbuf.tm_hour==hour && (tmbuf.tm_yday%ndays)==0 && tmbuf.tm_min==0 && tmbuf.tm_sec<3 && d) method='d';
+      else if (tmbuf.tm_min==0 && (tmbuf.tm_hour%nhours)==0 && tmbuf.tm_sec<3 && h) method='h';
+      else if (tmbuf.tm_sec<3 && n) method='n';
+      
+      int keep=0;
+      char fn[128];
+      strcpy(fn, ".");
+      p = NULL;
+      switch (method)
+      { case 'y': p=y; break;
+        case 'm': p=m; break;
+        case 'w': p=w; break;
+        case 'd': p=d; break;
+        case 'h': p=h; break;
+        case 'n': p=n; break;
+      }
+      if (p) 
+      { keep=atoi(p+1);
+        p = strchr(p, ':');
+	if (p) 
+	{ strcpy(fn, p+1);
+	  p=strchr(fn, ',');
+          if (p) *p=0;
+	}
+      }
+      
+      if (method && keep)
+      { // remove all but keep of the selected files
+        char Folder[128], TempPath[128], sortName[128];
+        sprintf(Folder, "%s%c%s_%c_*.bak", fn, PATHSEPCHAR, MYACRNEMA, method);
+
+#ifdef WIN32
+	HANDLE	fdHandle;
+	WIN32_FIND_DATA	FileData;
+	
+	int m=0;
+	while (TRUE)
+	{ sortName[0]=255;
+          sortName[1]=0;
+          int n=0;
+	  fdHandle = FindFirstFile(Folder, &FileData);	
+	  if(fdHandle != INVALID_HANDLE_VALUE)
+          { while ( TRUE )
+	    { n++;
+              if (strcmp(FileData.cFileName, sortName)<0) 
+	        strcpy(sortName, FileData.cFileName);
+	      if(!FindNextFile(fdHandle, &FileData)) break;
+	    }
+	  }
+          FindClose(fdHandle);
+          sprintf(TempPath, "%s%c%s", fn, PATHSEPCHAR, sortName);
+	  if (n > keep) 
+          { OperatorConsole.printf("Deleting old backup: %s\n", TempPath);
+            unlink(TempPath);
+	  }
+	  else 
+            break;
+          if (m++>10) break; // max delete 10 files at once; also avoid endless loop if permissions issue
+	}
+#endif
+      }
+      if (method)
+      { char Filename[128];
+        sprintf(Filename, "backupdatabase:%s%c%s_%c_%04d%02d%02d_%02d%02d.bak,%d,%d", fn, PATHSEPCHAR, MYACRNEMA, 
+	method, tmbuf.tm_year+1900, tmbuf.tm_mon+1, tmbuf.tm_mday, tmbuf.tm_hour, tmbuf.tm_min, blocks, delay);
+      
+        BackupTriggered = TRUE;
+	OperatorConsole.printf("Scheduled backup: %s\n", Filename);
+        SendServerCommand("", Filename, console);
+        BackupTriggered = FALSE;
+      }
+    }
+    
   }
 
   return TRUE;
@@ -21811,6 +21966,27 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		Database DB;
 		NeedPack = 4;	// threaded index creation - used after full regen from GUI
 		DB.Open ( DataSource, UserName, Password, DataHost);
+		return;
+		}
+
+	if (memcmp(SilentText, "backupdatabase:", 15)==0)
+		{
+		int blocks=640, delay=250;
+		if (p)
+		{ *p++=0;				// points after 1st comma
+	          blocks = atoi(p);
+		  q = strchr(p, ',');
+		  if (q) 
+		  { *q++=0;				// points after 2nd comma
+	             delay=atoi(q);
+		  }
+		}
+		Database DB;
+		if (DB.Open ( DataSource, UserName, Password, DataHost ) )
+			{
+			DB.Backup(SilentText+15, blocks, delay);
+			DB.Close();
+			}
 		return;
 		}
 

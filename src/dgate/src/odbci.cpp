@@ -185,6 +185,10 @@
 20230609   mvh    Added retry on SQLITE_LOCKED
 20230904   mvh    Protect PQsetdbLogin with its own critical section - fixes crash if opening two dbs at once
 20230920   mvh    Added PostGreSQLStartup and MySQLStartup; only execute all startups when set
+20260614   mvh    Started on SqLite backup
+20260615   mvh    Backup copies 64 pages per step
+20260616   mvh    Backup copies 640 pages per step; performance ssd->raid ~9GB/hour
+20260622   mvh    Added blocks and delay parameters
 */
 
 /*
@@ -3542,6 +3546,102 @@ BOOL	Database :: Close ()
 	Connected = FALSE;
 	return ( TRUE );
 #else
+	return ( FALSE );
+#endif
+	}
+	
+/*
+** Perform an online backup of database pDb to the database file named
+** by zFilename. This function copies 'blocks' database pages from pDb to
+** zFilename, then unlocks pDb and sleeps for 'delay' ms, then repeats the
+** process until the entire database is backed up.
+** 
+** The third argument passed to this function must be a pointer to a progress
+** function. After each set of pages is backed up, the progress function (if passed)
+** is invoked with two integer parameters: the number of pages left to
+** copy, and the total number of pages in the source file. This information
+** may be used, for example, to update a GUI progress bar.
+**
+** While this function is running, another thread may use the database pDb, or
+** another process may access the underlying database file via a separate 
+** connection.
+**
+** If the backup process is successfully completed, SQLITE_OK is returned.
+** Otherwise, if an error occurs, an SQLite error code is returned.
+**
+** Modified from SqLite reference documentation
+*/
+int backupDb(
+  sqlite3 *pDb,               /* Database to back up */
+  const char *zFilename,      /* Name of file to back up to */
+  void(*xProgress)(int, int),  /* Progress function to invoke */     
+  int blocks,
+  int delay
+){
+  int rc;                     /* Function return code */
+  sqlite3 *pFile;             /* Database connection opened on zFilename */
+  sqlite3_backup *pBackup;    /* Backup handle used to copy data */
+
+  /* Open the database file identified by zFilename. */
+  rc = sqlite3_open(zFilename, &pFile);
+  if( rc==SQLITE_OK ){
+
+    /* Open the sqlite3_backup object used to accomplish the transfer */
+    pBackup = sqlite3_backup_init(pFile, "main", pDb, "main");
+    if( pBackup ){
+
+      /* Each iteration of this loop copies 'blocks' database pages from database
+      ** pDb to the backup database. If the return value of backup_step()
+      ** indicates that there are still further pages to copy, sleep for
+      ** 'delay' ms before repeating. */
+      do {
+        rc = sqlite3_backup_step(pBackup, blocks);
+	if (xProgress)
+          xProgress(
+              sqlite3_backup_remaining(pBackup),
+              sqlite3_backup_pagecount(pBackup)
+                   );
+        if( rc==SQLITE_OK || rc==SQLITE_BUSY || rc==SQLITE_LOCKED ){
+          sqlite3_sleep(delay);
+        }
+      } while( rc==SQLITE_OK || rc==SQLITE_BUSY || rc==SQLITE_LOCKED );
+
+      /* Release resources allocated by backup_init(). */
+      (void)sqlite3_backup_finish(pBackup);
+    }
+    rc = sqlite3_errcode(pFile);
+  }
+  
+  /* Close the database connection opened on database file zFilename
+  ** and return the result of this function. */
+  (void)sqlite3_close(pFile);
+  return rc;
+}
+
+/* Backup database; only implemented for SqLite for now
+*/
+
+BOOL	Database	::	Backup (const char *target, int blocks, int delay)
+	{
+	if (db_type == DT_NULL) 
+		return TRUE;
+
+#ifdef POSTGRES
+	if (Postgres)
+		return FALSE;
+#endif	
+
+#ifdef USEMYSQL
+	if (Mysql)
+		return FALSE;
+#endif	
+
+#ifdef USESQLITE
+	if (SqLite)
+		return backupDb(sqlitedata, target, NULL, blocks, delay);
+#endif	
+
+#ifdef WIN32
 	return ( FALSE );
 #endif
 	}

@@ -42,6 +42,8 @@
 20110502   mvh   Added db:Exec
 20140629   mvh   Added access to last error functions for mysql and pqsql
 20230904   mvh   Updated for new postgres interface
+20260614   mvh   Started on SqLite backup
+20260620   mvh   Added blocks and delay parameters
 */
 
 
@@ -402,6 +404,7 @@ class	Database
 		virtual	BOOL	CreateDatabase (char	*Name,
 						char	*User,
 						char	*Password);
+		virtual	BOOL	Backup (const char *target, int blocks, int delay);
 #ifdef __GNUC__
 	private:// This will prevent it from being copied (it has pointers)
 		Database(const Database&);

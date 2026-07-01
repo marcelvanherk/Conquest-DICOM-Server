@@ -1189,28 +1189,25 @@ if not luabuiltin then
     toinstall= toinstall..' lua5.1'
     print('[ERROR] No Lua5.1')
   end
+  if not fileexists('/usr/lib/x86_64-linux-gnu/liblua5.1.so') then
+    toinstall= toinstall..' liblua5.1-0 lua-socket'
+  end
 end
 
-if not fileexists('/usr/lib/x86_64-linux-gnu/liblua5.1.so') then
-  toinstall= toinstall..' liblua5.1-0 lua-socket'
-end
-
-if fileexists('t.txt') then runquiet('rm t.txt') end
 runquiet('export PATH="/usr/sbin:$PATH"; apache2 -v >t.txt 2>nul')
-if not fileexists('t.txt') then 
+resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
+if not resp[1] then 
   runquiet('httpd -v >t.txt 2>nul')
+  resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
 end
-resp = {}
-for v in io.lines('t.txt') do table.insert(resp, v) end
 if resp[1] then 
   print('[OK] Apache '..resp[1])
-  if fileexists('t.txt') then runquiet('rm t.txt') end
   runquiet('export PATH="/usr/sbin:$PATH"; a2query -m | grep "php"  >t.txt 2>nul')
-  if not fileexists('t.txt') then 
+  resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
+  if not resp[1] then
     runquiet('php -v >t.txt 2>nul')
+    resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
   end
-  resp = {}
-  for v in io.lines('t.txt') do table.insert(resp, v) end
   if resp[1] then print('[OK] Apache PHP '..resp[1])
     phpversion = string.match(resp[1], '.*php(%d%.%d).*$')
   else 

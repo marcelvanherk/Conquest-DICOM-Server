@@ -20,6 +20,7 @@
 -- mvh 20250415 Irrelevant typos in defaults for updatign compression
 -- mvh 20250911 Fallback for failed jpeg-c ./configure on debian 13
 -- mvh 20270701 Fix luasocket compile; added luabuiltin
+-- mvh 20270702 luabuiltin skips lua check; allow httpd as apache2 alternative
 
 package.path = package.path .. ';../lua/?.lua'
 --package.cpath = package.path .. ';clibs/lib?.so'
@@ -1177,22 +1178,28 @@ else
   end
 end
 
-runquiet('lua5.1 -v 2>t.txt 1>nul')
-resp = {}
-for v in io.lines('t.txt') do table.insert(resp, v) end
-luaversion = string.match(resp[1], 'Lua (%d%.%d).*$')
-if luaversion=='5.1' then 
-  print('[OK] '..resp[1])
-else 
-  toinstall= toinstall..' lua5.1'
-  print('[ERROR] No Lua5.1')
+if not luabuiltin then
+  runquiet('lua5.1 -v 2>t.txt 1>nul')
+  resp = {}
+  for v in io.lines('t.txt') do table.insert(resp, v) end
+  luaversion = string.match(resp[1], 'Lua (%d%.%d).*$')
+  if luaversion=='5.1' then 
+    print('[OK] '..resp[1])
+  else 
+    toinstall= toinstall..' lua5.1'
+    print('[ERROR] No Lua5.1')
+  end
 end
 
 if not fileexists('/usr/lib/x86_64-linux-gnu/liblua5.1.so') then
   toinstall= toinstall..' liblua5.1-0 lua-socket'
 end
 
+if fileexists('t.txt') then runquiet('rm t.txt') end
 runquiet('export PATH="/usr/sbin:$PATH"; apache2 -v >t.txt 2>nul')
+if not fileexists('t.txt') then 
+  runquiet('export PATH="/usr/sbin:$PATH"; httpd -v >t.txt 2>nul')
+end
 resp = {}
 for v in io.lines('t.txt') do table.insert(resp, v) end
 if resp[1] then 

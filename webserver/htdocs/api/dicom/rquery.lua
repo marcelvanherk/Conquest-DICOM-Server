@@ -4,6 +4,7 @@
 -- 20221017 mvh added remotemove, remotezip, remotemodalities
 -- 20230808 mvh added \r\n before boundary - missed by weasis loader
 -- 20250326 mvh fix on iowrite getting NUL by SM1312
+-- 20250701 div re-added \r\n before boundary
 
 function iowrite(a)
   if io then io.write(a)
@@ -68,7 +69,7 @@ function getinstances(ae, bd, st, se, sop)
   f = io.open(s, "wb")
   for i=0, #r-1 do
     r[i]:Write(t)
-    f:write("--"..bd.."\r\n")
+    f:write("\r\n--"..bd.."\r\n") -- fix by Divinis 20260624
     f:write("Content-Type: application/dicom\r\n")
     f:write("Content-Transfer-Encoding: binary\r\n\r\n")
     g = io.open(t, "rb")

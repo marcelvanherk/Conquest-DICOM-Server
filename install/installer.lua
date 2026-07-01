@@ -19,6 +19,7 @@
 -- mvh 20230920 Small reconfigure of above; -r recompiles without asking
 -- mvh 20250415 Irrelevant typos in defaults for updatign compression
 -- mvh 20250911 Fallback for failed jpeg-c ./configure on debian 13
+-- mvh 20270701 Fix luasocket compile; added luabuiltin
 
 package.path = package.path .. ';../lua/?.lua'
 --package.cpath = package.path .. ';clibs/lib?.so'
@@ -128,6 +129,7 @@ local serverport = '5678'
 local database   = 'sqlite'
 local recompile  = false
 local reconfigure = false
+local luabuiltin = false
 local myconf = {}
 
 for k, v in ipairs(arg) do 
@@ -135,6 +137,7 @@ for k, v in ipairs(arg) do
   if v=='-d' or v=='--database' then database = arg[k+1] or 'sqlite' end
   if v=='-r' or v=='--recompile' then recompile=true end
   if v=='-c' or v=='--configure' then reconfigure=true end
+  if v=='-l' or v=='--luabuiltin' then luabuiltin=true end
   if v=='-h' or v=='--help' then 
     print('installer program for Conquest DICOM server on Linux')
     print('run as: lua5.1 installer.lua options')
@@ -143,6 +146,7 @@ for k, v in ipairs(arg) do
     print('  -d --database sqlite|mariadb|dbaseiii|pgsql|null')
     print('  -r --recompile (needed when changing database)')
     print('  -c --configure (force reconfigure)')
+    print('  -l --luabuiltin (compile lua and socket into server)')
     os.exit()
   end
 end
@@ -264,7 +268,7 @@ function compile(param, conf, server)
   -----------------------------------------
   if param=='luasocket' then
     runquiet('chmod 777 '..server..'/src/dgate/luasocket/amake.sh')
-    runquiet('cd '..server..'/src/dgate/luasocket|./amake.sh')
+    runquiet('cd '..server..'/src/dgate/luasocket;./amake.sh')
     runquiet('cp '..server..'/src/dgate/luasocket/luasocket.a '..server..'/src/dgate/build')
     if fileexists(server..'/src/dgate/build'..'/luasocket.a') then
       print('[OK] Compiled luasocket library (network)')
@@ -281,6 +285,17 @@ function compile(param, conf, server)
   end
   -----------------------------------------
   if param=='dgate' then
+    -- external or internal lua and luasocket
+    local luao=''
+    local lual='-llua5.1 '
+    local luad=''
+    if luabuiltin then
+      luao = server..'/src/dgate/build/lua.o '..
+             server..'/src/dgate/build/luasocket.a '
+      lual = ''
+      luad = '-DLUA51BUILTIN '
+    end
+
     -- both dbaseiii and sqlite3 database drivers are compiled by default
     local dbo = server..'/src/dgate/build/sqlite3.o '
     local dbl = ''
@@ -311,10 +326,10 @@ function compile(param, conf, server)
     '-Wno-multichar -Wno-write-strings -Wno-format-overflow -DHAVE_LIBJPEG '..
     '-DHAVE_LIBCHARLS '..
     '-DHAVE_LIBOPENJPEG2 '..
+    luad..
     dbd..
     dbi..
-    --server..'src/dgate/build/lua.o '..
-    --server..'src/dgate/build/luasocket.a '..
+    luao..
   
     server..'/src/dgate/build/charls.o '..
     server..'/src/dgate/build/openjpeg.o '..
@@ -322,7 +337,7 @@ function compile(param, conf, server)
     '-o '..server..'/src/dgate/build/dgate '..
     '-I'..server..'/src/dgate/src '..
     server..'/src/dgate/src/total.cpp '..
-    '-llua5.1 '..
+    lual..
     '-I'..server..'/src/dgate/lua_5.1.5 '..
     '-I'..server..'/src/dgate/dicomlib '..
   
@@ -341,17 +356,27 @@ function compile(param, conf, server)
   end
   -----------------------------------------
   if param=='dgatesmall' then
+    local luao=''
+    local lual='-llua5.1 '
+    local luad=''
+    if luabuiltin then
+      luao = server..'/src/dgate/build/lua.o '..
+             server..'/src/dgate/build/luasocket.a '
+      lual = ''
+      luad = '-DLUA51BUILTIN '
+    end
     runquiet('mkdir -p '..server..'/src/dgate/build')
     runquiet('rm -f '..server..'/src/dgate/build/dgatesmall')
     runquiet(
     'g++ -w -DUNIX -DNATIVE_ENDIAN=1 -Wno-write-strings -DNOINTJPEG '..
+    luad..
     '-Wno-multichar -Wno-format-overflow '..
-    -- server..'/src/dgate/build/lua.o '..
-    -- server..'/src/dgate/build/luasocket.a '..
+    luao..
     '-o '..server..'/src/dgate/build/dgatesmall '..
     '-I'..server..'/src/dgate/src '..
     server..'/src/dgate/src/total.cpp '..
-    '-llua5.1 -lpthread -ldl '..
+    lual..
+    '-lpthread -ldl '..
     '-I'..server..'/src/dgate/dicomlib '..
     '-I'..server..'/src/dgate/lua_5.1.5 '..
     '-I'..server..'/src/dgate/jpeg-6c '..
@@ -367,7 +392,11 @@ function compile(param, conf, server)
       runquiet('rm -f '..server..'/src/servertask/servertask')
     end
     runquiet('chmod 777 '..server..'/src/servertask/make.sh');
-    runquiet('cd '..server..'/src/servertask;./make.sh');
+    if luabuiltin then
+      runquiet('cd '..server..'/src/servertask;g++ -DUNIX -Dunix -DEXE -std=c++11 -I../dgate/dicomlib -I../dgate/lua_5.1.5 -o servertask -Wno-multichar total.cxx '..server..'/src/dgate/build/lua.o');
+    else
+      runquiet('cd '..server..'/src/servertask;./make.sh');
+    end
     if fileexists(server..'/src/servertask/servertask') then
       runquiet('chmod 777 '..server..'/src/servertask/servertask');
       print('[OK] compiled servertask (for web api)')
@@ -381,6 +410,10 @@ function compile(param, conf, server)
     compile('openjpeg', conf, server)
     compile('charls', conf, server)
     compile('sqlite3', conf, server)
+    if luabuiltin then
+      compile('lua', conf, server)
+      compile('luasocket', conf, server)
+    end
     compile('dgate', conf, server)
     copyfile(server..'/src/dgate/build/dgate', server..'/dgate')
     runquiet('chmod 777 '..server..'/dgate')

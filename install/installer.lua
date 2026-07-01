@@ -1198,13 +1198,17 @@ end
 if fileexists('t.txt') then runquiet('rm t.txt') end
 runquiet('export PATH="/usr/sbin:$PATH"; apache2 -v >t.txt 2>nul')
 if not fileexists('t.txt') then 
-  runquiet('export PATH="/usr/sbin:$PATH"; httpd -v >t.txt 2>nul')
+  runquiet('httpd -v >t.txt 2>nul')
 end
 resp = {}
 for v in io.lines('t.txt') do table.insert(resp, v) end
 if resp[1] then 
   print('[OK] Apache '..resp[1])
+  if fileexists('t.txt') then runquiet('rm t.txt') end
   runquiet('export PATH="/usr/sbin:$PATH"; a2query -m | grep "php"  >t.txt 2>nul')
+  if not fileexists('t.txt') then 
+    runquiet('php -v >t.txt 2>nul')
+  end
   resp = {}
   for v in io.lines('t.txt') do table.insert(resp, v) end
   if resp[1] then print('[OK] Apache PHP '..resp[1])

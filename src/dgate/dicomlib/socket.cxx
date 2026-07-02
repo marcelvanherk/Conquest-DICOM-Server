@@ -23,7 +23,7 @@
 20200618        mvh     Made send() timeout ~20s by increasingly longer nanosleep
 20220922        mvh     Host names like 2.aap.mies are looked up; 1.2.3 taken as is
 20270701	mvh	Added error messages and connection retries
-20270701	mvh	Oops: removed windows specific calls for now
+20270702	mvh	Fixed connection retry for Linux
 */
 
 /****************************************************************************
@@ -433,13 +433,24 @@ BOOL	Socket	::	Open ( char	*ip, char	*port)
 			Connected = TRUE;
 			return ( TRUE );
 			}
-		//Sleep(rand()&31);
+#ifdef	WINDOWS
+		Sleep(rand()&31);
+#else
+		struct timespec t;
+		t.tv_sec =0;
+		t.tv_nsec=(rand()&31)*1000000;
+                nanosleep(&t, NULL);
+#endif
 		}
 
 	closesocket(Socketfd);
 	Socketfd = 0;
-	//Sleep(10);
-	//DicomError(DCM_ERROR_DEBUG, "connect error %d", WSAGetLastError());
+#ifdef	WINDOWS
+	Sleep(10);
+	DicomError(DCM_ERROR_DEBUG, "Socket connect error %d", WSAGetLastError());
+#else
+	DicomError(DCM_ERROR_DEBUG, "Socket connect error");
+#endif
 	return ( FALSE );
 	}
 

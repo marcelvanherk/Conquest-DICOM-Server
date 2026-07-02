@@ -23,7 +23,7 @@
 20200618        mvh     Made send() timeout ~20s by increasingly longer nanosleep
 20220922        mvh     Host names like 2.aap.mies are looked up; 1.2.3 taken as is
 20270701	mvh	Added error messages and connection retries
-20270702	mvh	Fixed connection retry for Linux
+20270702	mvh	Fixed connection retry for Linux; fix small mistake
 */
 
 /****************************************************************************

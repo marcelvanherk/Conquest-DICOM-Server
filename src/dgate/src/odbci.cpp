@@ -189,6 +189,7 @@
 20260615   mvh    Backup copies 64 pages per step
 20260616   mvh    Backup copies 640 pages per step; performance ssd->raid ~9GB/hour
 20260622   mvh    Added blocks and delay parameters
+20260702   mvh    Made it compile without sqlite
 */
 
 /*
@@ -3571,6 +3572,7 @@ BOOL	Database :: Close ()
 **
 ** Modified from SqLite reference documentation
 */
+#ifdef USESQLITE
 int backupDb(
   sqlite3 *pDb,               /* Database to back up */
   const char *zFilename,      /* Name of file to back up to */
@@ -3617,6 +3619,7 @@ int backupDb(
   (void)sqlite3_close(pFile);
   return rc;
 }
+#endif	
 
 /* Backup database; only implemented for SqLite for now
 */

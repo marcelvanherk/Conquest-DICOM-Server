@@ -21,6 +21,25 @@
 -- mvh 20250911 Fallback for failed jpeg-c ./configure on debian 13
 -- mvh 20270701 Fix luasocket compile; added luabuiltin
 -- mvh 20270702 luabuiltin skips lua check; allow httpd as apache2 alternative
+-- mvh 20270702 Added 'sudo chcon -R -t bin_t' for SELinux
+-- mvh 20270702 Compatible with newer lua versions; Added -w #; -p #, -s name, -y, -r y/n, -z pw
+
+--[[Note: auto installs packages; for Rocky Linux must do manual package install first:
+# assumes using built-in lua5.1/luasocket and built-in webserver
+sudo dnf install lua
+sudo dnf install wget
+sudo dnf install make
+sudo dnf install g++
+sudo dnf install git
+sudo dnf install epel-release
+sudo dnf install p7zip
+
+wget raw.githubusercontent.com/marcelvanherk/ConquestDICOMServer/install/installer.lua
+lua installer.lua -l -w 8086 -p 5678 -s TEST11 -y -r y -z pw
+
+sudo firewall-cmd --add-port=8086/tcp --permanent
+sudo firewall-cmd --reload (edited) 
+]]
 
 package.path = package.path .. ';../lua/?.lua'
 --package.cpath = package.path .. ';clibs/lib?.so'
@@ -125,13 +144,17 @@ function runquiet(s)
 end
 
 local server = string.gsub(runquiet('pwd'), '\n', '')
-local servername = 'CONQUESTSRV1'
-local serverport = '5678'
+local servername = ''
+local serverport = ''
 local database   = 'sqlite'
 local recompile  = false
 local reconfigure = false
 local luabuiltin = false
+local webbuiltin = 0
+local port = 0
 local myconf = {}
+local yflag=false
+local rflag=''
 
 for k, v in ipairs(arg) do 
   if v=='-v' or v=='--verbose' then verbose=true end
@@ -139,6 +162,12 @@ for k, v in ipairs(arg) do
   if v=='-r' or v=='--recompile' then recompile=true end
   if v=='-c' or v=='--configure' then reconfigure=true end
   if v=='-l' or v=='--luabuiltin' then luabuiltin=true end
+  if v=='-w' or v=='--webbuiltin' then webbuiltin=tonumber(arg[k+1]) or 8086 end
+  if v=='-p' or v=='--port' then serverport=arg[k+1] or '5678' end
+  if v=='-s' or v=='--servername' then servername=arg[k+1] or 'CONQUESTSRV1' end
+  if v=='-r' or v=='--regen' then rflag=arg[k+1] or '' end
+  if v=='-z' or v=='--sudopw' then sudopw=arg[k+1] or '' end
+  if v=='-y' or v=='--yes' then yflag=true end
   if v=='-h' or v=='--help' then 
     print('installer program for Conquest DICOM server on Linux')
     print('run as: lua5.1 installer.lua options')
@@ -148,6 +177,12 @@ for k, v in ipairs(arg) do
     print('  -r --recompile (needed when changing database)')
     print('  -c --configure (force reconfigure)')
     print('  -l --luabuiltin (compile lua and socket into server)')
+    print('  -w --webbuiltin port (autostart ladle webserver)')
+    print('  -p --port port (server port)')
+    print('  -s --servername name (server name)')
+    print('  -r --regen y/n (force y/n dbase regen)')
+    print('  -y --yes (say yes to most questions)')
+    print('  -z --sudopw pw (password)')
     os.exit()
   end
 end
@@ -194,13 +229,13 @@ function editfile(f, mask, value)
     x = string.gsub(x, mask, value)
     s = s..x.."\n" 
   end
-  local h=io.open(f, [[wt]])
+  local h=io.open(f, [[w]])
   if h then h:write(s) h:close() end
 end
 
 function getfile(f, mask)
   local y
-  local h = io.open(f, [[rt]])
+  local h = io.open(f, [[r]])
   if h then
     h:close()
     for x in io.lines(f) do
@@ -215,13 +250,15 @@ end
 
 function create_server_file(f, s)
   if verbose then print('creating', f) end
-  f = io.open(f, [[wt]]); 
+  f = io.open(f, [[w]]); 
   local s = string.gsub(s, '\n', '\r\n')
   f:write(s); 
   f:close()  
 end
 
-local y = ask('This will install Conquest dicom server and its prerequisites - continue? y/n: ')
+
+local y = 'y'
+if not yflag then y = ask('This will install Conquest dicom server and prerequisites - continue? y/n: ') end
 if y~='y' then
   os.exit()
 end
@@ -400,6 +437,7 @@ function compile(param, conf, server)
     end
     if fileexists(server..'/src/servertask/servertask') then
       runquiet('chmod 777 '..server..'/src/servertask/servertask');
+      runquiet('sudo -S chcon -R -t bin_t '..server..'/src/servertask/servertask');
       print('[OK] compiled servertask (for web api)')
     else
       print('[ERROR] servertask (for web api) not compiled')
@@ -418,6 +456,7 @@ function compile(param, conf, server)
     compile('dgate', conf, server)
     copyfile(server..'/src/dgate/build/dgate', server..'/dgate')
     runquiet('chmod 777 '..server..'/dgate')
+    runquiet('sudo -S chcon -R -t bin_t '..server..'/dgate');
 
     compile('servertask', conf, server)
     runquiet('sudo -S cp '..server..'/src/servertask/servertask /var/www/html/api/dicom/servertask');
@@ -444,6 +483,12 @@ function create_server_dicomini(conf, server)
   if (conf.SE or CGI('SE', ''))=='' then dbaseiii=0 end
   if pgsql==1 then useescapestringconstants=1 end
   if mysql==1 or pgsql==1 or mariadb==1 then doublebackslashtodb=1 end
+  
+  local wstart=''
+  if webbuiltin~=0 then
+    wstart="poststartup=package.path=Global.basedir..'lua/?.lua';arg={};arg[1]='"..webbuiltin.."';arg[2]=[["
+    ..server.."/webserver/htdocs/]];dofile('"..server.."/lua/ladle.lua')"
+  end
 
   if not fileexists(server..'/dicom.ini') or reconfigure then
     create_server_file(server..'/dicom.ini', [[
@@ -510,6 +555,7 @@ MAGDevice0               = ]]..(conf.server or server)..[[/data]]..(conf.sep or 
 
 [lua]
 association = package.path=package.path..';'..Global.basedir..'lua/?.lua'
+]]..wstart..[[
 
 ]])
   end
@@ -654,6 +700,7 @@ function create_dicom_api(conf, server)
 
   runquiet('sudo -S cp '..source..'config.php'..' '..dest..'config.php')
   runquiet('sudo -S chmod 777 '..dest..'servertask')
+  runquiet('sudo -S chcon -R -t bin_t '..dest..'servertask');
 end
 
 function create_ohif_app(conf, server)
@@ -1194,29 +1241,31 @@ if not luabuiltin then
   end
 end
 
-runquiet('export PATH="/usr/sbin:$PATH"; apache2 -v >t.txt 2>nul')
-resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
-if not resp[1] then 
-  runquiet('httpd -v >t.txt 2>nul')
+if webbuiltin==0 then
+  runquiet('export PATH="/usr/sbin:$PATH"; apache2 -v >t.txt 2>nul')
   resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
-end
-if resp[1] then 
-  print('[OK] Apache '..resp[1])
-  runquiet('export PATH="/usr/sbin:$PATH"; a2query -m | grep "php"  >t.txt 2>nul')
-  resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
-  if not resp[1] then
-    runquiet('php -v >t.txt 2>nul')
+  if not resp[1] then 
+    runquiet('httpd -v >t.txt 2>nul')
     resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
   end
-  if resp[1] then print('[OK] Apache PHP '..resp[1])
-    phpversion = string.match(resp[1], '.*php(%d%.%d).*$')
+  if resp[1] then 
+    print('[OK] Apache '..resp[1])
+    runquiet('export PATH="/usr/sbin:$PATH"; a2query -m | grep "php"  >t.txt 2>nul')
+    resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
+    if not resp[1] then
+      runquiet('php -v >t.txt 2>nul')
+      resp = {}; for v in io.lines('t.txt') do table.insert(resp, v) end
+    end
+    if resp[1] then print('[OK] Apache PHP '..resp[1])
+      phpversion = string.match(resp[1], '.*php(%d%.%d).*$')
+    else 
+      toinstall= toinstall..' php libapache2-mod-php'
+      print('[ERROR] No apache PHP')
+    end
   else 
-    toinstall= toinstall..' php libapache2-mod-php'
-    print('[ERROR] No apache PHP')
+    toinstall= toinstall..' apache2 php libapache2-mod-php'
+    print('[ERROR] No apache2')
   end
-else 
-  toinstall= toinstall..' apache2 php libapache2-mod-php'
-  print('[ERROR] No apache2')
 end
 
 if fileexists('t.txt') then runquiet('rm t.txt') end
@@ -1229,50 +1278,54 @@ if toinstall~='' then
     runquiet('sudo -S apt -y install'..toinstall)
   end
   
-  -- create correctly named version of liblua5.1.so
-  if not fileexists('/usr/lib/x86_64-linux-gnu/liblua5.1.so') then
+    -- create correctly named version of liblua5.1.so
+  if not fileexists('/usr/lib/x86_64-linux-gnu/liblua5.1.so') and not luabuiltin then
     print('*** Updating liblua link')
     runquiet('sudo -S ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so.0 /usr/lib/x86_64-linux-gnu/liblua5.1.so')
   end
 
-  -- get PHP version
-  runquiet('a2query -m | grep "php"  >t.txt 2>nul')
-  resp = {}
-  for v in io.lines('t.txt') do table.insert(resp, v) end
-  if resp[1] then
-    phpversion = string.match(resp[1], '.*php(%d%.%d).*$')
+  if webbuiltin==0 then
+    -- get PHP version
+    runquiet('a2query -m | grep "php"  >t.txt 2>nul')
+    resp = {}
+    for v in io.lines('t.txt') do table.insert(resp, v) end
+    if resp[1] then
+      phpversion = string.match(resp[1], '.*php(%d%.%d).*$')
+    end
+    
+    print('*** Patching php settings for '..phpversion)
+    runquiet([[sudo -S sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf]])
+    runquiet([[sudo -S sed -i 's/memory_limit = 128M/memory_limit = 512M/g' /etc/php/]]..phpversion..[[/apache2/php.ini]])
+    runquiet([[sudo -S sed -i 's/upload_max_filesize = 2M/upload_max_filesize = 250M/g' /etc/php/]]..phpversion..[[/apache2/php.ini]])
+    runquiet([[sudo -S sed -i 's/post_max_size = 8M/post_max_size = 250M/g' /etc/php/]]..phpversion..[[/apache2/php.ini]])
+    runquiet([[sudo -S a2enmod rewrite]])
+    
+    print('*** Restarting apache')
+    runquiet([[sudo -S systemctl restart apache2]])
   end
   
-  print('*** Patching php settings for '..phpversion)
-  runquiet([[sudo -S sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf]])
-  runquiet([[sudo -S sed -i 's/memory_limit = 128M/memory_limit = 512M/g' /etc/php/]]..phpversion..[[/apache2/php.ini]])
-  runquiet([[sudo -S sed -i 's/upload_max_filesize = 2M/upload_max_filesize = 250M/g' /etc/php/]]..phpversion..[[/apache2/php.ini]])
-  runquiet([[sudo -S sed -i 's/post_max_size = 8M/post_max_size = 250M/g' /etc/php/]]..phpversion..[[/apache2/php.ini]])
-  runquiet([[sudo -S a2enmod rewrite]])
-  
-  print('*** Restarting apache')
-  runquiet([[sudo -S systemctl restart apache2]])
-
   print('[DONE] **** re-run script to continue ****')
   return
 end
 
 -- check some lua stuff
-if pcall(function()require('socket') end) then
-    print('[OK] lua-socket')
+if not luabuiltin then
+  if pcall(function()require('socket') end) then
+      print('[OK] lua-socket')
+    --else
+      --print('[ERROR] lua-socket')
+    end
+  if pcall(function()require('iuplua') end) then
+    print('[OK] iuplua')
   --else
-    --print('[ERROR] lua-socket')
+    --print('[ERROR] iuplua')
   end
-if pcall(function()require('iuplua') end) then
-  print('[OK] iuplua')
---else
-  --print('[ERROR] iuplua')
-end
-
-if pcall(function()require('persistence') end) then
-  print('[OK] persistence.lua')
---else
-  --print('[ERROR] persistence.lua')
+  
+  if pcall(function()require('persistence') end) then
+    print('[OK] persistence.lua')
+  --else
+    --print('[ERROR] persistence.lua')
+  end
 end
 
 if pcall(function()require('wx') end) then
@@ -1289,9 +1342,10 @@ if server then
     if fileexists(server .. '/ConquestDICOMServer.exe') then
       print('[OK] Server is located at: '..server)
     else
-      local y=ask('Server not found - download Conquest DICOM server? y/n: ')
+      local y='y'
+      if not yflag then y=ask('Server not found - download Conquest DICOM server? y/n: ') end
       if y=='y' then
-        servername=ask('Give server AE (also folder name) (CONQUESTSRV1): ')
+        if servername=='' then servername=ask('Give server AE (also folder name) (CONQUESTSRV1): ') end
 	if servername=='' then servername='CONQUESTSRV1' end
 	if directoryexists(servername) then
           local y=ask('Folder exists - overwite? Yes/No: ')
@@ -1327,7 +1381,8 @@ end
 if fileexists(server..'/dgate') then
   print('[OK] server already compiled, delete dgate if need to recompile')
 else
-  local y=ask('Compile the server (this takes a while) y/n: ')
+  local y='y'
+  if not yflag then y=ask('Compile the server (this takes a while) y/n: ') end
   if y=='y' then
     compile('dgateall', myconf, server)
     if fileexists(server..'/dgate') then
@@ -1352,17 +1407,20 @@ if fileexists(server..'/dicom.ini') and not reconfigure then
   if pgsql then database='pgsql' end
 else
   runquiet('sudo -S systemctl stop '..servername..'.service')
-  while true do
-    serverport=ask('Give server port (5678): ')
-    if serverport=='' then serverport='5678' end
-    if string.find(runquiet('ss -l -n | grep :'..serverport), serverport) then
-      print('[ERROR] This port is in use!')
-    else
-      break
+  if serverport=='' then
+    while true do
+      serverport=ask('Give server port (5678): ')
+      if serverport=='' then serverport='5678' end
+      if string.find(runquiet('ss -l -n | grep :'..serverport), serverport) then
+        print('[ERROR] This port is in use!')
+      else
+        break
+      end
     end
   end
 
-  local y=ask('Configure the server? y/n: ')
+  local y='y'
+  if not yflag then y=ask('Configure the server? y/n: ') end
   if y=='y' then
     myconf = {AE=servername, DB=database, PORT=serverport, htmlweb='/var/www/html'}
     if database=='pgsql' then myconf.SE='conquest' end
@@ -1441,30 +1499,35 @@ else
   end
 end
 
-if fileexists('/var/www/html/app/newweb/dicom.ini') and not reconfigure then
-  print('[OK] web server already configured, delete /var/www/html/app and /api to reconfigure')
-else
-  local y=ask('Configure the web server? y/n: ')
-  myconf = {AE=servername, DB=database, PORT=serverport, htmlweb='/var/www/html'}
-  if y=='y' then
-    create_newweb_app(myconf, server)
-    create_dicom_api(myconf, server)
-    create_ohif_app(myconf, server)
-    if fileexists('/var/www/html/app/newweb/dicom.ini') then
-      print('[OK] web server configured')
-    else
-      print('[OK] web server NOT configured')
+if webbuiltin==0 then
+  if fileexists('/var/www/html/app/newweb/dicom.ini') and not reconfigure then
+    print('[OK] web server already configured, delete /var/www/html/app and /api to reconfigure')
+  else
+    local y='y'
+    if not yflag then y=ask('Configure the web server? y/n: ') end
+    myconf = {AE=servername, DB=database, PORT=serverport, htmlweb='/var/www/html'}
+    if y=='y' then
+      create_newweb_app(myconf, server)
+      create_dicom_api(myconf, server)
+      create_ohif_app(myconf, server)
+      if fileexists('/var/www/html/app/newweb/dicom.ini') then
+        print('[OK] web server configured')
+      else
+        print('[OK] web server NOT configured')
+      end
     end
   end
 end
 
-local y=ask('Regen the database, this can take a long time if there is loads of data? y/n: ')
+local y=rflag
+if rflag=='' then y=ask('Regen the database, takes long time with loads of data? y/n: ') end
 if y=='y' then
   runquiet('mkdir -p '..server..'/data/dbase')
   print(runquiet(server..'/dgate -w'..server..' -v -r'))
 end
 
-local y=ask('Install and start the server? y/n: ')
+local y='y'
+if not yflag then y=ask('Install and start the server? y/n: ') end
 if y=='y' then
   copyfile(server..'/conquest.service', servername..'.service')
   editfile(servername..'.service', '%${CONQUEST}', server) 
@@ -1485,7 +1548,9 @@ if y=='y' then
   end
 end
 
-local y=ask('Enter web interface? y/n: ')
-if y=='y' then
-  runquiet('sensible-browser http://localhost/app/newweb')
+if not yflag then
+  local y=ask('Enter web interface? y/n: ')
+  if y=='y' then
+    runquiet('sensible-browser http://localhost/app/newweb')
+  end
 end

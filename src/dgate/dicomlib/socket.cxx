@@ -449,7 +449,7 @@ BOOL	Socket	::	Open ( char	*ip, char	*port)
 	Sleep(10);
 	DicomError(DCM_ERROR_DEBUG, "Socket connect error %d", WSAGetLastError());
 #else
-	DicomError(DCM_ERROR_DEBUG, "Socket connect error");
+	DicomError(DCM_ERROR_DEBUG, "Socket connect error", 0);
 #endif
 	return ( FALSE );
 	}

@@ -23,22 +23,36 @@
 -- mvh 20270702 luabuiltin skips lua check; allow httpd as apache2 alternative
 -- mvh 20270702 Added 'sudo chcon -R -t bin_t' for SELinux
 -- mvh 20270702 Compatible with newer lua versions; Added -w #; -p #, -s name, -y, -r y/n, -z pw
+-- mvh 20270703 Note: does not require unzip; update rocky doc for postgresql
 
 --[[Note: auto installs packages; for Rocky Linux must do manual package install first:
 # assumes using built-in lua5.1/luasocket and built-in webserver
 sudo dnf install lua
 sudo dnf install wget
+sudo dnf install unzip
 sudo dnf install make
 sudo dnf install g++
 sudo dnf install git
 sudo dnf install epel-release
 sudo dnf install p7zip
 
-wget raw.githubusercontent.com/marcelvanherk/ConquestDICOMServer/install/installer.lua
-lua installer.lua -l -w 8086 -p 5678 -s TEST11 -y -r y -z pw
+# for postgresql database
+sudo dnf install postgresql-server
+sudo dnf install libpq-devel
+sudo postgresql-setup --initdb
+sudo systemctl enable postgresql
+sudo systemctl start postgresql
+sudo nano /var/lib/pgsql/data/pg_hba.conf
+	local   all             all                                     ident
+	host    all             all             127.0.0.1/32            md5
+	host    all             all             ::1/128                 md5
+
+wget https://raw.githubusercontent.com/marcelvanherk/Conquest-DICOM-Server/master/install/installer.lua
+lua installer.lua -l -w 8086 -p 5678 -s TEST11 -y -r y -z pw -d pgsql
 
 sudo firewall-cmd --add-port=8086/tcp --permanent
-sudo firewall-cmd --reload (edited) 
+sudo firewall-cmd --add-port=5678/tcp --permanent
+sudo firewall-cmd --reload 
 ]]
 
 package.path = package.path .. ';../lua/?.lua'

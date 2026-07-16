@@ -16,6 +16,8 @@
 20100823	mvh	Merged small comment fix
 20130508        lsp     Fixed problem in SaveDicomDataObject() indicated by Klocwork
 20220824    	mvh	Added LoadDICOMDataObjectTrunc (WIP)
+20260710	mvh	SaveDICOMDataObject accepts @filename: append to file
+20260716	mvh	Merged fix by Divinus; wrote to constant string
 */
 
 /****************************************************************************
@@ -315,11 +317,18 @@ PDU_Service	::	SaveDICOMDataObject (
 	char			TransferSyntaxUID[256];
 	UID			uid;
 	VR*			pVR;
+	
+        char fmt[3] = "wb";
+	char *fn=filename;
+	if (filename[0]=='@') 
+	{ fmt[0]='a';
+	  fn = filename+1;
+	}
 
 	switch ( Format )
 		{
 		case	ACRNEMA_VR_DUMP:
-			fp = fopen(filename, "wb");
+			fp = fopen(fn, fmt);
 			if(!fp)
 				return ( FALSE );
 // Fix the TransferSyntax if there and wrong. bcb 20100706
@@ -336,7 +345,7 @@ PDU_Service	::	SaveDICOMDataObject (
 			IOBuffer.Close();
 			return ( TRUE );
 		case	DICOM_CHAPTER_10_IMPLICIT:
-			fp = fopen(filename, "wb");
+			fp = fopen(fn, fmt);
 			if(!fp)
 				return ( FALSE );
 
@@ -351,7 +360,7 @@ PDU_Service	::	SaveDICOMDataObject (
 			return ( TRUE );
 		case	DICOM_CHAPTER_10_EXPLICIT:
 
-			fp = fopen(filename, "wb");
+			fp = fopen(fn, fmt);
 			if(!fp)
 				return ( FALSE );
 

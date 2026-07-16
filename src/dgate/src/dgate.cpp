@@ -1242,7 +1242,10 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260616   	mvh     Added blocks and delay option; doc; added 'n' for minute backup to simplify testing
 20260620   	mvh     Small fix, extended doc
 20260622   	mvh     Fix week and month; added # and $ to backupschedule to pass blocks and delay to backupdatabase
-20260701	mvh	Define LUA51BUILTIN; use "socket" not "socket.core"; only allow 1 week backup schedule
+20260701	mvh	Define LUA51BUILTIN; use "socket" not "socket.core"; for week only 1 backup schedule
+20260707	mvh	Added imagefilelister: command that can work at any level
+20260710	mvh	Added concat: writes or returns boundary delimited batch of uncompressed dicom objects
+20260716	mvh	Merged fixes by Divinus (overwrote tempfile, added compression) just use importconverter %n %r as control characters
 
 ENDOFUPDATEHISTORY
 */
@@ -13739,6 +13742,7 @@ PrintOptions ()
 	fprintf(stderr, "    --submit:p,s,s,s,target,pw,scr Immediate sftp submit of data\n" );
 	fprintf(stderr, "    --submit2:p,s,s,s,target,c,scr Immediate submit with command line c\n" );
 	fprintf(stderr, "    --export:p,st,ser,sop,file,scr Immediate process and zip/7z data\n" );
+	fprintf(stderr, "    --concat:p,st,se,so,b,sz,bd,cp,f concat/ComPress batch b with sz objects\n" );
 	fprintf(stderr, "    --scheduletransfer:options     Background sftp transfer as above\n" );
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Test options:\n");
@@ -13771,6 +13775,7 @@ PrintOptions ()
 	fprintf(stderr, "    --imagefinder:srv|str|fmt|file      List images on server\n" );
 	fprintf(stderr, "    --serieslister:srv|pat|stu|fmt|file List series in a study\n" );
 	fprintf(stderr, "    --imagelister:srv|pat|ser|fmt|file  List (local) files in a series\n" );
+	fprintf(stderr, "    --imagefilelister:pat|stu|ser|sop|f List (local) files at any level\n" );
 	fprintf(stderr, "    --extract:PatientID = 'id'          Extract all tables to Xtable.dbf\n" );
 	fprintf(stderr, "    --extract:                          Extract patient dbase table to XA..\n" );
 	fprintf(stderr, "    --todbf:folder|table|query|sort|max Convert query result all fields to dbf\n");
@@ -17094,6 +17099,64 @@ int	DcmSubmitData(char *pat, char *study, char *series, char *sop, char *script,
 
 	if (Thread) Progress.printf("Process=%d, Total=%d, Current=%d\n", Thread, count+10, current+9);
 	if (Thread) Progress.printf("Process=%d, Type='export', Active=0\n", Thread);
+	return rc;
+	}
+
+// concat: create boundary delimited batch of dicom objects for streaming dicom objects
+
+int	concatDICOMObjects(char *pat, char *study, char *series, char *sop, int batch, 
+		      int perbatch, char *bd, char *compress, char *fn, ExtendedPDU_Service *PDU)
+	{	
+        char tempfile[512];
+	char filename[512];
+	char boundary[512];
+	char temp[512];
+	FILE *f, *g;
+	int current=0;
+	int rc=TRUE;
+	
+	strcpy(filename, "@"); 	// append mode from flpdu (20261007)
+	strcat(filename, fn);
+	
+	NewTempFile(tempfile,  ".txt");
+        f = fopen(tempfile, "wt");
+	char formt[]="%s\n";
+	ImageFileLister("local", pat, study, series, sop, formt, f);
+	fclose(f);	
+
+	g = fopen(filename+1, "wb");	// make empty output
+	if (g) fclose(g);
+	else return FALSE;
+
+	f = fopen(tempfile,  "rt");
+	bool start=TRUE;
+
+        while(fgets(temp, sizeof(temp), f) != NULL)
+	{ if (temp[strlen(temp)-1]=='\n') temp[strlen(temp)-1]=0;
+
+          if (current>=batch*perbatch && current<(batch+1)*perbatch)
+	  { DICOMDataObject *pDDO;
+            pDDO = LoadForGUI(temp);
+	    if (pDDO)
+	    { if (!start)
+	      { g = fopen(filename+1, "ab");
+                fwrite(boundary, 1, strlen(boundary), g);
+		fclose(g);
+	      }
+	      recompress(&pDDO, compress, "", FALSE, PDU);
+              SaveDICOMDataObject(filename, pDDO);
+	      delete pDDO;
+	    }
+	    else
+	      rc=FALSE;
+
+	    start=FALSE;
+	  }
+	  current++;
+	}
+	fclose(f);
+
+	unlink(tempfile);
 	return rc;
 	}
 
@@ -21645,8 +21708,43 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		return;
 		}
 
+
+	if (memcmp(SilentText, "concat:", 7)==0)
+		{
+		int n=1, L;
+		char *items[9];
+
+		memset(items, 0, sizeof(items));
+
+		p = strchr(SilentText, ':')+1;
+		items[0]=p;
+		L = strlen(p);
+		for (int i=0; i<L; i++)
+			{
+			if (p[i]=='|')
+				{
+				p[i]=0;
+				items[n++] = p+i+1;
+				if(n==9) break;
+				}
+			}
+			
+		if (!p[8]) return; // insufficient parameters
+			
+		p=items[8];
+		if (strcmp(p, "binary")==0 || *p==0)
+			{
+			NewTempFile(tempfile, ".bin");
+			p = tempfile;
+			}
+		concatDICOMObjects(items[0], items[1], items[2], items[3],
+				   atoi(items[4]), atoi(items[5]), items[6], items[7], p, &PDU);
+		}
+
 	if (memcmp(SilentText, "imagelister:", 12)==0 ||
-		 memcmp(SilentText, "serieslister:", 13)==0 )
+		 memcmp(SilentText, "serieslister:", 13)==0 ||
+		 memcmp(SilentText, "imagefilelister:", 16)==0
+	   )
 		{
 		int i, n=1, L;//, flds=1, mx;
 		char *items[6];
@@ -21669,11 +21767,13 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			}
 		p = items[4];
 
-		if (items[3]==0 || *items[3]==0)
+		if (SilentText[5]!='f') 
+		{ if (items[3]==0 || *items[3]==0)
 			strcpy(format, "%s*");
-		else
+		  else
 			strcpy(format, items[3]);
-		if (format[0]!='$' && format[strlen(format)-1]!='*') strcat(format, "\n");
+		  if (format[0]!='$' && format[strlen(format)-1]!='*') strcat(format, "\n");
+		}
 
 		if (p==NULL || *p==0)
 			{
@@ -21694,7 +21794,9 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		else
 			f = fopen(p, "wt");
 
-		if (SilentText[1]=='m') ImageFileLister(items[0], items[1], NULL, items[2], NULL, format, f);
+		char formt[]="%s\n";
+		if (SilentText[5]=='f') ImageFileLister("local", items[0], items[1], items[2], items[3], formt, f);
+		else if (SilentText[1]=='m') ImageFileLister(items[0], items[1], NULL, items[2], NULL, format, f);
 		else 			SeriesUIDLister(items[0], items[1], items[2], format, f);
 		fclose(f);
 		return;

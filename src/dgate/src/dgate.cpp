@@ -1246,6 +1246,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260707	mvh	Added imagefilelister: command that can work at any level
 20260710	mvh	Added concat: writes or returns boundary delimited batch of uncompressed dicom objects
 20260716	mvh	Merged fixes by Divinus (overwrote tempfile, added compression) just use importconverter %n %r as control characters
+20260716	mvh	Emit boundary at start of each dicom object; re-added \r \n translation by Divinis
 
 ENDOFUPDATEHISTORY
 */
@@ -17105,11 +17106,11 @@ int	DcmSubmitData(char *pat, char *study, char *series, char *sop, char *script,
 // concat: create boundary delimited batch of dicom objects for streaming dicom objects
 
 int	concatDICOMObjects(char *pat, char *study, char *series, char *sop, int batch, 
-		      int perbatch, char *bd, char *compress, char *fn, ExtendedPDU_Service *PDU)
+		      int perbatch, char *sep, char *compress, char *fn, ExtendedPDU_Service *PDU)
 	{	
         char tempfile[512];
 	char filename[512];
-	char boundary[512];
+        char boundary[512];
 	char temp[512];
 	FILE *f, *g;
 	int current=0;
@@ -17118,6 +17119,21 @@ int	concatDICOMObjects(char *pat, char *study, char *series, char *sop, int batc
 	strcpy(filename, "@"); 	// append mode from flpdu (20261007)
 	strcat(filename, fn);
 	
+	int bi = 0;
+	for (int i = 0; sep && sep[i] && bi < (int)sizeof(boundary)-1; i++)
+        {
+        if (sep[i] == '\\' && sep[i+1])
+            {
+            i++;
+            if      (sep[i] == 'r') boundary[bi++] = '\r';
+            else if (sep[i] == 'n') boundary[bi++] = '\n';
+            else if (sep[i] == 't') boundary[bi++] = '\t';
+            else                    boundary[bi++] = sep[i];
+            }
+        else boundary[bi++] = sep[i];
+        }
+	boundary[bi] = 0;
+
 	NewTempFile(tempfile,  ".txt");
         f = fopen(tempfile, "wt");
 	char formt[]="%s\n";
@@ -17129,7 +17145,6 @@ int	concatDICOMObjects(char *pat, char *study, char *series, char *sop, int batc
 	else return FALSE;
 
 	f = fopen(tempfile,  "rt");
-	bool start=TRUE;
 
         while(fgets(temp, sizeof(temp), f) != NULL)
 	{ if (temp[strlen(temp)-1]=='\n') temp[strlen(temp)-1]=0;
@@ -17138,19 +17153,15 @@ int	concatDICOMObjects(char *pat, char *study, char *series, char *sop, int batc
 	  { DICOMDataObject *pDDO;
             pDDO = LoadForGUI(temp);
 	    if (pDDO)
-	    { if (!start)
-	      { g = fopen(filename+1, "ab");
-                fwrite(boundary, 1, strlen(boundary), g);
-		fclose(g);
-	      }
+	    { g = fopen(filename+1, "ab");
+              fwrite(boundary, 1, strlen(boundary), g);
+              fclose(g);
 	      recompress(&pDDO, compress, "", FALSE, PDU);
               SaveDICOMDataObject(filename, pDDO);
 	      delete pDDO;
 	    }
 	    else
 	      rc=FALSE;
-
-	    start=FALSE;
 	  }
 	  current++;
 	}

@@ -190,6 +190,7 @@
 20260616   mvh    Backup copies 640 pages per step; performance ssd->raid ~9GB/hour
 20260622   mvh    Added blocks and delay parameters
 20260702   mvh    Made it compile without sqlite
+20260809   mvh    Catch errors of dbase_create (crashed server browser for mixed users)
 */
 
 /*
@@ -5285,7 +5286,7 @@ BOOL	Database :: CreateTable (
           { if (dbase_handles[i])
             { if (stricmp(filename, dbase_handles[i]->filename)==0)
               { dbase_close(dbase_handles[i]); dbase_handles[i]=NULL;
-                dbase_create(filename, fielddata, &dbase_handles[i]);
+                if (dbase_create(filename, fielddata, &dbase_handles[i])<0) return FALSE;
                 for (int j=0; j<MAXFIELDS; j++) free(fielddata[j]);
 //                if (Indices[i])				/* clear in-memory index if any */
 //                  IndicesCount[i]=0;
@@ -5295,7 +5296,7 @@ BOOL	Database :: CreateTable (
           }
           for(i=0; i<20; i++)
           { if (!dbase_handles[i])
-            { dbase_create(filename, fielddata, &dbase_handles[i]);
+            { if (dbase_create(filename, fielddata, &dbase_handles[i])<0) return FALSE;
               for (int j=0; j<MAXFIELDS; j++) free(fielddata[j]);
               dbase_handles[i]->n = i;
 //              if (Indices[i])				/* clear in-memory index if any */

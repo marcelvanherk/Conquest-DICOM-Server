@@ -1247,6 +1247,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260710	mvh	Added concat: writes or returns boundary delimited batch of uncompressed dicom objects
 20260716	mvh	Merged fixes by Divinus (overwrote tempfile, added compression) just use importconverter %n %r as control characters
 20260716	mvh	Emit boundary at start of each dicom object; re-added \r \n translation by Divinis
+20260809   	mvh	Catch errors of dbase.CreateTable (crashed server browser for mixed users)
 
 ENDOFUPDATEHISTORY
 */
@@ -21390,7 +21391,10 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 
 					if (j==0) sprintf(u, "XA%s",  tabname);	// all patients
 					else      sprintf(u, "X%s", tabname);
-					DB2.CreateTable (u, s);
+					if (!DB2.CreateTable (u, s))
+					{ OperatorConsole.printf("*** extract: cannot create database on: %s\n", Physical);
+				          return;
+					}
 
 					if (j==3)
 					{ p = strstr(q, "PatientID");
@@ -21512,7 +21516,10 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				k += 2;
 				}
 
-			DB2.CreateTable (tabname, s);
+			if (!DB2.CreateTable (tabname, s))
+			{ OperatorConsole.printf("*** todbf: cannot create database on: %s\n", folder);
+		          return;
+			}
 
 			DB.Query(tabname, t, query, sort);
 			for (i=0; i<k; i++)

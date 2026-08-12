@@ -1,10 +1,18 @@
 -- 20260119: added date_perturbation, loaded in to 9999,1235
+-- 20260803: responds to MoveOriginatorMessageID==0xcafe to forward data for clinical trials with hashed patient ID
+-- 20260806: Also responds to MessageID==0xcafe
 
 -- test setup for debugging
 --  Data["9999,1234"]='test'
 --  Data["9999,1235"]='-100'
 --  if true then return end
 
+if Command.MoveOriginatorMessageID=='51966' or Command.MessageID=='51966' then 
+  Data["9999,cafe"]='trial'
+  local patid = string.gsub(Data.PatientID, 'RBV', '')
+  Data["9999,1234"]='trial_'..md5(patid) 
+  return
+end
 -- add  memo={} to association event in dicom.ini
 memo = memo or {}
 if memo.ukcatID and memo.christieID and Data.PatientID==memo.christieID then

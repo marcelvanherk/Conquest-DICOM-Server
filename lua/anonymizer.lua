@@ -44,8 +44,9 @@
 -- 20260109	mvh	Added TagsToSanitise, version to 1.5
 -- 20260114	mvh	Also remove dates as dd-mm-yyyy, yyyy-mm-dd, dd/mm/yyyy, yyyy/mm/dd
 -- 20260119	mvh	Escaped - in dd-mm-yyyy, yyyy-mm-dd sanitiser
+-- 20260806	mvh	Allow element by group and number, but only in TagsToKeep, e.g. "ffff" vs "ffffcafe"
 
-local scriptversion = "1.5; date 20260119"
+local scriptversion = "1.5; date 20260806"
 
 function CRC32(val)
   return crc(tostring(val))
@@ -249,13 +250,20 @@ function anonymize(config, newid, newname, stage, dateoffset)
     Data:Reset() -- requires update > 20231021
     for _, val in ipairs(config.TagsToKeep) do
       if tonumber(val, 16) then
-        if config.logmodified then
+        if tonumber(val, 16)<65536 and config.logmodified then
           f:write('Keep group ', val, "\n")
         end
-        for i=1, #groups do
-          if tonumber(groups[i])==tonumber(val, 16) and tonumber(elements[i])~=0 then
-            Data:SetVR(groups[i], elements[i], Data2:GetVR(groups[i], elements[i]))
-  	end
+        if tonumber(val, 16)>=65536 and config.logmodified then
+          f:write('Keep element ', val, "\n")
+        end
+	if tonumber(val, 16) < 65536 then
+          for i=1, #groups do
+            if tonumber(groups[i])==tonumber(val, 16) and tonumber(elements[i])~=0 then
+              Data:SetVR(groups[i], elements[i], Data2:GetVR(groups[i], elements[i]))
+  	  end
+	else
+          local g, e = math.floor(val/65536), val%65536
+          Data:SetVR(g, e, Data2:GetVR(g, e))
         end
       else
         local g, e = dictionary(val)

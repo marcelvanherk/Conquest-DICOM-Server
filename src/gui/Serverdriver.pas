@@ -6885,7 +6885,7 @@ begin
 {$ELSE}
   webaddress := 'http://127.0.0.1:'+LadlePort+'/app/newweb/dgate.exe?mode=wadoseriesviewer&series=' +
                  Table1.FieldByName('PATIENTID').AsString+':'+Table3.FieldByName('SERIESINST').AsString;
-  ServerTask('', 'luastart:require([[ladle]]())');
+  ServerTask('', 'luastart:require([[ladle]])()');
   CheckBoxWebServer.Checked := true;
   ShellExecute(0, 'open', PWideChar(webaddress), nil, nil, SW_SHOWNORMAL);
 {$ENDIF KPACS}

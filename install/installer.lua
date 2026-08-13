@@ -19,17 +19,19 @@
 -- mvh 20230920 Small reconfigure of above; -r recompiles without asking
 -- mvh 20250415 Irrelevant typos in defaults for updatign compression
 -- mvh 20250911 Fallback for failed jpeg-c ./configure on debian 13
--- mvh 20270701 Fix luasocket compile; added luabuiltin
--- mvh 20270702 luabuiltin skips lua check; allow httpd as apache2 alternative
--- mvh 20270702 Added 'sudo chcon -R -t bin_t' for SELinux
--- mvh 20270702 Compatible with newer lua versions; Added -w #; -p #, -s name, -y, -r y/n, -z pw
--- mvh 20270703 Note: does not require unzip; update rocky doc for postgresql
+-- mvh 20260701 Fix luasocket compile; added luabuiltin
+-- mvh 20260702 luabuiltin skips lua check; allow httpd as apache2 alternative
+-- mvh 20260702 Added 'sudo chcon -R -t bin_t' for SELinux
+-- mvh 20260702 Compatible with newer lua versions; Added -w #; -p #, -s name, -y, -r y/n, -z pw
+-- mvh 20260703 Note: does not require unzip; update rocky doc for postgresql
+-- mvh 20260707 Remove unzip
+-- mvh 20260812 Added LadlePort and BackupSchedule; ladle is called as require([[ladle]])()
 
 --[[Note: auto installs packages; for Rocky Linux must do manual package install first:
 # assumes using built-in lua5.1/luasocket and built-in webserver
 sudo dnf install lua
 sudo dnf install wget
-sudo dnf install unzip
+#sudo dnf install unzip
 sudo dnf install make
 sudo dnf install g++
 sudo dnf install git
@@ -46,6 +48,7 @@ sudo nano /var/lib/pgsql/data/pg_hba.conf
 	local   all             all                                     ident
 	host    all             all             127.0.0.1/32            md5
 	host    all             all             ::1/128                 md5
+sudo systemctl restart postgresql
 
 wget https://raw.githubusercontent.com/marcelvanherk/Conquest-DICOM-Server/master/install/installer.lua
 lua installer.lua -l -w 8086 -p 5678 -s TEST11 -y -r y -z pw -d pgsql
@@ -499,9 +502,10 @@ function create_server_dicomini(conf, server)
   if mysql==1 or pgsql==1 or mariadb==1 then doublebackslashtodb=1 end
   
   local wstart=''
+  local ladle=''
   if webbuiltin~=0 then
-    wstart="poststartup=package.path=Global.basedir..'lua/?.lua';arg={};arg[1]='"..webbuiltin.."';arg[2]=[["
-    ..server.."/webserver/htdocs/]];dofile('"..server.."/lua/ladle.lua')"
+    wstart="poststartup = require('ladle')()"
+    ladle = 'LadlePort                = '..webbuiltin
   end
 
   if not fileexists(server..'/dicom.ini') or reconfigure then
@@ -518,6 +522,7 @@ MyACRNema                = ]]..(conf.AE or CGI('AE', 'CONQUESTSRV1'))..[[
 
 TCPPort                  = ]]..(conf.PORT or CGI('PORT', '5678'))..[[
 
+]]..ladle..[[
 
 # Host, database, username and password for database
 SQLHost                  = ]]..(conf.SH or CGI('SH', 'localhost'))..[[
@@ -537,6 +542,8 @@ Postgres                 = ]]..pgsql..[[
 DoubleBackSlashToDB      = ]]..doublebackslashtodb..[[
 
 UseEscapeStringConstants = ]]..useescapestringconstants..[[
+
+BackupSchedule           = 'd7,w5,m@8#2048$100:' ]]..server..'/backup'..[[
 
 
 # Configure server
@@ -1199,14 +1206,14 @@ else
   print('[ERROR] no 7za')
 end 
 
-runquiet('unzip -v >t.txt 2>nul')
-resp = {}
-for v in io.lines('t.txt') do table.insert(resp, v) end
-if resp[1] then print('[OK] '..resp[1])
-else 
-  toinstall= toinstall..' unzip'
-  print('[ERROR] No unzip')
-end
+--runquiet('unzip -v >t.txt 2>nul')
+--resp = {}
+--for v in io.lines('t.txt') do table.insert(resp, v) end
+--if resp[1] then print('[OK] '..resp[1])
+--else 
+--  toinstall= toinstall..' unzip'
+--  print('[ERROR] No unzip')
+--end
 
 runquiet('git --version >t.txt 2>nul')
 resp = {}

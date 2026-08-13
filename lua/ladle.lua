@@ -44,6 +44,7 @@
 -- mvh 20260810 Added streaming code by Divinus
 -- mvh 20260812 Divinus prints more information on failure
 -- mvh 20260812 Simplified default startup to require('ladle')()
+-- mvh 20260813 Merged Divinis debugging
 
 -----------------------------------------------------
 
@@ -752,9 +753,12 @@ end
 
 -- start web server
 function main(port, hostname, root)
+        -- backwards compatibility
+	if type(hostname)=='string' and hostname:find('[/\\]') then root, hostname = hostname, nil end
+
 	-- command line arguments overrides config file entry:
 	config.port = port or config.port
-	config.hostname = hostname or config.port
+	config.hostname = hostname or config.hostname
 	config.webroot = root or config.webroot
 	
 	-- display initial program information
@@ -763,7 +767,7 @@ function main(port, hostname, root)
 	-- create tcp socket on localhost:$port
 	-- local server = socket.bind(hostname, port)
 	local okb, errb = server:bind(hostname, port)
-	if not okb then ladleutil.trace("bind failed: "..tostring(errb).." "..hostname..":"..port) end
+	if not okb then ladleutil.trace("bind failed: "..tostring(errb).." "..tostring(hostname)..":"..tostring(port)) end
 	local okl, errl = server:listen(5)
 	if not okl then
 	  ladleutil.trace("Failed to listen ("..tostring(errl).."), Ladle already running?")

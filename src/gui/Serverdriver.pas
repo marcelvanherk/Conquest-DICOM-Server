@@ -677,7 +677,7 @@ When            Who     What
                         Fix setting of debuglevel; onClick comes before change; also print value in log
 20210208        mvh     Keep lastUpdate and lastWrite time to make it work
 20210210        mvh     Blocked out debug update source display, fixed race condition in timer
-20210510        mvh     Remove sequence query results prior to display 
+20210510        mvh     Remove sequence query results prior to display
 20210620        mvh     Added regen folder button, moved done message of regen device to correct page
 20210621        mvh     Alt-regen folder load text file with one folder name per line; push again to stop
 20210630        mvh     No missing \ alert on linux, GetTempDir adjusted for linux (wip)
@@ -700,6 +700,9 @@ When            Who     What
 20240924        mvh     1.5.0e release
 20250702        mvh     Fix zero results error in query
 20250831        mvh     1.5.0f release
+20251011        mvh     Skip server test on NewInstall; tested port stays open blocking installation in Wine under Linux
+20260810        mvh     Move all temporary files to GetTempDir; change GetTempDir to curdir if there is no access
+20260813        mvh     Auto configure BackupSchedule for Sqlite (required folder backup); call now require([[ladle]])()
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -736,7 +739,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0f';
-const BUILDDATE = '20250831';
+const BUILDDATE = '20260813';
 const testmode = 0;
 
 {************************************************************************}
@@ -1309,6 +1312,7 @@ var
   CurDir: string;
   PrinterQueue: TThreadList;
   BrowseThroughDBF: string;
+  BackupSchedule: string;
   othersections: TStringList;
 
     InstallationSocket: TWSocket;
@@ -1529,12 +1533,41 @@ end;
 
 var DirSep : string = '\';
 
+function GuiToServerFilename(s: string): string;
+begin
+  result := s;
+  if (pos('/', MagDeviceList[0])>=1) then
+  begin
+    s := StringReplace(Result, 'C:\', 'Z:\home\marcel\.wine\drive_c\', []);
+    result := StringReplace(copy(s, 3, 999), '\', '/', [rfReplaceAll]);
+    Application.MainForm.Caption := result;
+  end;
+end;
+
 function GetTempDir: String;
 var
   tempFolder: array[0..MAX_PATH] of Char;
+  f: TextFile;
+  code: string;
 begin
   GetTempPath(MAX_PATH, @tempFolder);
   result := StrPas(tempFolder);
+
+  code :=
+   'local f=io.open([['+ GuiToServerFilename(result+'test.txt') + ']], "wb");' +
+   'if f then f:write("test\n") f:close() end returnfile=s';
+
+  try
+    ServerTask('', 'lua:'+code);
+    if not FileExists(result+'test.txt') then
+    begin
+      result := Curdir + DirSep;
+    end
+    else
+      DeleteFile(result+'test.txt');
+  except
+    result := Curdir + DirSep;
+  end;
 end;
 
 
@@ -2622,15 +2655,13 @@ begin
       DgateExe := 'dgate.exe';
   end;
 
-  if not SysUtils.DirectoryExists(GetTempDir + 'conquest_browser') then
-    Mkdir(GetTempDir + 'conquest_browser');
-
   MagThreshold.text   := '0';
   SqlHost             := 'localhost';
   MySql               := '0';
   FSqLite             := '0';
   FPostGres           := '0';
   BrowseThroughDBF    := '1';  // 1.4.19beta
+  BackupSchedule      := '';
   SqlUser             := 'conquest';
   SqlPassWord         := 'conquest';
   FileNameSyntax      := '3';
@@ -2815,89 +2846,92 @@ begin
   Registry.CloseKey;
   }
 
-  // read the registry to know serverstatussocket of installed service (if any)
-  text := '';
-  Registry.RootKey := HKEY_LOCAL_MACHINE;
-  if Registry.OpenKeyReadOnly('SYSTEM\CurrentControlSet\services\' + Trim(ServerName.text)) then
-    text := Registry.ReadString('ImagePath');
-  Registry.CloseKey;
-  if text<>'' then
-    WriteMemoSl(ServerStatusMemo, s, 1100, 1000, 'serverstatus', true, ServerStatusStringList);
-  Registry.Free;
-
-  i := pos('!', text);
-  if i>0 then
+  if not NewInstall then
   begin
-    ServerStatusSocket.Close;
-    ServerStatusSocket.Proto := 'udp';
-    ServerStatusSocket.Addr:='127.0.0.1';
-    ServerStatusSocket.Port:= copy(text, i+1, 4);
-
-    try
-      ServerStatusSocket.Listen;
-    except
-      ShowMessage('Address is in use: please close other servers on this PC and then restart this one.' +
-            #13 + 'Otherwise the server status will be displayed elsewhere!');
-    end;
-  end
-  else
-    i := pos('^', text);
-
-  // open the TCP/IP socket for listening to DICOM requests (not used in threaded mode)
-
-  val(trim(TCPIPport.text), p, c);
-  ListenSocket.Proto:= 'tcp';
-  ListenSocket.Addr := '0.0.0.0';
-  ListenSocket.Port := IntToStr(p);
-  try
-    ListenSocket.Listen;
-  except
-    // the port is occupied: is there a server running - ping it?
-    AssignFile(f, //ExtractFileDir(ParamStr(0))
-      CurDir +'\ConquestDICOMServer.Ping');
-    Rewrite(f);
-    Writeln(f, trim(TCPIPport.text));
-    CloseFile(f);
-
-    Sleep(2000);
-
-    // the file ping was taken: another server is up
-    if not FileExists(// ExtractFileDir(ParamStr(0))
-      CurDir +'\ConquestDICOMServer.Ping') then
+    // read the registry to know serverstatussocket of installed service (if any)
+    text := '';
+    Registry.RootKey := HKEY_LOCAL_MACHINE;
+    if Registry.OpenKeyReadOnly('SYSTEM\CurrentControlSet\services\' + Trim(ServerName.text)) then
+      text := Registry.ReadString('ImagePath');
+    Registry.CloseKey;
+    if text<>'' then
+      WriteMemoSl(ServerStatusMemo, s, 1100, 1000, 'serverstatus', true, ServerStatusStringList);
+    Registry.Free;
+  
+    i := pos('!', text);
+    if i>0 then
     begin
-      if FileExists(// ExtractFileDir(ParamStr(0))
-        CurDir +'\ConquestDICOMServer.Response') then
-        DeleteFile(// ExtractFileDir(ParamStr(0))
-        CurDir +'\ConquestDICOMServer.Response');
-      ShowMessage('A server GUI seems already to be running for port: '+ trim(TCPIPport.text) + #13 + 'Only one may run at a time; please close it first.');
-      Application.Terminate;
-      exit;
-    end;
-
-    PreRunning := true;
-    ServerNameChange(self);
-  end;
-
-  if (i>0) and not PreRunning then
-  begin
-    ListenSocket.Close;
-    Sleep(500);
-    RunProgramBlocking(curdir + '\dgateserv.exe', curdir,
-                      ['/service', trim(ServerName.text),
-                       '/start'
-                      ]);
-    ShowMessage('This server is installed as service but the service is not running' + #13 +
-                'Attempting to start the '+trim(ServerName.text)+' service now....');
-    Sleep(500);
-
-    if not TestLocalServer(false, true) then
-    begin
-      ShowMessage('Failed to start service - you may need to run this program as administrator');
+      ServerStatusSocket.Close;
+      ServerStatusSocket.Proto := 'udp';
+      ServerStatusSocket.Addr:='127.0.0.1';
+      ServerStatusSocket.Port:= copy(text, i+1, 4);
+  
+      try
+        ServerStatusSocket.Listen;
+      except
+        ShowMessage('Address is in use: please close other servers on this PC and then restart this one.' +
+              #13 + 'Otherwise the server status will be displayed elsewhere!');
+      end;
     end
     else
-    begin
+      i := pos('^', text);
+  
+    // open the TCP/IP socket for listening to DICOM requests (not used in threaded mode)
+  
+    val(trim(TCPIPport.text), p, c);
+    ListenSocket.Proto:= 'tcp';
+    ListenSocket.Addr := '0.0.0.0';
+    ListenSocket.Port := IntToStr(p);
+    try
+      ListenSocket.Listen;
+    except
+      // the port is occupied: is there a server running - ping it?
+      AssignFile(f, //ExtractFileDir(ParamStr(0))
+        CurDir +'\ConquestDICOMServer.Ping');
+      Rewrite(f);
+      Writeln(f, trim(TCPIPport.text));
+      CloseFile(f);
+  
+      Sleep(2000);
+  
+      // the file ping was taken: another server is up
+      if not FileExists(// ExtractFileDir(ParamStr(0))
+        CurDir +'\ConquestDICOMServer.Ping') then
+      begin
+        if FileExists(// ExtractFileDir(ParamStr(0))
+          CurDir +'\ConquestDICOMServer.Response') then
+          DeleteFile(// ExtractFileDir(ParamStr(0))
+          CurDir +'\ConquestDICOMServer.Response');
+        ShowMessage('A server GUI seems already to be running for port: '+ trim(TCPIPport.text) + #13 + 'Only one may run at a time; please close it first.');
+        Application.Terminate;
+        exit;
+      end;
+  
       PreRunning := true;
       ServerNameChange(self);
+    end;
+  
+    if (i>0) and not PreRunning then
+    begin
+      ListenSocket.Close;
+      Sleep(500);
+      RunProgramBlocking(curdir + '\dgateserv.exe', curdir,
+                        ['/service', trim(ServerName.text),
+                         '/start'
+                        ]);
+      ShowMessage('This server is installed as service but the service is not running' + #13 +
+                  'Attempting to start the '+trim(ServerName.text)+' service now....');
+      Sleep(500);
+  
+      if not TestLocalServer(false, true) then
+      begin
+        ShowMessage('Failed to start service - you may need to run this program as administrator');
+      end
+      else
+      begin
+        PreRunning := true;
+        ServerNameChange(self);
+      end;
     end;
   end;
 
@@ -3066,6 +3100,8 @@ begin
       Mkdir(DataDir);
     if not SysUtils.DirectoryExists(Curdir + '\logs') then
       Mkdir(Curdir + '\logs');
+    if not SysUtils.DirectoryExists(Curdir + '\backup') then
+      Mkdir(Curdir + '\backup');
     Label10.Caption := DataDir;
 {$I+}
   end
@@ -3079,6 +3115,9 @@ begin
       RunInThreadedModeClick(self);
     end;
   end;
+
+  if not SysUtils.DirectoryExists(GetTempDir + 'conquest_browser') then
+    Mkdir(GetTempDir + 'conquest_browser');
 
   PrinterQueue:= TThreadList.Create;
 
@@ -3120,6 +3159,7 @@ begin
       BrowseThroughDBF    := '1';
       DoubleBackSlashToDB := '0';
       UseEscapeStringConstants := '0';
+      BackupSchedule      := 'd7,w5,m@8#2048$100:' + CurDir + '\backup';
     end;
   end;
 
@@ -3385,6 +3425,9 @@ begin
 
     if Copy(s, 0, length('sqlite')) = 'sqlite' then
       FSqLite := GetData(sorg);
+
+    if Copy(s, 0, length('BackupSchedule')) = 'backupschedule' then
+      BackupSchedule := GetData(sorg);
 
     if Copy(s, 0, length('postgres')) = 'postgres' then
       FPostgres := GetData(sorg);
@@ -4210,17 +4253,6 @@ begin
   ExportAnonymousZIPImage.Enabled := Table4.Active;
 end;
 
-function GuiToServerFilename(s: string): string;
-begin
-  result := s;
-  if (pos('/', MagDeviceList[0])>=1) then
-  begin
-    s := StringReplace(Result, 'C:\', 'Z:\home\marcel\.wine\drive_c\', []);
-    result := StringReplace(copy(s, 3, 999), '\', '/', [rfReplaceAll]);
-    Application.MainForm.Caption := result;
-  end;
-end;
-
 procedure TForm1.ExportAnonymousZIPPatientClick(Sender: TObject);
 var script, NewID, typ: string;
 begin
@@ -4398,6 +4430,8 @@ begin
   //  writeln(f, 'BrowseThroughDBF         = ' + BrowseThroughDBF);
   writeln(f, 'DoubleBackSlashToDB      = ' + DoubleBackSlashToDB);
   writeln(f, 'UseEscapeStringConstants = ' + UseEscapeStringConstants);
+  if fsqlite<>'0' then
+    writeln(f, 'BackupSchedule           = ' + BackupSchedule);
   if UTF8ToDB<>'0' then
     writeln(f, 'UTF8ToDB                 = ' + UTF8ToDB);
   if UTF8FromDB<>'0' then
@@ -6117,7 +6151,7 @@ var PatSort, StudySort, SeriesSort, ImageSort: string;
 
 procedure TForm1.PageControl1Change(Sender: TObject);
 begin
-  DeleteFile('move.txt');
+  DeleteFile(GetTempDir + 'conquest_browser\move.txt');
 
   if not FileExists(curdir + '\dicom.ini') then
   begin
@@ -6469,7 +6503,7 @@ begin
     else
     begin
       // convert DICOM slice to bitmap file
-      tmp := GetTempDir + 'dcmsrv$$.bmp';
+      tmp := GetTempDir + 'conquest_browser\dcmsrv$$.bmp';
       try
 	if fileexists('browserdisplay.lua') then
           ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(s)+']];outfile=[['+GuiToServerFilename(tmp)+']];frame='+IntToStr(SpinEdit1.Value-1)+';dofile("browserdisplay.lua")')
@@ -6497,7 +6531,7 @@ begin
         Image1.Canvas.Brush.Color := clGray;
         Image1.Canvas.FillRect(Rect(0,0,512,512));
         LabelLister.Transparent := false;
-        tmp := GetTempDir + 'dcmsrv$$.txt';
+        tmp := GetTempDir + 'conquest_browser\dcmsrv$$.txt';
         ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(s)+']];x:Dump[['+GuiToServerFilename(tmp)+']]');
 
         text := '';
@@ -6527,7 +6561,7 @@ begin
     if Form3.visible then
     begin
       text := '';
-      tmp := GetTempDir + 'dcmsrv$$.txt';
+      tmp := GetTempDir + 'conquest_browser\dcmsrv$$.txt';
       ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(s)+']];x:Dump[['+GuiToServerFilename(tmp)+']]');
       Form3.Caption := 'Header dump of DICOM object: ' + s;
 
@@ -6803,7 +6837,7 @@ begin
 
   if FileExists(s) and (PageControl1.ActivePage=TabSheet5) and not Form3.Visible then
   begin
-    tmp := GetTempDir + 'dcmsrv$$.txt';
+    tmp := GetTempDir + 'conquest_browser\dcmsrv$$.txt';
     ServerTask('', 'lua:x=DicomObject:new();x:Read[['+GuiToServerFilename(s)+']];x:Dump[['+GuiToServerFilename(tmp)+']]');
 
     Form3.Memo1.Lines.Clear;
@@ -6839,7 +6873,7 @@ var webaddress: string;
 begin
 {$IFDEF KPACS}
   FormKViewer.Show;
-  FormKViewer.TempFile := GetTempDir + 'viewertemp.$$$';
+  FormKViewer.TempFile := GetTempDir + 'conquest_browser\viewertemp.$$$';
   kpacsuncompress := UseKpacsDecompression=0;   // uncompress means use dgate to uncompress not dgate
   FormKViewer.OpenSeries(Table2.FieldByName('STUDYDATE').AsString,
                         Table3.FieldByName('SERIESTIME').AsString,
@@ -6851,7 +6885,7 @@ begin
 {$ELSE}
   webaddress := 'http://127.0.0.1:'+LadlePort+'/app/newweb/dgate.exe?mode=wadoseriesviewer&series=' +
                  Table1.FieldByName('PATIENTID').AsString+':'+Table3.FieldByName('SERIESINST').AsString;
-  ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];arg[2]=Global.BaseDir..[[webserver/htdocs/]];dofile(Global.Basedir..[[lua/ladle.lua]])');
+  ServerTask('', 'luastart:require([[ladle]]())');
   CheckBoxWebServer.Checked := true;
   ShellExecute(0, 'open', PWideChar(webaddress), nil, nil, SW_SHOWNORMAL);
 {$ENDIF KPACS}
@@ -7327,7 +7361,7 @@ end;
 procedure TForm1.CheckBoxWebServerClick(Sender: TObject);
 begin
   if (Sender as TCheckBox).Checked then
-    ServerTask('', 'luastart:arg={};arg[1]=[['+LadlePort+']];arg[2]=Global.BaseDir..[[webserver/htdocs/]];dofile(Global.Basedir..[[lua/ladle.lua]])')
+    ServerTask('', 'luastart:require([[ladle]])()')
   else
     ServerTask('', 'luastart:dofile(Global.Basedir..[[lua/quitladle.lua]])');
 end;
@@ -7481,7 +7515,7 @@ begin
 
   if CheckBoxViewIncoming.Checked then
   begin
-    tmp := GetTempDir + 'dcmsrv$$.bmp';
+    tmp := GetTempDir + 'conquest_browser\dcmsrv$$.bmp';
 
     i := Pos('Calling Application Title : "', s);
     if i>0 then
@@ -8828,7 +8862,7 @@ begin
   total := 0;
   query_error := false;
   strings := TStringList.Create;
-  DeleteFile('move.txt');
+  DeleteFile(GetTempDir + 'conquest_browser\move.txt');
 
   SplitAE(DicomSystem.Items[DicomSystem.ItemIndex], RemoteAE, RemoteIP, RemotePort);
 
@@ -8892,12 +8926,12 @@ begin
     '';
 
     if first then
-      ServerTask('#query.txt','lua:local first=true; '+code)
+      ServerTask('#'+GuiToServerFilename(GetTempDir+'conquest_browser\query.txt'),'lua:local first=true; '+code)
     else
-      ServerTask('#query.txt','lua:'+code);
+      ServerTask('#'+GuiToServerFilename(GetTempDir+'conquest_browser\query.txt'),'lua:'+code);
 
-    strings.LoadFromFile('query.txt');
-    DeleteFile('query.txt');
+    strings.LoadFromFile(GetTempDir+'conquest_browser\query.txt');
+    DeleteFile(GetTempDir+'conquest_browser\query.txt');
     memo1.Lines.AddStrings(strings);
     if first then total := total + strings.Count-1
     else total := total + strings.Count;
@@ -8917,7 +8951,7 @@ procedure TForm1.ButtonFindMissingPatientsClick(Sender: TObject);
 var RemoteAE, RemoteIP, RemotePort, q, code: AnsiString;
     strings : TStringList;
 begin
-  DeleteFile('move.txt');
+  DeleteFile(GetTempDir+'conquest_browser\move.txt');
   SplitAE(DicomSystem.Items[DicomSystem.ItemIndex], RemoteAE, RemoteIP, RemotePort);
 
   if (Length(EditQID.Text)=0)   and
@@ -8961,15 +8995,15 @@ begin
   'f:write("Select "..localae.." as destination and press copy to collect them!\n"); ' +
   'returnfile=s f:close();' +
   '';
-  ServerTask('#query.txt','lua:'+code);
+  ServerTask('#'+GuiToServerFilename(GetTempDir+'conquest_browser\query.txt'),'lua:'+code);
 
   Memo1.Lines.Clear;
   strings := TStringList.Create;
-  strings.LoadFromFile('query.txt');
+  strings.LoadFromFile(GetTempDir+'conquest_browser\query.txt');
   if Length(strings[0])<>0 then
     EditQID.Text := Copy(strings[0], 1, length(strings[0])-1);
   strings[0] := '---------------------------------------------------------------------------------------------------------------------------------------------------------------';
-  DeleteFile('query.txt');
+  DeleteFile(GetTempDir+'conquest_browser\query.txt');
   memo1.Lines.AddStrings(strings);
   strings.Free;
   Memo1.Lines.Add('---------------------------------------------------------------------------------------------------------------------------------------------------------------');
@@ -9037,7 +9071,7 @@ procedure TForm1.MoveButtonClick(Sender: TObject);
 var RemoteAE, RemoteIP, RemotePort, TargetAE, s, t, level, q, code: AnsiString;
     i, p: integer;
 begin
-  DeleteFile('move.txt');
+  DeleteFile(GetTempDir+'conquest_browser\move.txt');
   if StopCopying = 0 then
   begin
     StopCopying := 1;
@@ -9105,7 +9139,7 @@ begin
     'local p='+IntToStr(p)+';' +
     'q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;' +
     'local r=dicommove(ae, target, q2, 0, p);' +
-    'if r then local f=io.open("move.txt", "a"); f:write(r); f:close(); end;' +
+    'if r then local f=io.open([['+GuiToServerFilename(GetTempDir+'conquest_browser\move.txt')+']], "a"); f:write(r); f:close(); end;' +
     '';
 
     ServerTask('','luastart:'+code);
@@ -9246,7 +9280,7 @@ begin
         'local q='+q+';' +
         'q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;' +
         'local r = dicommove(ae, target, q2, 0, 1);' +
-        'if r then local f=io.open("move.txt", "a"); f:write(r); f:close(); end;' +
+        'if r then local f=io.open([['+GuiToServerFilename(GetTempDir+'conquest_browser\move.txt')+']], "a"); f:write(r); f:close(); end;' +
         '';
 
         ServerTask('','lua:'+code);
@@ -9258,11 +9292,11 @@ begin
     Table4.Bookmark := Bookmark;
     ShowPict := true;
     Memo1.Lines.Add('------------ finished copying ------------');
-    if fileExists('move.txt') then
+    if fileExists(GetTempDir+'conquest_browser\move.txt') then
     begin
-      memo1.Lines.LoadFromFile('move.txt');
+      memo1.Lines.LoadFromFile(GetTempDir+'conquest_browser\move.txt');
       memo1.Update;
-      DeleteFile('move.txt');
+      DeleteFile(GetTempDir+'conquest_browser\move.txt');
       ShowMessage(TargetAE + ': ' + memo1.Lines[0]);
     end
     else
@@ -9452,7 +9486,7 @@ begin
   'local target=[['+trim(ServerName.Text)+']];' +
   'local image=DicomObject:new(); image:Read(file); image:Compress("un");' +
   'local r=dicomprint(image, target);' +
-  'if r then local f=io.open("print.txt", "a"); f:write(r); f:close(); end;' +
+  'if r then local f=io.open([['+GuiToServerFilename(GetTempDir+'conquest_browser\print.txt')+']], "a"); f:write(r); f:close(); end;' +
   '';
 
   ServerTask('','lua:'+code);
@@ -9602,7 +9636,7 @@ begin
       '  local o = DicomObject:new() o:Read(v); o:Compress("un"); addo:Add(o); '+
       'end;'+
       'local r=dicomprint(addo, target, "", s, "99999");' +
-      'if r then local f=io.open("print.txt", "a"); f:write(r); f:close(); end;' +
+      'if r then local f=io.open([['+GuiToServerFilename(GetTempDir+'conquest_browser\print.txt')+']], "a"); f:write(r); f:close(); end;' +
       'addo=nil; collectgarbage(); ' +
       '';
       ServerTask('','luastart:'+code);
@@ -10402,9 +10436,9 @@ begin
 
   if PageControl1.ActivePage = TabSheet7 then
   begin
-    if fileExists('move.txt') then
+    if fileExists(GetTempDir+'conquest_browser\move.txt') then
     begin
-      memo1.Lines.LoadFromFile('move.txt');
+      memo1.Lines.LoadFromFile(GetTempDir+'conquest_browser\move.txt');
       memo1.Update;
     end;
   end;
@@ -11683,16 +11717,16 @@ begin
           'f:write("total missing image = " .. total .. "\n"); ' +
           'returnfile=s f:close();' +
           '';
-          ServerTask('#query.txt','lua:'+code);
+          ServerTask('#'+GuiToServerFilename(GetTempDir+'conquest_browser\query.txt'),'lua:'+code);
 
           MissingPatients := '';
           strings := TStringList.Create;
-          strings.LoadFromFile('query.txt');
+          strings.LoadFromFile(GetTempDir+'conquest_browser\query.txt');
           if strings.Count=0 then
             MissingPatients := 'Error connecting'
           else if Length(strings[0])<>0 then
             MissingPatients := Copy(strings[0], 1, length(strings[0])-1);
-          DeleteFile('query.txt');
+          DeleteFile(GetTempDir+'conquest_browser\query.txt');
           strings.Free;
 
           if MissingPatients <> '' then

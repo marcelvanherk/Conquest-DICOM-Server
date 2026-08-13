@@ -41,6 +41,9 @@
 -- mvh 20240928 Export md5
 -- mvh 20250525 Export os if mode=service
 -- mvh 20260120 Fixed rare crash in line 193 (a == nil)
+-- mvh 20260810 Added streaming code by Divinus
+-- mvh 20260812 Divinus prints more information on failure
+-- mvh 20260812 Simplified default startup to require('ladle')()
 
 -----------------------------------------------------
 
@@ -492,9 +495,19 @@ function luascript.handler(request, client, config)
 	--local cdir = lfs.currentdir()
 	--lfs.chdir(config.webroot)
 	luascript.handleIt(config.webroot .. request.uri, Env)
-	Env.routes:execute(request.method, string.gsub(request.orguri, 'index.lua', ''))
-
-	client:send(Env.__tmp_output_buffer)
+	-- streaming loop: a route handler may RETURN a continuation token to be
+	-- called again (WADO-RS retrieve in batches). nil = done, so untouched
+	-- handlers keep the old behaviour (loop runs exactly once).
+	local __ok, __more
+	repeat
+		Env.__tmp_output_buffer = ""
+		__ok, __more = Env.routes:execute(request.method, string.gsub(request.orguri, 'index.lua', ''))
+		client:send(Env.__tmp_output_buffer)
+		-- only a table is a continuation token; the stock webserver can return
+		-- an error-message STRING here (fix by Marcel, forum #37)
+		if type(__more) ~= 'table' then __more = nil end
+		Env.__stream_state = __more
+	until __more==nil
 	--lfs.chdir(cdir)
 end
 
@@ -621,16 +634,10 @@ ServerVersion = "0.1.3"
 socket = require('socket')
 server = assert(socket.tcp())
 
--- load configuration file
--- TODO: have a default array with config and merge with the loaded one
+-- load configuration file; can be overridden at ladle call below
+config = {}
 if ladleutil.fileExists('config.lua') then
-	config = require('config')
-else
-	config = {
-	["hostname"] = "*",
-	["port"] = 8086,
-	["webroot"] = (servercommand('lua:return Global.BaseDir') or '../')..[[webserver/htdocs/]],
-  }
+  config = require('config')
 end
 
 -- load extensions
@@ -744,35 +751,22 @@ function waitReceive()
 end
 
 -- start web server
-function main(arg1, arg2)
-	-- command line argument overrides config file entry:
-	local port = arg1
-	-- if no port specified on command line, use config entry:
-	if port == nil then port = config['port'] end
-	-- if still no port, fall back to default port, 80:
-	if port == nil then port = 80 end
-
-	-- load hostname from config file:
-	local hostname = config['hostname']
-	if hostname == nil then hostname = '*' end -- fall back to default
+function main(port, hostname, root)
+	-- command line arguments overrides config file entry:
+	config.port = port or config.port
+	config.hostname = hostname or config.port
+	config.webroot = root or config.webroot
 	
-	if arg2 then 
-	  config["webroot"] = arg2
-	else
-	  if config["webroot"] == "" or config["webroot"] == nil
-	  then
-		config["webroot"] = "www/"
-	  end
-	end
-
 	-- display initial program information
 	ladleutil.trace(("%s web server v%s (c) 2008 S Saint-Pettersen (c) 2015 D Rempel"):format(Server,ServerVersion))
 
 	-- create tcp socket on localhost:$port
 	-- local server = socket.bind(hostname, port)
-	server:bind(hostname, port)
-	if not server:listen(5) then
-	  ladleutil.trace("Failed to listen on given hostname:port, Ladle already running?")
+	local okb, errb = server:bind(hostname, port)
+	if not okb then ladleutil.trace("bind failed: "..tostring(errb).." "..hostname..":"..port) end
+	local okl, errl = server:listen(5)
+	if not okl then
+	  ladleutil.trace("Failed to listen ("..tostring(errl).."), Ladle already running?")
 	  return
 	end
   
@@ -788,6 +782,16 @@ function main(arg1, arg2)
   ladleutil.trace("Ladle web server stopped")
 end
 
--- invoke program starting point:
--- parameter is command-line argument for port number and webroot
-main((arg or {})[1], (arg or {})[2])
+-- divnet 20260812: export a start function instead of autostarting, per Marcel (#40/#41).
+-- Start with: require('ladle')()   -- or ladle{port=..., hostname=..., webroot=...}
+-- Defaults: port from cfg.port / Global.ladleport / config.port; hostname 0.0.0.0.
+function ladle(cfg)
+  cfg = cfg or {}
+  local port     = cfg.port     or config['port']     or (Global or {}).ladleport  or 8086
+  local hostname = cfg.hostname or config['hostname'] or '0.0.0.0'
+  local webroot  = cfg.webroot  or config['webroot']
+    or ((Global or {}).BaseDir or '../')..'webserver/htdocs/'
+  main(port, hostname, webroot)
+end
+
+return ladle

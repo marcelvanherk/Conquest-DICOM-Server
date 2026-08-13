@@ -5,6 +5,9 @@
 -- 20230808 mvh added \r\n before boundary - missed by weasis loader
 -- 20250326 mvh fix on iowrite getting NUL by SM1312
 -- 20250701 div re-added \r\n before boundary
+-- 20260810 mvh Added Divinus streaming helper functions getinstancelist and emitinstances
+-- 20260812 mvh Divinus version using concat, note use of multiple uid matching:
+-- 20260813 mvh Divinus; use iowrite in emitinstances; mvh; use 'un' compression
 
 function iowrite(a)
   if io then io.write(a)
@@ -173,4 +176,56 @@ function remotezip(patid, studyuid, serieuid, instuid, script)
   local b=servercommand([[export:]]..s, 'binary')
   b = b:sub(b:find('\n\n')+2)
   iowrite(b or '')
+end
+
+
+-- Helpers for Ladle streaming (divnet 20260811) ---------------------
+-- sorted instance list of (st,se,sop): { {sop, series}, ... }
+function getinstancelist(ae, st, se, sop)
+  local listcode = [=[
+    local q=DicomObject:new()
+    q.QueryRetrieveLevel='IMAGE'
+    q.StudyInstanceUID=']=]..(st or '')..[=['
+    q.SeriesInstanceUID=']=]..(se or '')..[=['
+    q.SOPInstanceUID=']=]..(sop or '')..[=['
+    q['9999,0c00']='ImageNumber'
+    local ae=servercommand('get_param:MyACRNema')
+    local r=dicomquery(ae,'IMAGE',q)
+    local out={}
+    for i=0,#r-1 do out[#out+1]=(r[i].SOPInstanceUID or '')..'\t'..(r[i].SeriesInstanceUID or '') end
+    local s=tempfile('.txt'); local f=io.open(s,'wb'); f:write(table.concat(out,'\n')); f:close(); returnfile=s
+  ]=]
+  local list = servercommand('lua:'..listcode) or ''
+  local items = {}
+  for line in list:gmatch('[^\r\n]+') do
+    local isop, iser = line:match('([^\t]*)\t(.*)')
+    if isop and isop ~= '' then items[#items+1] = {isop, iser or ''} end
+  end
+  return items
+end
+
+-- emit items[first..last] as multipart parts via write(), using the native
+-- concat: command (one dgate call per batch instead of dicomget per object).
+-- concat: emits the separator BEFORE each object (upstream fix #21), so the
+-- separator carries a LEADING CRLF and parts have NO trailing CRLF; the caller
+-- must close with '\r\n--bd--\r\n' (see ladle_routes.lua).
+CONCAT_COMPRESS = CONCAT_COMPRESS or 'un'   -- as|un|jk|jl|k1|k2|s0..s9
+
+-- NOTE (two gotchas, both verified 2026-08-12):
+-- 1. concat: must be called DIRECTLY from the Ladle process. Wrapped in
+--    servercommand('lua:'...) (i.e. run in the server process) it returns an
+--    EMPTY result -- it overwrites the parent command's buffer/tempfile.
+-- 2. Empty `out` field + 'binary' as the 2nd arg returns bytes directly, so
+--    no intermediate file and no `io` needed (io is stripped from Ladle's sandbox).
+--    Without 'binary' the result is truncated (text mode).
+function emitinstances(ae, bd, st, items, first, last)
+  local sops = {}
+  for j = first, last do sops[#sops+1] = items[j][1] end
+  local sep = '\r\n--'..bd..'\r\n'
+           .. 'Content-Type: application/dicom\r\n'
+           .. 'Content-Transfer-Encoding: binary\r\n\r\n'
+  -- concat:pat|study|series|sop|batch|perbatch|separator|compress|out
+  iowrite(servercommand('concat:|'..(st or '')..'||'..table.concat(sops, '\\')
+                      ..'|0|999|'..sep..'|'..(CONCAT_COMPRESS or 'as')..'|',
+                      'binary') or '')
 end

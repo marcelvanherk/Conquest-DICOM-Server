@@ -10,6 +10,9 @@
 -- mvh 20230808 Correct response is 200 OK instead of 200/OK; detected by weasis loader
 -- mvh 20240205 Added cache option
 -- mvh 20240924 Blocked out cache option
+-- mvh 20260810 Streaming code by Divinus
+-- mvh 20260812 Divinus fixed formatting of frame
+-- mvh 20260813 Modified documentation a bit
 
 ---------------------------------------------
 --preflight
@@ -178,12 +181,12 @@ end )
 
 -- dicom instances of series
 routes:get('/api/dicom/rs/studies/:suid/series/:euid', function (params)
-   instances(request.query, params.suid,params.euid,'')
+   return instances(request.query, params.suid,params.euid,'')
 end )
 
 -- dicom instances of study
 routes:get('/api/dicom/rs/studies/:suid', function (params)
-   instances(request.query, params.suid,'','')
+   return instances(request.query, params.suid,'','')
 end )
 
 -- thumbnail of a frame
@@ -382,7 +385,7 @@ function generateRandomString(length)
   return res
 end
 
-function instances(query,st,se,sop)
+function oldinstances(query,st,se,sop)
   include('/api/dicom/rquery.lua')
   local bd = generateRandomString(32)
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
@@ -404,14 +407,19 @@ function frame(query,st,se,sop,fr)
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Headers: *\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
-  write('Content-Type: multipart/related; boundary='..bd..'\r\n\r\n')
-  
+  -- divnet 20260812: (a) part content-type must be application/octet-stream (DICOMweb PS3.18),
+  -- 'application/binary' is not recognised by cornerstone/OHIF;
+  -- (b) REMOVED write('Access-Control-Allow-Origin: *') WITHOUT a CRLF -- it merged into the next
+  -- header ("...Allow-Origin: *Content-Transfer-Encoding: binary") and broke the part header
+  -- block; the CORS header is already sent in the response above;
+  -- (c) closing boundary gets a leading CRLF (RFC 2046).
+  write('Content-Type: multipart/related; type="application/octet-stream"; boundary='..bd..'\r\n\r\n')
+
   write("--"..bd.."\r\n")
-  write("Content-Type: application/binary\r\n")
-  write('Access-Control-Allow-Origin: *')
+  write("Content-Type: application/octet-stream\r\n")
   write("Content-Transfer-Encoding: binary\r\n\r\n")
   getframe(nil,st,se,sop,fr)
-  write("--"..bd.."--\r\n\r\n")
+  write("\r\n--"..bd.."--\r\n")
 end
 
 function thumbnail(query,st,se,sop,fr,sz) 
@@ -601,3 +609,36 @@ routes:post('/api/dicom/rs/studies', function (params)
   poststow(file)
   unlink(file)
 end )
+
+
+---------------------------------------------
+-- streaming retrieve in batches (divnet 20260811).
+-- returns a state table (= call me again) or nil.
+-- Requires the streaming loop in lua/ladle.lua luascript.handler().
+local BATCH = 50
+
+function instances(query, st, se, sop)
+  include('/api/dicom/rquery.lua')
+  local state = __stream_state                 -- nil on the first call
+
+  if state == nil then                         -- first batch: headers + list
+    local bd = generateRandomString(32)
+    write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
+    write('Access-Control-Allow-Headers: *\r\n')
+    write('Access-Control-Allow-Origin: *\r\n')
+    write('Content-Type: multipart/related; boundary='..bd..'\r\n\r\n')
+    state = { bd = bd, pos = 1, items = getinstancelist(nil, st, se, sop) }
+  end
+
+  local last = math.min(state.pos + BATCH - 1, #state.items)
+  if last >= state.pos then
+    emitinstances(nil, state.bd, st, state.items, state.pos, last)
+  end
+  state.pos = last + 1
+
+  if state.pos > #state.items then
+    write('\r\n--'..state.bd..'--\r\n')      -- closing; concat: does not append a CRLF after the part
+    return nil
+  end
+  return state
+end

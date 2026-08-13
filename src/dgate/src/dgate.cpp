@@ -1248,6 +1248,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260716	mvh	Merged fixes by Divinus (overwrote tempfile, added compression) just use importconverter %n %r as control characters
 20260716	mvh	Emit boundary at start of each dicom object; re-added \r \n translation by Divinis
 20260809   	mvh	Catch errors of dbase.CreateTable (crashed server browser for mixed users)
+20260813	mvh	Extend Lua package.path for require() to search in server/lua folder
 
 ENDOFUPDATEHISTORY
 */
@@ -9195,6 +9196,18 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
 #endif
     lua_pushcfunction(*L, luaopen_pack);
     lua_setfield(*L, -2, "pack");
+
+    // Extend package.path for require() to search in server/lua folder
+    char ppath[512];
+    lua_getglobal(*L, "package");
+    lua_getfield(*L, -1, "path");
+    ppath[0]=0;
+    strcat(ppath, BaseDir);
+    strcat(ppath, "lua/?.lua;");
+    strcat(ppath, lua_tostring(*L, -1));
+    lua_pop(*L, 1);
+    lua_pushstring(*L, ppath);
+    lua_setfield(*L, -2, "path");
   }
 
   if (!sd->DDO) 

@@ -1249,6 +1249,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260716	mvh	Emit boundary at start of each dicom object; re-added \r \n translation by Divinis
 20260809   	mvh	Catch errors of dbase.CreateTable (crashed server browser for mixed users)
 20260813	mvh	Extend Lua package.path for require() to search in server/lua folder
+20260813	mvh	Fix json formating of DS like 0600,-0600
 
 ENDOFUPDATEHISTORY
 */
@@ -8031,7 +8032,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 	         p=strchr(p+1, '\\');
 		 if (p) *p=0;
 		 if (*q == '+') q++;
-		 Index+=sprintf(result+Index, "%s,", q);
+		 Index+=sprintf(result+Index, "%d,", atoi(q));
 		 count1++;
 	      }
 	      if (count1) Index--;

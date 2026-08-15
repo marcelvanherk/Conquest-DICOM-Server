@@ -62,6 +62,7 @@
 -- 20230909 Fixed passing port to dicom.ini
 -- 20250425 Some fixed for runlocal (ladle)
 -- 20250911 Fallback for failed jpeg-c ./configure on debian 13
+-- 20260813 Changed ladle() call
 
 local server = 'unknown'
 local sep, dsep = '\\', '\\\\'
@@ -1623,7 +1624,7 @@ function subfunctions(param, conf)
       -- ladle link
       if write then
         servercommand("lua:os.execute([["..server..dgate.." -w"..server..
-        " --luastart:dofile('../lua/ladle.lua')]]); return false")
+        " --luastart:require('ladle')(); return false")
       else
         --create_newweb_cgi()
         create_newweb_app()
@@ -1965,11 +1966,6 @@ if CGI('xxx', 'xxx')~='xxx' then
   end
   
   create_server_dicomini()
-  
-  --local t = io.read()
-  --print(t)
-  
-  -- arg={};arg[1]=[[8086]];dofile('../lua/ladle.lua')
   return;
 end
 

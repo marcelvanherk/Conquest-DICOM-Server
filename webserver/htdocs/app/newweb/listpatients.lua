@@ -17,6 +17,12 @@
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20220830   mvh   Fix proposed patientID; included uids after |
 -- 20230625   mvh   Made all links relative
+-- 20260815 mvh Use rquote throughout
+
+function rquote(str)
+  if string.find(str, ']=]') then return 'INVALID' end
+  return '[=['..str..']=]'
+end
 
 version = version  or ''
 
@@ -72,8 +78,8 @@ end;
 function remotequery(ae, level, q)
   local remotecode =
 [[
-  local ae=']]..ae..[[';
-  local level=']]..level..[[';
+  local ae=]]..rquote(ae)..[[;
+  local level=]]..rquote(level)..[[;
   local q=]]..q:Serialize()..[[;
   local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
   local r = dicomquery(ae, level, q2):Serialize();
@@ -194,11 +200,11 @@ end
 if CGI('parameter', '')=='deleter' then
   local items= split(CGI('item'), '|')
   local n = 
-    servercommand('lua:s=newdicomobject();s.PatientID=[['..(items[1] or '')..
-                ']];s.StudyInstanceUID="'..(items[2] or '')..
-		'";s.SeriesInstanceUID="'..(items[3] or '')..
-		'";s.SOPInstanceUID="'..(items[4] or '')..
-		'";s.QueryRetrieveLevel="IMAGE'..
+    servercommand('lua:s=newdicomobject();s.PatientID='..rquote(items[1] or '')..
+                ';s.StudyInstanceUID='..rquote(items[2] or '')..
+		';s.SeriesInstanceUID='..rquote(items[3] or '')..
+		';s.SOPInstanceUID='..rquote(items[4] or '')..
+		';s.QueryRetrieveLevel="IMAGE'..
 		'";a=dicomquery("'..servercommand('get_param:MyACRNema')..'", "IMAGE", s);return #a')
   print('really delete: '..CGI('item', '') .. ' with '..n..' images ? ')
   if (readOnly) then 
@@ -211,11 +217,11 @@ if CGI('parameter', '')=='deleter' then
 end  
 if CGI('parameter', '')=='delete' then
   local items= split(CGI('item'), '|')
-  servercommand('lua:s=newdicomobject();s.PatientID=[['..(items[1] or '')..
-                ']];s.StudyInstanceUID="'..(items[2] or '')..
-		'";s.SeriesInstanceUID="'..(items[3] or '')..
-		'";s.SOPInstanceUID="'..(items[4] or '')..
-		'";dicomdelete(s)')
+  servercommand('lua:s=newdicomobject();s.PatientID='..rquote(items[1] or '')..
+                's.StudyInstanceUID='..rquote(items[2] or '')..
+		';s.SeriesInstanceUID='..rquote(items[3] or '')..
+		';s.SOPInstanceUID='..rquote(items[4] or '')..
+		';dicomdelete(s)')
   print("Deleted " .. CGI('item'))
   return
 end
@@ -347,7 +353,7 @@ print([[
 <script language=JavaScript>
 function servicecommand(a) {
   xmlhttp = new XMLHttpRequest(); 
-  xmlhttp.open('GET',']]..[[?mode=listpatients&parameter='+a, true);
+  xmlhttp.open('GET','?mode=listpatients&parameter='+a, true);
   xmlhttp.timeout = 60000
   xmlhttp.send()
   xmlhttp.onreadystatechange = function() {
@@ -364,7 +370,7 @@ print([[
 <script language=JavaScript>
 function progressivecommand(a) {
   xmlhttp = new XMLHttpRequest(); 
-  xmlhttp.open('GET',']]..[[?mode=listpatients&parameter='+a, true);
+  xmlhttp.open('GET','?mode=listpatients&parameter='+a, true);
   xmlhttp.timeout = 60000
   xmlhttp.send()
   xmlhttp.onreadystatechange = function() {
@@ -380,7 +386,7 @@ function progressivecommand(a) {
 print([[
 <script language=JavaScript>
 function opencommand(a) {
-  window.open (']]..[[?mode=listpatients&parameter='+a);
+  window.open ('?mode=listpatients&parameter='+a);
 }  
 </script>
 ]])

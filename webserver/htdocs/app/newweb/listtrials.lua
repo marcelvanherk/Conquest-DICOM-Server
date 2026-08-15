@@ -2,6 +2,12 @@
 -- mvh 20200112: Skip (empty) as possible trial name, count all others
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20230625   mvh   Made all links relative
+-- 20260815 mvh Use rquote throughout
+
+function rquote(str)
+  if string.find(str, ']=]') then return 'INVALID' end
+  return '[=['..str..']=]'
+end
 
 local query_pid = '';
 local query_pna = '';
@@ -14,7 +20,7 @@ function querytrials()
     local name = 
       servercommand('lua:'..
 	  [[
-	  local a=dbquery('UIDMods', 'DISTINCT Stage', "Stage LIKE ']].. CGI('trialmatch')..'%'..[['");
+	  local a=dbquery('UIDMods', 'DISTINCT Stage', "Stage LIKE ]].. rquote(CGI('trialmatch')..'%')..[[");
 	  if a[ ]]..i..[[ ] then return a[ ]]..i..[[ ][1] else return '' end
 	  ]]
                    ) or ''
@@ -31,7 +37,7 @@ function counttrialpatients(stage)
   local count = 
       servercommand('lua:'..
 	  [[
-	  local a=dbquery('UIDMods', 'DISTINCT NewUID', "MODType='PatientID' and Stage=']]..stage..[['");
+	  local a=dbquery('UIDMods', 'DISTINCT NewUID', "MODType='PatientID' and Stage=]]..rquote(stage)..[[");
 	  return #a
 	  ]]
                    ) or 0

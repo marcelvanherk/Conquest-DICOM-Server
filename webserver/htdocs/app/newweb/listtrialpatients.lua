@@ -1,6 +1,12 @@
 -- mvh 20160124: Created
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20230625   mvh   Made all links relative
+-- 20260815 mvh Use rquote throughout
+
+function rquote(str)
+  if string.find(str, ']=]') then return 'INVALID' end
+  return '[=['..str..']=]'
+end
 
 local query_pid = '';
 local query_pna = '';
@@ -10,14 +16,14 @@ local query_sta = '';
 function changeuidback_(uid, stage, Type)
   return servercommand('lua:'..
 	  [[
-	  return changeuidback(']]..uid..[[', ']]..stage..[[', ']]..Type..[[')
+	  return changeuidback(]]..rquote(uid)..[[, ]]..rquote(stage)..[[, ']]..Type..[[')
 	  ]])
 end
  
 function changeuid_(uid, stage)
   return servercommand('lua:'..
 	  [[
-	  return changeuid(']]..uid..[[', '', ']]..stage..[[')
+	  return changeuid(]]..rquote(uid)..[[, '', ]]..rquote(stage)..[[)
 	  ]])
 end
 
@@ -27,7 +33,7 @@ function querytrialpatients()
     local name = 
       servercommand('lua:'..
 	  [[
-	  local a=dbquery('UIDMods', 'DISTINCT Stage, NewUID', "MODType='PatientID' and Stage LIKE ']].. CGI('trial')..[['");
+	  local a=dbquery('UIDMods', 'DISTINCT Stage, NewUID', "MODType='PatientID' and Stage LIKE ]].. rquote(CGI('trial'))..[[");
 	  if a[ ]]..i..[[ ] and a[ ]]..i..[[ ][2] then return a[ ]]..i..[[ ][2] else return '' end
 	  ]]
                    ) or ''
@@ -45,7 +51,7 @@ function counttrialstudies(pat, stage)
   local count = 
       servercommand('lua:'..
 	  [[
-	  local a=dbquery('DICOMStudies', 'StudyInsta', "PatientID=']]..changeuidback_(pat, stage, 'PatientID')..[['");
+	  local a=dbquery('DICOMStudies', 'StudyInsta', "PatientID=]]..rquote(changeuidback_(pat, stage, 'PatientID'))..[[");
 	  return #a
 	  ]]
                    ) or 0
@@ -57,7 +63,7 @@ function counttrialseries(pat, stage)
   local count = 
       servercommand('lua:'..
 	  [[
-	  local a=dbquery('DICOMSeries', 'SeriesInst', "SeriesPat=']]..changeuidback_(pat, stage, 'PatientID')..[['");
+	  local a=dbquery('DICOMSeries', 'SeriesInst', "SeriesPat=]]..rquote(changeuidback_(pat, stage, 'PatientID'))..[[");
 	  return #a
 	  ]]
                    ) or 0
@@ -69,7 +75,7 @@ function counttrialobjects(pat, stage)
   local count = 
       servercommand('lua:'..
 	  [[
-	  local a=dbquery('DICOMImages', 'SOPInstanc', "ImagePat=']]..changeuidback_(pat, stage, 'PatientID')..[['");
+	  local a=dbquery('DICOMImages', 'SOPInstanc', "ImagePat=]]..rquote(changeuidback_(pat, stage, 'PatientID'))..[[");
 	  return #a
 	  ]]
                    ) or 0

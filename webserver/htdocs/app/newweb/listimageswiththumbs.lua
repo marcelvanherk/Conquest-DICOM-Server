@@ -9,6 +9,12 @@
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20230625   mvh   Made all links relative
 -- 20240928   mvh   Added #UID hash with full UID tooltip
+-- 20260815 mvh Use rquote throughout
+
+function rquote(str)
+  if string.find(str, ']=]') then return 'INVALID' end
+  return '[=['..str..']=]'
+end
 
 local query_pid = '';
 local query_pna = '';
@@ -67,8 +73,8 @@ end;
 function remotequery(ae, level, q)
   local remotecode =
 [[
-  local ae=']]..ae..[[';
-  local level=']]..level..[[';
+  local ae=]]..rquote(ae)..[[;
+  local level=]]..rquote(level)..[[;
   local q=]]..q:Serialize()..[[;
   local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
   local r = dicomquery(ae, level, q2):Serialize();

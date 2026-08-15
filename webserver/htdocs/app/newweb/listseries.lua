@@ -14,6 +14,12 @@
 -- 20220830   mvh   Add serieslink to add e.g. wadoseriesviewer
 -- 20230625   mvh   Made all links relative; enable default viewer link
 -- 20240928   mvh   Added #UID hash with full UID tooltip
+-- 20260815 mvh Use rquote throughout
+
+function rquote(str)
+  if string.find(str, ']=]') then return 'INVALID' end
+  return '[=['..str..']=]'
+end
 
 local query_pid = '';
 local query_pna = '';
@@ -57,8 +63,8 @@ end;
 function remotequery(ae, level, q)
   local remotecode =
 [[
-  local ae=']]..ae..[[';
-  local level=']]..level..[[';
+  local ae=]]..rquote(ae)..[[;
+  local level=]]..rquote(level)..[[;
   local q=]]..q:Serialize()..[[;
   local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
   local r = dicomquery(ae, level, q2):Serialize();
@@ -144,7 +150,7 @@ print([[
 <script language=JavaScript>
 function servicecommand(a) {
   xmlhttp = new XMLHttpRequest(); 
-  xmlhttp.open('GET',']]..[[?mode=listpatients&parameter='+a, true);
+  xmlhttp.open('GET','?mode=listpatients&parameter='+a, true);
   xmlhttp.timeout = 60000
   xmlhttp.send()
   xmlhttp.onreadystatechange = function() {
@@ -160,7 +166,7 @@ function servicecommand(a) {
 print([[
 <script language=JavaScript>
 function opencommand(a) {
-  window.open (']]..[[?mode=listpatients&parameter='+a);
+  window.open ('?mode=listpatients&parameter='+a);
 }  
 </script>
 ]])

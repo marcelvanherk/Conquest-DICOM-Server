@@ -15,6 +15,12 @@
 -- 20240330   lncoll  If not WindowCenter or WindowWidth; use BitsStored to get them, with a default of 11 bits
 -- 20240331   mvh   Merged
 -- 20240401   lncoll+mvh restored check for empty WindowCenter and WindowWidth
+-- 20260815 mvh Use rquote throughout
+
+function rquote(str)
+  if string.find(str, ']=]') then return 'INVALID' end
+  return '[=['..str..']=]'
+end
 
 -- defaults to allow debugging in zbs
 study2 = study2 or 'EG2005:'
@@ -65,8 +71,8 @@ end
 function remotequery(ae, level, q)
   local remotecode =
 [[
-  local ae=']]..ae..[[';
-  local level=']]..level..[[';
+  local ae=]]..rquote(ae)..[[;
+  local level=]]..rquote(level)..[[;
   local q=]]..q:Serialize()..[[;
   local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
   local r = dicomquery(ae, level, q2):Serialize();
@@ -655,7 +661,7 @@ for i=1,#pats do
   unpack(split(servercommand('lua:'..
   [[
   local a=newdicomobject(); 
-  a:Read("]]..imagelocation..[[");
+  a:Read(]]..rquote(imagelocation)..[[);
   local c = (a.WindowCenter or 0)
   local w = (a.WindowWidth or 0)
   if (c==0 or w==0 or c=='' or w=='') then

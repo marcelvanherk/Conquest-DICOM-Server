@@ -50,6 +50,12 @@
 -- mvh 20221012: storeclick stores link in clicks.txt
 -- mvh 20230605: readOnly disables upload methods and post
 -- mvh 20230625: Made all links relative
+-- 20260815 mvh Use rquote throughout
+
+function rquote(str)
+  if string.find(str, ']=]') then return 'INVALID' end
+  return '[=['..str..']=]'
+end
 
 local readOnly = gpps('webdefaults', 'readOnly', '0')~='0'
 
@@ -112,9 +118,9 @@ end;
 function remotedbquery(tab, fields, q, inluaformat)
   local remotecode =
 [[
-  local tab="]]..tab..[[";
-  local fields="]]..fields..[[";
-  local q="]]..q..[[";
+  local tab=]]..rquote(tab)..[[;
+  local fields=]]..rquote(fields)..[[;
+  local q=]]..rquote(q)..[[;
   local r = dbquery(tab, fields, q)
   if r[1]==null then return "{}" end
   for i=1,#r do 
@@ -160,8 +166,8 @@ end
 function remotequery(ae, level, q, jsn)
   local remotecode =
 [[
-  local ae=']]..ae..[[';
-  local level=']]..level..[[';
+  local ae=]]..rquote(ae)..[[;
+  local level=]]..rquote(level)..[[;
   local q=]]..table_print(q)..[[;
   local jsn=]]..tostring(jsn or false)..[[;
   local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
@@ -175,8 +181,9 @@ function remotemove(from, to, q, xtra)
   if xtra=='' then xtra='{}' end
   local remotecode =
 [[
-  local from=']]..from..[[';
-  local to=']]..to..[[';
+  local from=]]..rquote(from)..[[;
+  local to=]]..rquote(to)..[[;
+  local to=]]..rquote(to)..[[;
   local q=]]..table_print(q)..[[;
   local extra=]]..table_print(xtra)..[[;
   local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;
@@ -187,26 +194,26 @@ function remotemove(from, to, q, xtra)
 end
 
 function remotesql(q)
-  return servercommand('lua:sql([['..q..']])')
+  return servercommand('lua:sql('..rquote(q)..')')
 end
 
 function fileexists(f)
-  return servercommand('lua:local h=io.open([['..f..']], [[r]]);'..
+  return servercommand('lua:local h=io.open('..rquote(f)..', [[r]]);'..
   'if h then h:close() return 1 else return 0 end')=="1" and true or false
 end
 
 function safetempfile(ext)
-  local f = servercommand('lua:return tempfile("' .. ext .. '")')
+  local f = servercommand('lua:return tempfile(' .. rquote(ext) .. ')')
   if string.find(f, '\\') then return f end 
   return '/tmp/' .. math.floor(1000000*math.random()) .. ext
 end
 
 function copyfile(f, g)
     servercommand('lua:'..
-    'local h=io.open([['..f..']], [[rb]]) '..
+    'local h=io.open('..rquote(f)..', [[rb]]) '..
     'local s=h:read([[*a]]) '..
     'h:close() '..
-    'local j=io.open([['..g..']], [[wb]]) '..
+    'local j=io.open('..rquote(g)..', [[wb]]) '..
     'j:write(s) '..
     'j:close() '..
     'print([[copied from '..f..']]) '..

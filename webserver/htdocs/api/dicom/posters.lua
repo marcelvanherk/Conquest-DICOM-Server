@@ -1,22 +1,27 @@
 -- mvh 20230620 fix for linux (/ vs \)
 -- mvh 20250405 Catch null return from servercommand
+-- mvh 20260815 Use rquote throughout
 
 function iowrite(a)
   if io then io.write(a)
   else write(a) end
 end
 
+function rquote(str)
+  if string.find(str, ']=]') then return 'INVALID' end
+  return '[=['..str..']=]'
+end
+
 -- add and process a file stored in path (may be zip)
 -- script has importconverter format e.g. start with lua: if needed
 function attachfile(path, script, ext)
-  script = '[['..script..']]' -- allow ' and " in script
   ext = ext or ".dcm"
   remotecode = [[
-    local script = ]]..script..[[;
+    local script = ]]..rquote(script)..[[;
     local dat=Command:GetVR(0x9999,0x0402,true);
     local s=Command["9999,0404"] or '0'
     if s=='1' then dat=string.sub(dat, 1, -2) end
-    local filename=tempfile(']]..ext..[[');
+    local filename=tempfile(]]..rquote(ext)..[[);
     local f=io.open(filename,"wb");f:write(dat);f:close();
     servercommand('attachfile:'..filename..','..script)
     os.remove(filename);
@@ -27,14 +32,13 @@ end
 -- add and process a dicom file stored in path
 -- script is in lua format working on global Data; return string taken as JSON response
 function attachdicomfile(path, script)
-  script = '[['..script..']]' -- allow ' and " in script
   ext = ".dcm"
   local remotecode = [[
-    local script = ]]..script..[[;
+    local script = ]]..rquote(script)..[[;
     local dat=Command:GetVR(0x9999,0x0402,true);
     local s=Command["9999,0404"] or '0'
     if s=='1' then dat=string.sub(dat, 1, -2) end
-    local filename=tempfile(']]..ext..[[');
+    local filename=tempfile(]]..rquote(ext)..[[);
     local f=io.open(filename,"wb");f:write(dat);f:close();
     readdicom(filename)
     os.remove(filename);
@@ -97,13 +101,13 @@ function startscript(script)
   local fn = servercommand('lua:'..remotecode1);
   local uid = '"' .. string.match(string.gsub(fn, '\\', '/'), '.+/(.-)%.lua') .. '"'
   iowrite(uid)
-  servercommand('luastart:local filename=[['..fn..']];'..remotecode2, '<'..script);
+  servercommand('luastart:local filename='..rquote(fn)..';'..remotecode2, '<'..script);
 end
 
 -- return progress indicator of job (0 started, to 100 end)
 function readprogress(uid)
-  local remotecode = 
-    "local uid=[["..uid.."]];" .. [[
+  local remotecode = [[
+    local uid=]]..rquote(uid)..[[
     local fn = tempfile('.lua')
     local u1 = string.match(string.gsub(fn, '\\', '/'), '.+/(.-)%.lua')
     local filename = string.gsub(fn, u1, uid)
@@ -121,9 +125,9 @@ end
 
 -- write progress value of job (0 started, to 100 end)
 function writeprogress(uid, val)
-  local remotecode = 
-    "local uid=[["..uid.."]];" ..
-    "local val="..val..";" .. [[
+  local remotecode = [[
+    local uid=]]..rquote(uid)..[[
+    local val=]]..tonumber(val)..[[
     local fn = tempfile('.lua')
     local u1 = string.match(string.gsub(fn, '\\', '/'), '.+/(.-)%.lua')
     local filename = string.gsub(fn, u1, uid)

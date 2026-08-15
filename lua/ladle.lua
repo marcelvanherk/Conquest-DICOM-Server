@@ -45,6 +45,8 @@
 -- mvh 20260812 Divinus prints more information on failure
 -- mvh 20260812 Simplified default startup to require('ladle')()
 -- mvh 20260813 Merged Divinis debugging
+-- mvh 20260814 Catch ]=] to avoid escaping into lua; limit request print to 80
+-- mvh 20260815 Export tonumber
 
 -----------------------------------------------------
 
@@ -221,6 +223,11 @@ function ladleutil.parseRequest(request)
 
 	local line = ""
 
+	if string.find(request, ']=]') then
+		ladleutil.trace("Invalid request in: "..string.sub(request, 1, 80))
+		return {}
+	end
+
 	local a,b = request_text:find("\r*\n")
 	if not a or not b
 	then
@@ -228,7 +235,7 @@ function ladleutil.parseRequest(request)
 		--ladleutil.trace("Suspicious request:")
 		--ladleutil.trace(request)
 		--ladleutil.trace("=======================================================")
-		ladleutil.trace("Newlines (\\r\\n) not found in request: "..request)
+		ladleutil.trace("Newlines (\\r\\n) not found in request: "..string.sub(request, 1, 80))
 
 		return {}
 	end
@@ -464,6 +471,7 @@ function luascript.genEnv(_Env, request, config, handleIt, client)
 	Env.table=table
 	Env.math=math
 	Env.tempfile=tempfile
+	Env.tonumber=tonumber
 	Env.md5=md5
         if string.find(request.orguri, 'mode=service') then
   	  Env.os=os

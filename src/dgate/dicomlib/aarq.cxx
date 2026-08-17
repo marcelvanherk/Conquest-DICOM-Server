@@ -18,6 +18,7 @@ mvh 20201224: Added error handling
 mvh 20221108: Added SCPSCURoleSelect array in UserInfo
 mvh 20230607: Fix ReadDynamic of SCPSCURoleSelect
 dom 20250214: Fixed copy-paste errors that didn't replace CalledApTitle with `CallingApTitle`
+mvh 20260817: Fixed potential buffer overrun reading UIDs (dutchypoo (https://github.com/dutchypoo))
 */
 
 /****************************************************************************
@@ -120,6 +121,7 @@ BOOL	ApplicationContext	::	ReadDynamic(Buffer	&Link)
 	{
 	Link >> Reserved1;	//Link.Read((BYTE *) &Reserved1, sizeof(BYTE));
 	Link >> Length;		//Link.Read((BYTE *) &Length, sizeof(UINT16));
+	if (Length>64) return FALSE;
 	Link.Read((BYTE *) ApplicationContextName.GetBuffer(Length), Length);
 	ApplicationContextName.GetBuffer(Length)[Length] = '\0';
 	ApplicationContextName.SetLength(Length);
@@ -198,6 +200,7 @@ BOOL	AbstractSyntax	::	ReadDynamic(Buffer	&Link)
 	{
 	Link >> Reserved1;	//Link.Read((BYTE *) &Reserved1, sizeof(BYTE));
 	Link >> Length;		//Link.Read((BYTE *) &Length, sizeof(UINT16));
+	if (Length>64) return FALSE;
 	Link.Read((BYTE *) AbstractSyntaxName.GetBuffer(Length), Length);
 	AbstractSyntaxName.GetBuffer(Length)[Length] = '\0';
 	AbstractSyntaxName.SetLength(Length);
@@ -284,6 +287,7 @@ BOOL	TransferSyntax	::	ReadDynamic(Buffer	&Link)
 	{
 	Link >> ItemType;	//Link.Read((BYTE *) &Reserved1, sizeof(BYTE));
  	Link >> Length;		//Link.Read((BYTE *) &Length, sizeof(UINT16));
+	if (Length>64) return FALSE;
 	Link.Read((BYTE *) TransferSyntaxName.GetBuffer(Length), Length);
 	TransferSyntaxName.GetBuffer(Length)[Length] = '\0';
 	TransferSyntaxName.SetLength(Length);
@@ -367,6 +371,7 @@ BOOL	ImplementationClass	::	ReadDynamic(Buffer	&Link)
 	{
 	Link >> Reserved1;	//Link.Read((BYTE *) &Reserved1, sizeof(BYTE));
 	Link >> Length;		//Link.Read((BYTE *) &Length, sizeof(UINT16));
+	if (Length>64) return FALSE;
 	Link.Read((BYTE *) ImplementationName.GetBuffer(Length), Length);
 	ImplementationName.GetBuffer(Length)[Length] = '\0';
 	ImplementationName.SetLength(Length);

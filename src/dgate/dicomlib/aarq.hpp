@@ -9,7 +9,8 @@
                  latter is used in CqDicom project
    mvh 20150908: Added HasImpVersion to UserInformation; needed for VITREA which does not send it
    mvh 20221108: Added SCPSCURoleSelect array in UserInfo
- */
+   mvh 20260817: Fixed potential buffer overrun reading UIDs (dutchypoo (https://github.com/dutchypoo))
+*/
 
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -82,7 +83,7 @@ class	UID
 			void	Set(UID	&u) { (*this) = u; };
 			void	Set(const char *s) { this->Set((BYTE *) s); };
 			BYTE	*GetBuffer(UINT Min) { UNUSED_ARGUMENT(Min); return(&uid[0]); };
-			void	SetLength(UINT	L)	{ Length = L; while (L < 65) uid[L++] = '\0'; };
+			void	SetLength(UINT	L)	{ if (L>64)L=64; Length = L; while (L < 65) uid[L++] = '\0'; };
 			UINT	GetSize()	{ return ( Length ); };
 			BOOL	operator	==	(UID &ud)
 				{ 	//if(GetSize()!=ud.GetSize()) return(FALSE);

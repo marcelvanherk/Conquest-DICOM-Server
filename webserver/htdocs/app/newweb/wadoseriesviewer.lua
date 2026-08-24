@@ -32,6 +32,7 @@
 -- 20240331   mvh   Merged
 -- 20240401   lncoll+mvh restored check for empty WindowCenter and WindowWidth
 -- 20260815 mvh Use rquote throughout
+-- 20260824 mvh rquote does not require double quoting
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
@@ -248,7 +249,7 @@ end
 ---------------------------------------------------------------------------------
 
 -- this notation is accepted in the server and will also access virtual servers
-local imagelocation = studyuid..'\\\\'..seriesuid..'\\\\'..images[math.ceil(#images/2)].SOPInstanceUID
+local imagelocation = studyuid..'\\'..seriesuid..'\\'..images[math.ceil(#images/2)].SOPInstanceUID
 
 windowcenter, windowwidth, slope, intercept = 
   unpack(split(servercommand('lua:'..

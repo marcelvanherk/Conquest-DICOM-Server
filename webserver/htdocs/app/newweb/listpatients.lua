@@ -18,6 +18,7 @@
 -- 20220830   mvh   Fix proposed patientID; included uids after |
 -- 20230625   mvh   Made all links relative
 -- 20260815 mvh Use rquote throughout
+-- 20260823 mvh Use rquote also for luastart: code
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
@@ -155,7 +156,7 @@ if CGI('parameter', '')=='send' then
   local items= split(CGI('item'), '|')
   local script = string.format('%s,%s,%s,%s,%s,%s',servercommand('get_param:MyACRNema'),CGI('Destination'),
     items[1],items[2] or '',items[3] or '',items[4] or '')
-  servercommand('luastart:servercommand[[move:'..script..']]')
+  servercommand('luastart:servercommand('..rquote('move:'..script)..')')
   return
 end
 
@@ -174,7 +175,7 @@ if CGI('parameter', '')=='anonymize' then
   local items= split(CGI('item'), '|')
   local script = string.format('%s,%s,%s,%s,1,lua/anonymize_script.lua(%s)',
     items[1],items[2] or '',items[3] or '',items[4] or '', CGI('newid'))
-  servercommand('luastart:servercommand[[modifier:'..script..']]');
+  servercommand('luastart:servercommand('..rquote('modifier:'..script)..')')
   return
 end
 
@@ -193,7 +194,7 @@ if CGI('parameter', '')=='changeid' then
   local items= split(CGI('item'), '|')
   local script = string.format([[%s,%s,%s,%s,1,lua "script('newuids');Data.PatientID='%s'"]],
     items[1],items[2] or '',items[3] or '',items[4] or '',CGI('newid'))
-  servercommand('luastart:servercommand[[modifier:'..script..']]');
+  servercommand('luastart:servercommand('..rquote('modifier:'..script)..')')
   return
 end
 

@@ -183,7 +183,6 @@ function remotemove(from, to, q, xtra)
 [[
   local from=]]..rquote(from)..[[;
   local to=]]..rquote(to)..[[;
-  local to=]]..rquote(to)..[[;
   local q=]]..table_print(q)..[[;
   local extra=]]..table_print(xtra)..[[;
   local q2=DicomObject:new(); for k,v in pairs(q) do q2[k]=v end;

@@ -703,6 +703,7 @@ When            Who     What
 20251011        mvh     Skip server test on NewInstall; tested port stays open blocking installation in Wine under Linux
 20260810        mvh     Move all temporary files to GetTempDir; change GetTempDir to curdir if there is no access
 20260813        mvh     Auto configure BackupSchedule for Sqlite (required folder backup); call now require([[ladle]])()
+20260826        mvh     Make sure conquest_browser is also created during install
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -5131,7 +5132,10 @@ begin
 
   if changepage then
     PageControl1.ActivePage := TabSheet2;
-
+    
+  if not SysUtils.DirectoryExists(GetTempDir + 'conquest_browser') then
+    Mkdir(GetTempDir + 'conquest_browser');
+    
   Screen.Cursor := crDefault;
 end;
 

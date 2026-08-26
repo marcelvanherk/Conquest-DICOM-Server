@@ -47,6 +47,7 @@
 -- mvh 20260813 Merged Divinis debugging
 -- mvh 20260814 Catch ]=] to avoid escaping into lua; limit request print to 80
 -- mvh 20260815 Export tonumber
+-- mvh 20260826 Export remote_addr; no longer export os for service mode
 
 -----------------------------------------------------
 
@@ -448,6 +449,7 @@ function luascript.genEnv(_Env, request, config, handleIt, client)
 				end
 	Env.request = request
 	Env.config = config
+	Env.remote_addr = client:getsockname()
 
 	Env.include	= function (filename)
 					handleIt(Env.config.webroot .. "/" .. filename, Env)
@@ -473,9 +475,9 @@ function luascript.genEnv(_Env, request, config, handleIt, client)
 	Env.tempfile=tempfile
 	Env.tonumber=tonumber
 	Env.md5=md5
-        if string.find(request.orguri, 'mode=service') then
-  	  Env.os=os
-	end
+        --if string.find(request.orguri, 'mode=service') then
+  	--  Env.os=os
+	--end
 	Env.writefile=function(nam, dat) local f=io.open(nam, 'wb') f:write(dat) f:close() end
 	Env.unlink=function(nam) os.remove(nam) end
 	Env.JSON=require('json')

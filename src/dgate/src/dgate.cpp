@@ -1251,6 +1251,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260813	mvh	Extend Lua package.path for require() to search in server/lua folder
 20260813	mvh	Fix json formatting of DS like 0600,-0600
 20260818	mvh	Fixed above fix that broke formatting of float values
+20260823	mvh	Disable most of old CGI interface; keep newweb working
+20260824	mvh	Fix parameter check on concat:; avoid 9999,0400 buffer overrun; protect some dicom.ini entries
+20260826	mvh	Export remote_addr to cgi web pages
 
 ENDOFUPDATEHISTORY
 */
@@ -8037,7 +8040,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 		   Index+=sprintf(result+Index, "%f,", atof(q));
 	         else
 		   Index+=sprintf(result+Index, "%d,", atoi(q));
-		 count1++;
+	         count1++;
 	      }
 	      if (count1) Index--;
 	      Index+=sprintf(result+Index, "%c%s,", br2, br3);
@@ -21765,7 +21768,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				}
 			}
 			
-		if (!p[8]) return; // insufficient parameters
+		if (!items[8]) return; // insufficient parameters
 			
 		p=items[8];
 		if (strcmp(p, "binary")==0 || *p==0)
@@ -24414,7 +24417,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
                     FirstTime = (FirstTime+1) / FirstTime;
                   }
 
-		  if(vrsilent->Length)
+		  if(vrsilent->Length>0 && vrsilent->Length<sizeof(SilentText)-1)
 		  { memcpy(SilentText, vrsilent->Data, vrsilent->Length);
   		    SilentText[vrsilent->Length]=0;
 		    if (SilentText[vrsilent->Length-1]==' ') SilentText[vrsilent->Length-1]=0;
@@ -26282,51 +26285,93 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     strcpy(DefaultPage, "AnyPage");
   }
 
-  CGI(query,   "query",    "");		// query for most db selectors
   CGI(slice2,  "slice",    "");		// patid:sop for slice
-  CGI(series2, "series",   "");		// patid:seriesuid for seriesviewer/move/delete
-  CGI(study2,  "study",    "");		// patid:studyuid for move/delete
-  CGI(db,      "db",       "");		// database to edit or list
   CGI(lw,      "lw",       "0/0");	// level/window
-  CGI(source,  "source",   "(local)");  // source for move
-  CGI(dest,    "dest",     "");		// destination for move
-  CGI(key,     "key",      "");		// key for mark
-  CGI(script,  "script",   "");		// script for attachfile
-
+  
   j = 0;
   for(i=0; i<strlen(slice2); i++) if (slice2[i]==' ') { slice[j++]='%'; slice[j++]='2'; slice[j++]='0'; } else slice[j++]=slice2[i];
   slice[j++]=0;
 
-  j = 0;
-  for(i=0; i<strlen(series2); i++) if (series2[i]==' ') { series[j++]='%'; series[j++]='2'; series[j++]='0'; } else series[j++]=series2[i];
-  series[j++]=0;
+  MyGetPrivateProfileString ( "webdefaults", "size",     "512", size,     32, ConfigFile);
+  CGI(size,    "size",     size);	// size of viewer in pixels or %
 
+  MyGetPrivateProfileString ( "webdefaults", "graphic",  "bmp", graphic,   32, ConfigFile);
+  CGI(graphic, "graphic",  graphic);	// style of transmitting thumbnails and slices (gif, bmp, or jpg)
+
+  MyGetPrivateProfileString ( "webdefaults", "iconsize", "48",  iconsize,  32, ConfigFile);
+  CGI(iconsize,"iconsize", iconsize);	// size of icons in image table
+
+  CGI(study2,  "study",    "");		// patid:studyuid for move/delete
   j = 0;
   for(i=0; i<strlen(study2); i++) if (study2[i]==' ') { study[j++]='%'; study[j++]='2'; study[j++]='0'; } else study[j++]=study2[i];
   study[j++]=0;
 
-  MyGetPrivateProfileString ( "webdefaults", "size",     "512", size,     256, ConfigFile);
-  MyGetPrivateProfileString ( "webdefaults", "dsize",    "0",   dsize,    256, ConfigFile);
-  MyGetPrivateProfileString ( "webdefaults", "compress", "n4",  compress, 256, ConfigFile);
-  MyGetPrivateProfileString ( "webdefaults", "iconsize", "48",  iconsize, 256, ConfigFile);
-  MyGetPrivateProfileString ( "webdefaults", "graphic",  "bmp", graphic,   32, ConfigFile);
-  MyGetPrivateProfileString ( "webdefaults", "viewer",   "seriesviewer", viewer, 128, ConfigFile);
-  MyGetPrivateProfileString ( "webdefaults", "studyviewer",   "", studyviewer, 128, ConfigFile);
+  BOOL EnableOLDCGI=FALSE;
 
-  CGI(size,    "size",     size);	// size of viewer in pixels or %
-  CGI(dsize,   "dsize",    dsize);	// max size of transmitted dicom images in pixels, 0=original
-  CGI(compress,"compress", compress);	// compression of transmitted dicom images to (our) web viewer
-  CGI(iconsize,"iconsize", iconsize);	// size of icons in image table
-  CGI(graphic, "graphic",  graphic);	// style of transmitting thumbnails and slices (gif, bmp, or jpg)
-  CGI(viewer,  "viewer",   viewer);	// mode of used viewer
+  if (EnableOLDCGI)
+  { CGI(query,   "query",    "");		// query for most db selectors
+    CGI(series2, "series",   "");		// patid:seriesuid for seriesviewer/move/delete
+    CGI(db,      "db",       "");		// database to edit or list
+    CGI(source,  "source",   "(local)");  // source for move
+    CGI(dest,    "dest",     "");		// destination for move
+    CGI(key,     "key",      "");		// key for mark
+    CGI(script,  "script",   "");		// script for attachfile
 
-  CGI(patientidmatch,   "patientidmatch",   "");	// search strings
-  CGI(patientnamematch, "patientnamematch", "");
-  CGI(studydatematch,   "studydatematch",   "");
-  CGI(startdatematch,   "startdatematch",   "");
+    j = 0;
+    for(i=0; i<strlen(series2); i++) if (series2[i]==' ') { series[j++]='%'; series[j++]='2'; series[j++]='0'; } else series[j++]=series2[i];
+    series[j++]=0;
+
+    MyGetPrivateProfileString ( "webdefaults", "dsize",    "0",   dsize,    256, ConfigFile);
+    MyGetPrivateProfileString ( "webdefaults", "compress", "n4",  compress, 256, ConfigFile);
+    MyGetPrivateProfileString ( "webdefaults", "viewer",   "seriesviewer", viewer, 128, ConfigFile);
+    MyGetPrivateProfileString ( "webdefaults", "studyviewer",   "", studyviewer, 128, ConfigFile);
+
+    CGI(dsize,   "dsize",    dsize);	// max size of transmitted dicom images in pixels, 0=original
+    CGI(compress,"compress", compress);	// compression of transmitted dicom images to (our) web viewer
+    CGI(viewer,  "viewer",   viewer);	// mode of used viewer
+
+    CGI(patientidmatch,   "patientidmatch",   "");	// search strings
+    CGI(patientnamematch, "patientnamematch", "");
+    CGI(studydatematch,   "studydatematch",   "");
+    CGI(startdatematch,   "startdatematch",   "");
   
-  // allow overrule of port, ip and AE in dicom.ini from command line (e.g. in php or node.js)
-  for (i=1; i<argc; i++)
+    if (patientidmatch[0]!=0)
+    { if (query[0]) strcat(query, " and ");
+      strcat(query, "PatientID like '%");
+      strcat(query, patientidmatch);
+      strcat(query, "%'");
+    };
+  
+    if (patientnamematch[0]!=0)
+    { if (query[0]) strcat(query, " and ");
+      strcat(query, "PatientNam like '%");
+      strcat(query, patientnamematch);
+      strcat(query, "%'");
+    };
+  
+    if (studydatematch[0]!=0)
+    { if (query[0]) strcat(query, " and ");
+      strcat(query, "StudyDate like '%");
+      strcat(query, studydatematch);
+      strcat(query, "%'");
+    };
+  
+    if (startdatematch[0]!=0)
+    { if (query[0]) strcat(query, " and ");
+      strcat(query, "StartDate like '%");
+      strcat(query, startdatematch);
+      strcat(query, "%'");
+    };
+  
+    if      (stricmp(db, "dicomworklist")==0) DBE=WorkListDB;
+    else if (stricmp(db, "dicompatients")==0) DBE=PatientDB;
+    else if (stricmp(db, "dicomstudies" )==0) DBE=StudyDB;
+    else if (stricmp(db, "dicomseries"  )==0) DBE=SeriesDB;
+    else if (stricmp(db, "dicomimages"  )==0) DBE=ImageDB;
+    else                                      DBE=WorkListDB;
+  
+    // allow overrule of port, ip and AE in dicom.ini from command line (e.g. in php or node.js)
+    for (i=1; i<argc; i++)
 	{ 
 	if (argv[i][0]=='-')
 		{
@@ -26336,46 +26381,20 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 		}
 	}
   
-  sprintf(extra, "port=%s&address=%s", Port, ServerCommandAddress);
+    sprintf(extra, "port=%s&address=%s", Port, ServerCommandAddress);
+  }
 
-  if (patientidmatch[0]!=0)
-  { if (query[0]) strcat(query, " and ");
-    strcat(query, "PatientID like '%");
-    strcat(query, patientidmatch);
-    strcat(query, "%'");
+  /* just generates a bitmap */
+  if (strcmp(mode, "slice")==0)
+  { sprintf(command, "convert_to_%s:%s,%s,cgi,%s", graphic, slice2, size, lw);
+    SendServerCommand("", command, console, NULL, FALSE);
+    exit(0);
   };
 
-  if (patientnamematch[0]!=0)
-  { if (query[0]) strcat(query, " and ");
-    strcat(query, "PatientNam like '%");
-    strcat(query, patientnamematch);
-    strcat(query, "%'");
-  };
-
-  if (studydatematch[0]!=0)
-  { if (query[0]) strcat(query, " and ");
-    strcat(query, "StudyDate like '%");
-    strcat(query, studydatematch);
-    strcat(query, "%'");
-  };
-
-  if (startdatematch[0]!=0)
-  { if (query[0]) strcat(query, " and ");
-    strcat(query, "StartDate like '%");
-    strcat(query, startdatematch);
-    strcat(query, "%'");
-  };
-
-  if      (stricmp(db, "dicomworklist")==0) DBE=WorkListDB;
-  else if (stricmp(db, "dicompatients")==0) DBE=PatientDB;
-  else if (stricmp(db, "dicomstudies" )==0) DBE=StudyDB;
-  else if (stricmp(db, "dicomseries"  )==0) DBE=SeriesDB;
-  else if (stricmp(db, "dicomimages"  )==0) DBE=ImageDB;
-  else                                      DBE=WorkListDB;
-
+  
   /************************** top page **************************/
 
-  if ((strcmp(mode, "")==0 && !DefaultPage[0]) || strcmp(mode, "top")==0)
+  if (EnableOLDCGI) if ((strcmp(mode, "")==0 && !DefaultPage[0]) || strcmp(mode, "top")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26473,7 +26492,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 
   /************************** configuration **************************/
 
-  if (strcmp(mode, "showconfig")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "showconfig")==0)
   { ReadOnly = TRUE;
 
     HTML("Content-type: text/html\nCache-Control: no-cache\n");
@@ -26531,7 +26550,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "showsops")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "showsops")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26566,7 +26585,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "showdb")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "showdb")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26601,7 +26620,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "showdictionary")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "showdictionary")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26635,7 +26654,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 
   /************************** local browsers **************************/
 
-  if (strcmp(mode, "querypatients")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "querypatients")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>",DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26657,7 +26676,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "querystudies")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "querystudies")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26701,7 +26720,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "queryseries")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "queryseries")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26746,7 +26765,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "queryimages")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "queryimages")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26771,7 +26790,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "queryallimages")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "queryallimages")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26797,7 +26816,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 
   /************************** remote query **************************/
 
-  if (strcmp(mode, "patientfinder")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "patientfinder")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26818,7 +26837,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "studyfinder")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "studyfinder")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26857,7 +26876,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "seriesfinder")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "seriesfinder")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -26894,7 +26913,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "imagefinder")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "imagefinder")==0)
   { char WADOserver[256];
     sprintf(WADOserver, "dgate%s?%s", ex, extra);
     MyGetPrivateProfileString ( "wadoservers", dest, WADOserver, WADOserver, 256, ConfigFile);
@@ -26955,7 +26974,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 
   /************************** movers **************************/
 
-  if (strcmp(mode, "studymover")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "studymover")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27003,7 +27022,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "seriesmover")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "seriesmover")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27051,7 +27070,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "movestudy")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "movestudy")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27065,7 +27084,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   }
 
-  if (strcmp(mode, "moveseries")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "moveseries")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27083,7 +27102,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   }
 
-  if (strcmp(mode, "addlocalfile")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "addlocalfile")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27099,7 +27118,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "attachfile")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "attachfile")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27117,7 +27136,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 
   /************************** delete **************************/
 
-  if (!ReadOnly) 
+  if (EnableOLDCGI) if (!ReadOnly) 
   { if (strcmp(mode, "studydeleter")==0)
     { HTML("Content-type: text/html\n");
       HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
@@ -27185,7 +27204,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 
   /************************** worklist browser and editor **************************/
 
-  if (strcmp(mode, "queryworklist")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "queryworklist")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27212,7 +27231,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 
   /************************** general purpose database editing **************************/
 
-  if (strcmp(mode, "editrecord")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "editrecord")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27275,7 +27294,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "addrecord")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "addrecord")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27319,7 +27338,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "saverecord")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "saverecord")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27377,7 +27396,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "deleterecord")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "deleterecord")==0)
   { HTML("Content-type: text/html\nCache-Control: no-cache\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27401,7 +27420,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
   /************************** viewers **************************/
 
   /* page with one slice */
-  if (strcmp(mode, "sliceviewer")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "sliceviewer")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27417,7 +27436,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  if (strcmp(mode, "headerdump")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "headerdump")==0)
   { HTML("Content-type: text/html\n");
     HTML("<HEAD><TITLE>Conquest DICOM server - version %s</TITLE></HEAD>", DGATE_VERSION);
     HTML("<BODY BGCOLOR='CFDFCF'>");
@@ -27433,22 +27452,15 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
     exit(0);
   };
 
-  /* just generates the bitmap */
-  if (strcmp(mode, "slice")==0)
-  { sprintf(command, "convert_to_%s:%s,%s,cgi,%s", graphic, slice2, size, lw); // 1.4.16i: use size instead of dsize
-    SendServerCommand("", command, console, NULL, FALSE);
-    exit(0);
-  };
-
   /* transmits the image contents in dicom format */
-  if (strcmp(mode, "dicom")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "dicom")==0)
   { sprintf(command, "convert_to_dicom:%s,%s,%s", slice2, dsize, compress);
     SendServerCommand("", command, console, NULL, FALSE);
     exit(0);
   };
 
   /* transmits the series in zipped dicom format */
-  if (strcmp(mode, "zipseries")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "zipseries")==0)
   { char *p = strrchr(series2, ':');
     if (p) 
     { *p++ = ',';
@@ -27462,7 +27474,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
   };
 
   /* transmits the study in zipped dicom format */
-  if (strcmp(mode, "zipstudy")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "zipstudy")==0)
   { char *p = strrchr(study2, ':');
     if (p) *p = ',';
 
@@ -27472,7 +27484,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
   };
 
   /* transmits the image list with urls in text format */
-  if (strcmp(mode, "imagelisturls")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "imagelisturls")==0)
   { char *p;
 
     p = strrchr(series2, ':');
@@ -27484,7 +27496,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
   };
 
   /* transmits the image list with http references in text format */
-  if (strcmp(mode, "imagelisthttp")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "imagelisthttp")==0)
   { char *p;
 
     p = strrchr(series2, ':');
@@ -27496,7 +27508,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
   };
 
   /* transmits the image list with filenames in text format */
-  if (strcmp(mode, "imagelistfiles")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "imagelistfiles")==0)
   { char *p;
 
     p = strrchr(series2, ':');
@@ -27582,7 +27594,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
   */
 
   /* no viewer */
-  if (strcmp(mode, "noviewer")==0)
+  if (EnableOLDCGI) if (strcmp(mode, "noviewer")==0)
   { //char *p;
 
     HTML("Content-type: text/html\n");
@@ -27633,8 +27645,8 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
   };
   */
 
-  /* very simple jave-script based viewer with server side processing */
-  if (strcmp(mode, "serversideviewer")==0)
+  /* very simple java-script based viewer with server side processing */
+  if (EnableOLDCGI) if (strcmp(mode, "serversideviewer")==0)
   { char *p;
 
     p = strrchr(series2, ':');
@@ -27728,6 +27740,7 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
 
 /*
 This is a general purpose web script processor; it can be used to create any web page, not just viewers.
+NOTE: MOST FUNCTIONS HAVE NOW BEEN DISABLED EXCEPT *.lua
 
 This is a sample from dicom.ini:
 
@@ -27790,57 +27803,59 @@ windowname = AiViewer V1.00
 
     patid[0] = seruid[0] = studyuid[0] = sopuid[0] = 0;
 
-    if (study2[0])
-    { strcpy(temp, study2);
-      p = strrchr(temp, ':');
-      if (p) 
-      { *p = 0;
-        strcpy(patid2, temp);
-        *p = '|';
-        strcpy(studyuid, p+1);
+    if (EnableOLDCGI) {
+      if (study2[0])
+      { strcpy(temp, study2);
+        p = strrchr(temp, ':');
+        if (p) 
+        { *p = 0;
+          strcpy(patid2, temp);
+          *p = '|';
+          strcpy(studyuid, p+1);
+        }
+      
+        strcpy(temp, study);
+        p = strrchr(temp, ':');
+        if (p) 
+        { *p = 0;
+          strcpy(patid, temp);
+        }
       }
-    
-      strcpy(temp, study);
-      p = strrchr(temp, ':');
-      if (p) 
-      { *p = 0;
-        strcpy(patid, temp);
+  
+      if (series2[0])
+      { strcpy(temp, series2);
+        p = strrchr(temp, ':');
+        if (p) 
+        { *p = 0;
+          strcpy(patid2, temp);
+          *p = '|';
+          strcpy(seruid, p+1);
+        }
+      
+        strcpy(temp, series);
+        p = strrchr(temp, ':');
+        if (p) 
+        { *p = 0;
+          strcpy(patid, temp);
+        }
       }
-    }
-
-    if (series2[0])
-    { strcpy(temp, series2);
-      p = strrchr(temp, ':');
-      if (p) 
-      { *p = 0;
-        strcpy(patid2, temp);
-        *p = '|';
-        strcpy(seruid, p+1);
-      }
-    
-      strcpy(temp, series);
-      p = strrchr(temp, ':');
-      if (p) 
-      { *p = 0;
-        strcpy(patid, temp);
-      }
-    }
-
-    if (slice2[0])
-    { strcpy(temp, slice2);
-      p = strrchr(temp, ':');
-      if (p) 
-      { *p = 0;
-        strcpy(patid2, temp);
-        *p = '|';
-        strcpy(sopuid, p+1);
-      }
-    
-      strcpy(temp, slice);
-      p = strrchr(temp, ':');
-      if (p) 
-      { *p = 0;
-        strcpy(patid, temp);
+  
+      if (slice2[0])
+      { strcpy(temp, slice2);
+        p = strrchr(temp, ':');
+        if (p) 
+        { *p = 0;
+          strcpy(patid2, temp);
+          *p = '|';
+          strcpy(sopuid, p+1);
+        }
+      
+        strcpy(temp, slice);
+        p = strrchr(temp, ':');
+        if (p) 
+        { *p = 0;
+          strcpy(patid, temp);
+        }
       }
     }
 
@@ -27868,224 +27883,233 @@ windowname = AiViewer V1.00
       strcat(script, "')");
       OperatorConsole.On();
 
-      lua_setvar(&globalPDU, "query_string",    global_query_string); //getenv( "QUERY_STRING"));      
-      lua_setvar(&globalPDU, "server_name",     getenv( "SERVER_NAME" ));
-      lua_setvar(&globalPDU, "script_name",     getenv( "SCRIPT_NAME" ));
-      lua_setvar(&globalPDU, "path_translated", getenv( "PATH_TRANSLATED" ));
       lua_setvar(&globalPDU, "port",            (char *)Port);
       lua_setvar(&globalPDU, "address",         ServerCommandAddress);
-      lua_setvar(&globalPDU, "webcodebase",     WebCodeBase);
-      lua_setvar(&globalPDU, "webscriptadress", WebScriptAddress);
-      lua_setvar(&globalPDU, "webscriptaddress",WebScriptAddress); // was misspelled
-      lua_setvar(&globalPDU, "extra",           extra);
       lua_setvar(&globalPDU, "version",         DGATE_VERSION);
-      lua_setvar(&globalPDU, "mode",            mode);
-      lua_setvar(&globalPDU, "uploadedfile",    uploadedfile);
-          
-      lua_setvar(&globalPDU, "series",          series);
-      lua_setvar(&globalPDU, "series2",         series2);
+
+      // still used in newweb
       lua_setvar(&globalPDU, "slice",           slice);
       lua_setvar(&globalPDU, "slice2",          slice2);
       lua_setvar(&globalPDU, "study",           study);
       lua_setvar(&globalPDU, "study2",          study2);
-      lua_setvar(&globalPDU, "patid",           patid);
-      lua_setvar(&globalPDU, "patid2",          patid2);
-      lua_setvar(&globalPDU, "seruid",          seruid);
-      lua_setvar(&globalPDU, "studyuid",        studyuid);
-      lua_setvar(&globalPDU, "sopuid",          sopuid);
-	  
       lua_setvar(&globalPDU, "size",            size);
-      lua_setvar(&globalPDU, "dsize",           dsize);
-      lua_setvar(&globalPDU, "compress",        compress);
       lua_setvar(&globalPDU, "iconsize",        iconsize);
       lua_setvar(&globalPDU, "graphic",         graphic);
-      lua_setvar(&globalPDU, "viewer",          viewer);
       lua_setvar(&globalPDU, "lw",              lw);
-      lua_setvar(&globalPDU, "query",           query);
-      lua_setvar(&globalPDU, "db",              db);
-      lua_setvar(&globalPDU, "source",          source);
-      lua_setvar(&globalPDU, "dest",            dest);
-      lua_setvar(&globalPDU, "patientidmatch",  patientidmatch);
-      lua_setvar(&globalPDU, "patientnamematch",patientnamematch);
-      lua_setvar(&globalPDU, "studydatematch",  studydatematch);
-      lua_setvar(&globalPDU, "startdatematch",  startdatematch);
+      lua_setvar(&globalPDU, "remote_addr",     getenv( "REMOTE_ADDR" ));
+
+      if (EnableOLDCGI)
+      { lua_setvar(&globalPDU, "query_string",    global_query_string); //getenv( "QUERY_STRING"));      
+        lua_setvar(&globalPDU, "server_name",     getenv( "SERVER_NAME" ));
+        lua_setvar(&globalPDU, "script_name",     getenv( "SCRIPT_NAME" ));
+        lua_setvar(&globalPDU, "path_translated", getenv( "PATH_TRANSLATED" ));
+        lua_setvar(&globalPDU, "webcodebase",     WebCodeBase);
+        lua_setvar(&globalPDU, "webscriptadress", WebScriptAddress);
+        lua_setvar(&globalPDU, "webscriptaddress",WebScriptAddress); // was misspelled
+        lua_setvar(&globalPDU, "extra",           extra);
+        lua_setvar(&globalPDU, "mode",            mode);
+        lua_setvar(&globalPDU, "uploadedfile",    uploadedfile);
+            
+        lua_setvar(&globalPDU, "series",          series);
+        lua_setvar(&globalPDU, "series2",         series2);
+        lua_setvar(&globalPDU, "patid",           patid);
+        lua_setvar(&globalPDU, "patid2",          patid2);
+        lua_setvar(&globalPDU, "seruid",          seruid);
+        lua_setvar(&globalPDU, "studyuid",        studyuid);
+        lua_setvar(&globalPDU, "sopuid",          sopuid);
+	    
+        lua_setvar(&globalPDU, "dsize",           dsize);
+        lua_setvar(&globalPDU, "compress",        compress);
+        lua_setvar(&globalPDU, "viewer",          viewer);
+        lua_setvar(&globalPDU, "query",           query);
+        lua_setvar(&globalPDU, "db",              db);
+        lua_setvar(&globalPDU, "source",          source);
+        lua_setvar(&globalPDU, "dest",            dest);
+        lua_setvar(&globalPDU, "patientidmatch",  patientidmatch);
+        lua_setvar(&globalPDU, "patientnamematch",patientnamematch);
+        lua_setvar(&globalPDU, "studydatematch",  studydatematch);
+        lua_setvar(&globalPDU, "startdatematch",  startdatematch);
+      }
 
       do_lua(&(globalPDU.L), script, &sd1);
 
       if (*uploadedfile) unlink(uploadedfile);
       exit(0);
     }
-
-    if (temp[0]) f = fopen(temp, "rt");
-
-    MyGetPrivateProfileString ( mode, "header", "Content-type: text/html\n", temp, 1000, ConfigFile);
-    while ((p = strstr(temp, "\\"))) p[0]='\n';
-    HTML(temp);
     
-    int inlua=0;
+    if (EnableOLDCGI)
+    { if (temp[0]) f = fopen(temp, "rt");
 
-    for (i=0; i<10000; i++)
-    { if (f)
-      { if (fgets(string, sizeof(string), f) == NULL)
-          break;
-        if (!inlua && string[strlen(string)-1]=='\n') string[strlen(string)-1]=0;
-      }
-      else
-      { sprintf(temp, "line%d", i);
-        MyGetPrivateProfileString ( mode, temp, "", string, 1000, ConfigFile);
-        if (string[0]==0) break;
-      }
-      
-      if (inlua)
-      { char *p = strstr(string, "?>");
+      MyGetPrivateProfileString ( mode, "header", "Content-type: text/html\n", temp, 1000, ConfigFile);
+      while ((p = strstr(temp, "\\"))) p[0]='\n';
+      HTML(temp);
+    
+      int inlua=0;
+
+      for (i=0; i<10000; i++)
+      { if (f)
+        { if (fgets(string, sizeof(string), f) == NULL)
+            break;
+          if (!inlua && string[strlen(string)-1]=='\n') string[strlen(string)-1]=0;
+        }
+        else
+        { sprintf(temp, "line%d", i);
+          MyGetPrivateProfileString ( mode, temp, "", string, 1000, ConfigFile);
+          if (string[0]==0) break;
+        }
+        
+        if (inlua)
+        { char *p = strstr(string, "?>");
+          if (p)
+  	  { *p=0;
+  	    strcat(chunk, string);
+  	    inlua=0;
+            struct scriptdata sd1 = {&globalPDU, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
+  
+            lua_setvar(&globalPDU, "query_string",    global_query_string); //getenv( "QUERY_STRING"));      
+            lua_setvar(&globalPDU, "server_name",     getenv( "SERVER_NAME" ));
+            lua_setvar(&globalPDU, "script_name",     getenv( "SCRIPT_NAME" ));
+            lua_setvar(&globalPDU, "path_translated", getenv( "PATH_TRANSLATED" ));
+            lua_setvar(&globalPDU, "port",            (char *)Port);
+            lua_setvar(&globalPDU, "address",         ServerCommandAddress);
+            lua_setvar(&globalPDU, "webcodebase",     WebCodeBase);
+            lua_setvar(&globalPDU, "webscriptadress", WebScriptAddress);
+            lua_setvar(&globalPDU, "extra",           extra);
+            lua_setvar(&globalPDU, "version",         DGATE_VERSION);
+            lua_setvar(&globalPDU, "mode",            mode);
+  	    lua_setvar(&globalPDU, "uploadedfile",    uploadedfile);
+            
+            lua_setvar(&globalPDU, "series",          series);
+            lua_setvar(&globalPDU, "series2",         series2);
+            lua_setvar(&globalPDU, "slice",           slice);
+            lua_setvar(&globalPDU, "slice2",          slice2);
+            lua_setvar(&globalPDU, "study",           study);
+            lua_setvar(&globalPDU, "study2",          study2);
+            lua_setvar(&globalPDU, "patid",           patid);
+            lua_setvar(&globalPDU, "patid2",          patid2);
+            lua_setvar(&globalPDU, "seruid",          seruid);
+            lua_setvar(&globalPDU, "studyuid",        studyuid);
+            lua_setvar(&globalPDU, "sopuid",          sopuid);
+  	  
+  	    lua_setvar(&globalPDU, "size",            size);
+            lua_setvar(&globalPDU, "dsize",           dsize);
+            lua_setvar(&globalPDU, "compress",        compress);
+            lua_setvar(&globalPDU, "iconsize",        iconsize);
+            lua_setvar(&globalPDU, "graphic",         graphic);
+            lua_setvar(&globalPDU, "viewer",          viewer);
+            lua_setvar(&globalPDU, "lw",              lw);
+            lua_setvar(&globalPDU, "query",           query);
+            lua_setvar(&globalPDU, "db",              db);
+            lua_setvar(&globalPDU, "source",          source);
+            lua_setvar(&globalPDU, "dest",            dest);
+            lua_setvar(&globalPDU, "patientidmatch",  patientidmatch);
+            lua_setvar(&globalPDU, "patientnamematch",patientnamematch);
+            lua_setvar(&globalPDU, "studydatematch",  studydatematch);
+            lua_setvar(&globalPDU, "startdatematch",  startdatematch);
+  
+            do_lua(&(globalPDU.L), chunk, &sd1);
+  	  }
+  	  else
+  	    strcat(chunk, string);
+        }
+
+        /* fill in predefined scripting variables */
+
+        replace(string, "%query_string%",    global_query_string); //getenv( "QUERY_STRING" ));
+        replace(string, "%server_name%",     getenv( "SERVER_NAME" ));
+        replace(string, "%script_name%",     getenv( "SCRIPT_NAME" ));
+        replace(string, "%path_translated%", getenv( "PATH_TRANSLATED" ));
+        replace(string, "%uploadedfile%",    uploadedfile);
+  
+        replace(string, "%port%",            (char *)Port);
+        replace(string, "%address%",         ServerCommandAddress);
+        replace(string, "%webcodebase%",     WebCodeBase);
+        replace(string, "%webscriptadress%", WebScriptAddress);
+        replace(string, "%extra%",           extra);
+        replace(string, "%server%",          server);
+        replace(string, "%version%",         DGATE_VERSION);
+        replace(string, "%mode%",            mode);
+  
+        replace(string, "%series%",          series2); // unprocessed
+        replace(string, "%series2%",         series);  // replaced spaces by %20
+        replace(string, "%slice%",           slice2);  // unprocessed
+        replace(string, "%slice2%",          slice);   // replaced spaces by %20
+        replace(string, "%study%",           study2);  // unprocessed
+        replace(string, "%study2%",          study);   // replaced spaces by %20
+        replace(string, "%patid%",           patid2);  // unprocessed
+        replace(string, "%patid2%",          patid);   // replaced spaces by %20
+        replace(string, "%seruid%",          seruid);
+        replace(string, "%studyuid%",        studyuid);
+        replace(string, "%sopuid%",          sopuid);
+  
+        replace(string, "%size%",            size);
+        replace(string, "%dsize%",           dsize);
+        replace(string, "%compress%",        compress);
+        replace(string, "%iconsize%",        iconsize);
+        replace(string, "%graphic%",         graphic);
+        replace(string, "%viewer%",          viewer);
+        replace(string, "%lw%",              lw);
+  
+        replace(string, "%query%",           query);
+        replace(string, "%db%",              db);
+        replace(string, "%source%",          source);
+        replace(string, "%dest%",            dest);
+        replace(string, "%patientidmatch%",  patientidmatch);
+        replace(string, "%patientnamematch%",patientnamematch);
+        replace(string, "%studydatematch%",  studydatematch);
+        replace(string, "%startdatematch%",  startdatematch);
+
+        /* this code will substitute any other %var% with a cgi variable 
+           with a default given in section for this server mode in dicom.ini 
+  	 
+  	 or substitute ... with the string result of a lua expression
+  	 <%= .... %>
+        */
+        
+        char *p = strstr(string, "<%=");
         if (p)
-	{ *p=0;
-	  strcat(chunk, string);
-	  inlua=0;
+        { char *p2 = strstr(string, "%>");
+          char script[1000];
+          *p=0;
+          *p2=0;
           struct scriptdata sd1 = {&globalPDU, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
-
-          lua_setvar(&globalPDU, "query_string",    global_query_string); //getenv( "QUERY_STRING"));      
-          lua_setvar(&globalPDU, "server_name",     getenv( "SERVER_NAME" ));
-          lua_setvar(&globalPDU, "script_name",     getenv( "SCRIPT_NAME" ));
-          lua_setvar(&globalPDU, "path_translated", getenv( "PATH_TRANSLATED" ));
-          lua_setvar(&globalPDU, "port",            (char *)Port);
-          lua_setvar(&globalPDU, "address",         ServerCommandAddress);
-          lua_setvar(&globalPDU, "webcodebase",     WebCodeBase);
-          lua_setvar(&globalPDU, "webscriptadress", WebScriptAddress);
-          lua_setvar(&globalPDU, "extra",           extra);
-          lua_setvar(&globalPDU, "version",         DGATE_VERSION);
-          lua_setvar(&globalPDU, "mode",            mode);
-	  lua_setvar(&globalPDU, "uploadedfile",    uploadedfile);
-          
-          lua_setvar(&globalPDU, "series",          series);
-          lua_setvar(&globalPDU, "series2",         series2);
-          lua_setvar(&globalPDU, "slice",           slice);
-          lua_setvar(&globalPDU, "slice2",          slice2);
-          lua_setvar(&globalPDU, "study",           study);
-          lua_setvar(&globalPDU, "study2",          study2);
-          lua_setvar(&globalPDU, "patid",           patid);
-          lua_setvar(&globalPDU, "patid2",          patid2);
-          lua_setvar(&globalPDU, "seruid",          seruid);
-          lua_setvar(&globalPDU, "studyuid",        studyuid);
-          lua_setvar(&globalPDU, "sopuid",          sopuid);
-	  
-	  lua_setvar(&globalPDU, "size",            size);
-          lua_setvar(&globalPDU, "dsize",           dsize);
-          lua_setvar(&globalPDU, "compress",        compress);
-          lua_setvar(&globalPDU, "iconsize",        iconsize);
-          lua_setvar(&globalPDU, "graphic",         graphic);
-          lua_setvar(&globalPDU, "viewer",          viewer);
-          lua_setvar(&globalPDU, "lw",              lw);
-          lua_setvar(&globalPDU, "query",           query);
-          lua_setvar(&globalPDU, "db",              db);
-          lua_setvar(&globalPDU, "source",          source);
-          lua_setvar(&globalPDU, "dest",            dest);
-          lua_setvar(&globalPDU, "patientidmatch",  patientidmatch);
-          lua_setvar(&globalPDU, "patientnamematch",patientnamematch);
-          lua_setvar(&globalPDU, "studydatematch",  studydatematch);
-          lua_setvar(&globalPDU, "startdatematch",  startdatematch);
-
-          do_lua(&(globalPDU.L), chunk, &sd1);
-	}
-	else
-	  strcat(chunk, string);
-      }
-
-      /* fill in predefined scripting variables */
-
-      replace(string, "%query_string%",    global_query_string); //getenv( "QUERY_STRING" ));
-      replace(string, "%server_name%",     getenv( "SERVER_NAME" ));
-      replace(string, "%script_name%",     getenv( "SCRIPT_NAME" ));
-      replace(string, "%path_translated%", getenv( "PATH_TRANSLATED" ));
-      replace(string, "%uploadedfile%",    uploadedfile);
-
-      replace(string, "%port%",            (char *)Port);
-      replace(string, "%address%",         ServerCommandAddress);
-      replace(string, "%webcodebase%",     WebCodeBase);
-      replace(string, "%webscriptadress%", WebScriptAddress);
-      replace(string, "%extra%",           extra);
-      replace(string, "%server%",          server);
-      replace(string, "%version%",         DGATE_VERSION);
-      replace(string, "%mode%",            mode);
-
-      replace(string, "%series%",          series2); // unprocessed
-      replace(string, "%series2%",         series);  // replaced spaces by %20
-      replace(string, "%slice%",           slice2);  // unprocessed
-      replace(string, "%slice2%",          slice);   // replaced spaces by %20
-      replace(string, "%study%",           study2);  // unprocessed
-      replace(string, "%study2%",          study);   // replaced spaces by %20
-      replace(string, "%patid%",           patid2);  // unprocessed
-      replace(string, "%patid2%",          patid);   // replaced spaces by %20
-      replace(string, "%seruid%",          seruid);
-      replace(string, "%studyuid%",        studyuid);
-      replace(string, "%sopuid%",          sopuid);
-
-      replace(string, "%size%",            size);
-      replace(string, "%dsize%",           dsize);
-      replace(string, "%compress%",        compress);
-      replace(string, "%iconsize%",        iconsize);
-      replace(string, "%graphic%",         graphic);
-      replace(string, "%viewer%",          viewer);
-      replace(string, "%lw%",              lw);
-
-      replace(string, "%query%",           query);
-      replace(string, "%db%",              db);
-      replace(string, "%source%",          source);
-      replace(string, "%dest%",            dest);
-      replace(string, "%patientidmatch%",  patientidmatch);
-      replace(string, "%patientnamematch%",patientnamematch);
-      replace(string, "%studydatematch%",  studydatematch);
-      replace(string, "%startdatematch%",  startdatematch);
-
-      /* this code will substitute any other %var% with a cgi variable 
-         with a default given in section for this server mode in dicom.ini 
-	 
-	 or substitute ... with the string result of a lua expression
-	 <%= .... %>
-      */
-      
-      char *p = strstr(string, "<%=");
-      if (p)
-      { char *p2 = strstr(string, "%>");
-        char script[1000];
-        *p=0;
-        *p2=0;
-        struct scriptdata sd1 = {&globalPDU, NULL, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, 0};
-	strcpy(script, "return ");
-	strcat(script, p+3);
-        HTML("%s", string);
-        HTML("%s", do_lua(&(globalPDU.L), script, &sd1));
-	HTML("%s", p2+2);
-	string[0] = '#';
-      }
-      else
-      { char *p2 = strchr(string, '%');
-        if (p2)
-        { char *q = strchr(p2+1, '%');
-          if (q && q!=p2+1)
-          { char var[512], val[512], var2[512];
-            *q=0;
-            strcpy(var, p2+1);
-            *q='%';;
-            strcpy(var2, "%");
-            strcat(var2, var);
-            strcat(var2, "%");
-
-            MyGetPrivateProfileString ( mode, var, var2, val, 512, ConfigFile);
-            CGI(val, var, val);
-            replace(string, var2, val);
+  	  strcpy(script, "return ");
+  	  strcat(script, p+3);
+          HTML("%s", string);
+          HTML("%s", do_lua(&(globalPDU.L), script, &sd1));
+  	  HTML("%s", p2+2);
+  	  string[0] = '#';
+        }
+        else
+        { char *p2 = strchr(string, '%');
+          if (p2)
+          { char *q = strchr(p2+1, '%');
+            if (q && q!=p2+1)
+            { char var[512], val[512], var2[512];
+              *q=0;
+              strcpy(var, p2+1);
+              *q='%';;
+              strcpy(var2, "%");
+              strcat(var2, var);
+              strcat(var2, "%");
+  
+              MyGetPrivateProfileString ( mode, var, var2, val, 512, ConfigFile);
+              CGI(val, var, val);
+              replace(string, var2, val);
+            }
           }
         }
-      }
 
-      /* runs: #comment, --servercommand, <?lua .... ?> as lua, or straight HTML output */
-      if      (!inlua && string[0]=='#')                   strcpy(string, "");
-      else if (!inlua && string[0]=='-' && string[1]=='-') SendServerCommand("", string+2, console);
-      else if (!inlua && (p=strstr(string, "<?lua")))      {*p=0; HTML("%s", string); inlua=1; strcpy(chunk, p+5); strcat(chunk, "\n");}
-      else if (!inlua)                                     HTML("%s", string);
-    };
+        /* runs: #comment, --servercommand, <?lua .... ?> as lua, or straight HTML output */
+        if      (!inlua && string[0]=='#')                   strcpy(string, "");
+        else if (!inlua && string[0]=='-' && string[1]=='-') SendServerCommand("", string+2, console);
+        else if (!inlua && (p=strstr(string, "<?lua")))      {*p=0; HTML("%s", string); inlua=1; strcpy(chunk, p+5); strcat(chunk, "\n");}
+        else if (!inlua)                                     HTML("%s", string);
+      };
 
-    if (f) fclose(f);
+      if (f) fclose(f);
+    }
+
     if (*uploadedfile) unlink(uploadedfile);
     exit(0);
   };

@@ -48,6 +48,7 @@
 -- mvh 20260814 Catch ]=] to avoid escaping into lua; limit request print to 80
 -- mvh 20260815 Export tonumber
 -- mvh 20260826 Export remote_addr; no longer export os for service mode
+-- mvh 20260826 Fix in dgatecgi passing of client to get remote_addr
 
 -----------------------------------------------------
 
@@ -541,7 +542,7 @@ function dgatecgi.handler(request, client, config)
   local folder = string.match(request.orguri, '(.-)/dgate.exe') or ''
   if folder~='' then folder = folder .. '/' end
   local _ENV = {}
-  local Env = luascript.genEnv(_ENV, request, config)
+  local Env = luascript.genEnv(_ENV, request, config, nil, client)
   
   -- inherited from luascript, need not reimport most functions anymore
   Env.tostring = tostring

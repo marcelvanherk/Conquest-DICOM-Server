@@ -13,7 +13,8 @@
 -- 20220905   mvh   Fix display of ModalitiesInStudy
 -- 20230625   mvh   Made all links relative; enable default ohif link
 -- 20240928   mvh   Added #UID hash with full UID tooltip
--- 20260815 mvh Use rquote throughout
+-- 20260815   mvh   Use rquote throughout
+-- 20260902   mvh   Modify dropdown menu based on checkaccess
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
@@ -245,22 +246,23 @@ table.altrowstable Caption {
 )
 
 function dropdown(i, item)
-  return string.format([[
+  local r=string.format([[
 <td>
 <p id='aap%d' onmouseover="var s=document.getElementById('aap%d').children; s[0].style.opacity=1;" onmouseout="var s=document.getElementById('aap%d').children; s[0].style.opacity=0.1;">
 <select name=selectaction style="opacity:0.1; width:40" onchange="servicecommand(document.getElementById('aap%d').children[0].value+ '&item='+'%s');document.getElementById('aap%d').children[0].selectedIndex=0" >
-<option value=nop>-</option>')
-<option value=sender>Send</option>')
-<option value=changerid>Change Patient ID</option>')
-<option value=anonymizer>Anonymize</option>')
-<option value=deleter>Delete</option>')
-<option value=zipper>Zip</option>')
-<option value=zipperanonymized>Zip anonymized</option>')
-<option value=viewerstudy>View with ]]..studyviewer..[[</option>')
+<option value=nop>-</option>')]], i, i, i, i, item, i)
+if checkaccess('move', remote_addr) then r=r .. [[<option value=sender>Send</option>')]] end
+if checkaccess('change', remote_addr) then r=r .. [[<option value=changerid>Change Patient ID</option>')]] end
+if checkaccess('change', remote_addr) then r=r .. [[<option value=anonymizer>Anonymize</option>')]] end
+if checkaccess('delete', remote_addr) then r=r .. [[<option value=deleter>Delete</option>')]] end
+if checkaccess('zip', remote_addr) then r=r .. [[<option value=zipper>Zip</option>')]] end
+if checkaccess('zip', remote_addr) then r=r .. [[<option value=zipperanonymized>Zip anonymized</option>')]] end
+r=r .. [[<option value=viewerstudy>View with ]]..studyviewer..[[</option>')
 <option value=nop>Cancel</option>')
 </select>
 </p>
-]], i, i, i, i, item, i)
+]]
+return r
 end
 
 HTML("<H1>Welcome to Conquest DICOM server - version %s</H1>", version)

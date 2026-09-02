@@ -17,8 +17,9 @@
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20220830   mvh   Fix proposed patientID; included uids after |
 -- 20230625   mvh   Made all links relative
--- 20260815 mvh Use rquote throughout
--- 20260823 mvh Use rquote also for luastart: code
+-- 20260815   mvh   Use rquote throughout
+-- 20260823   mvh   Use rquote also for luastart: code
+-- 20260902   mvh   Use checkaccess to control access to server control channel and dropdown
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
@@ -140,6 +141,7 @@ if CGI('parameter', '')=='nop' then
 end  
 
 if CGI('parameter', '')=='sender' then
+  if (not checkaccess('move', remote_addr)) then return false end
   print('Send '..CGI('item', '') .. ' to destination: ')
   for i=0,99 do
     -- a = get_amap(i)
@@ -153,6 +155,7 @@ if CGI('parameter', '')=='sender' then
   return
 end  
 if CGI('parameter', '')=='send' then
+  if (not checkaccess('move', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   local script = string.format('%s,%s,%s,%s,%s,%s',servercommand('get_param:MyACRNema'),CGI('Destination'),
     items[1],items[2] or '',items[3] or '',items[4] or '')
@@ -161,6 +164,7 @@ if CGI('parameter', '')=='send' then
 end
 
 if CGI('parameter', '')=='anonymizer' then
+  if (not checkaccess('change', remote_addr)) then return false end
   print('New ID for anonymized: '..CGI('item', '').. ' ')
   print('<input id=newid value="'..string.gsub(CGI('item', ''), '|.+', '').. '">')
   if (readOnly) then 
@@ -172,6 +176,7 @@ if CGI('parameter', '')=='anonymizer' then
   return
 end  
 if CGI('parameter', '')=='anonymize' then
+  if (not checkaccess('change', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   local script = string.format('%s,%s,%s,%s,1,lua/anonymize_script.lua(%s)',
     items[1],items[2] or '',items[3] or '',items[4] or '', CGI('newid'))
@@ -180,6 +185,7 @@ if CGI('parameter', '')=='anonymize' then
 end
 
 if CGI('parameter', '')=='changerid' then
+  if (not checkaccess('change', remote_addr)) then return false end
   print('New patient ID for: '..CGI('item', '').. ' ')
   print('<input id=newid value="'..string.gsub(CGI('item', ''), '|.+', '').. '">')
   if (readOnly) then 
@@ -191,6 +197,7 @@ if CGI('parameter', '')=='changerid' then
   return
 end  
 if CGI('parameter', '')=='changeid' then
+  if (not checkaccess('change', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   local script = string.format([[%s,%s,%s,%s,1,lua "script('newuids');Data.PatientID='%s'"]],
     items[1],items[2] or '',items[3] or '',items[4] or '',CGI('newid'))
@@ -199,6 +206,7 @@ if CGI('parameter', '')=='changeid' then
 end
 
 if CGI('parameter', '')=='deleter' then
+  if (not checkaccess('delete', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   local n = 
     servercommand('lua:s=newdicomobject();s.PatientID='..rquote(items[1] or '')..
@@ -217,6 +225,7 @@ if CGI('parameter', '')=='deleter' then
   return
 end  
 if CGI('parameter', '')=='delete' then
+  if (not checkaccess('delete', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   servercommand('lua:s=newdicomobject();s.PatientID='..rquote(items[1] or '')..
                 's.StudyInstanceUID='..rquote(items[2] or '')..
@@ -228,6 +237,7 @@ if CGI('parameter', '')=='delete' then
 end
 
 if CGI('parameter', '')=='zipperanonymized' then
+  if (not checkaccess('zip', remote_addr)) then return false end
   print('Zip anonymized for: '..CGI('item', '').. ' ')
   print('<input id=newid value="'..string.gsub(CGI('item', ''), '|.+', '').. '">')
   if (viewOnly) then 
@@ -239,6 +249,7 @@ if CGI('parameter', '')=='zipperanonymized' then
   return
 end  
 if CGI('parameter', '')=='zipanonymized' then
+  if (not checkaccess('zip', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   local stage=''
   if CGI('stage')~='' then stage = '|' .. CGI('stage') end
@@ -261,6 +272,7 @@ if CGI('parameter', '')=='zipanonymized' then
 end
 
 if CGI('parameter', '')=='zipper' then
+  if (not checkaccess('zip', remote_addr)) then return false end
   print('Zip: '..CGI('item', '').. ' ')
   if (viewOnly) then 
     print([[<a href=# onclick="servicecommand('nop&item=]]..CGI('item')..[[&dum=.zip')">Not allowed</a><br>]])
@@ -271,6 +283,7 @@ if CGI('parameter', '')=='zipper' then
   return
 end  
 if CGI('parameter', '')=='zip' then
+  if (not checkaccess('zip', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   if write then
     local tempname = 'z.zip'
@@ -455,21 +468,22 @@ end
 print("<TR><TD>Patient ID<TD>Name<TD>Sex<TD>Birth Date<TD>Menu</TR>"); 
 
 function dropdown(i, item)
-  return string.format([[
+  local r=string.format([[
 <td>
-<p id='aap%d' onmouseover="var s=document.getElementById('aap%d').children; s[0].style.opacity=1" onmouseout="var s=document.getElementById('aap%d').children; s[0].style.opacity=0.1">
+<p id='aap%d' onmouseover="var s=document.getElementById('aap%d').children; s[0].style.opacity=1;" onmouseout="var s=document.getElementById('aap%d').children; s[0].style.opacity=0.1;">
 <select name=selectaction style="opacity:0.1; width:40" onchange="servicecommand(document.getElementById('aap%d').children[0].value+ '&item='+'%s');document.getElementById('aap%d').children[0].selectedIndex=0" >
-<option value=nop>-</option>')
-<option value=sender>Send</option>')
-<option value=changerid>Change Patient ID</option>')
-<option value=anonymizer>Anonymize</option>')
-<option value=deleter>Delete</option>')
-<option value=zipper>Zip</option>')
-<option value=zipperanonymized>Zip anonymized</option>')
-<option value=nop>Cancel</option>')
+<option value=nop>-</option>')]], i, i, i, i, item, i)
+if checkaccess('move', remote_addr) then r=r .. [[<option value=sender>Send</option>')]] end
+if checkaccess('change', remote_addr) then r=r .. [[<option value=changerid>Change Patient ID</option>')]] end
+if checkaccess('change', remote_addr) then r=r .. [[<option value=anonymizer>Anonymize</option>')]] end
+if checkaccess('delete', remote_addr) then r=r .. [[<option value=deleter>Delete</option>')]] end
+if checkaccess('zip', remote_addr) then r=r .. [[<option value=zipper>Zip</option>')]] end
+if checkaccess('zip', remote_addr) then r=r .. [[<option value=zipperanonymized>Zip anonymized</option>')]] end
+r=r .. [[<option value=nop>Cancel</option>')
 </select>
 </p>
-]], i, i, i, i, item, i)
+]]
+return r
 end
 
 for i=1,#pats do

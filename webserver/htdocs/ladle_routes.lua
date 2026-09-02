@@ -13,6 +13,7 @@
 -- mvh 20260810 Streaming code by Divinus
 -- mvh 20260812 Divinus fixed formatting of frame
 -- mvh 20260813 Modified documentation a bit
+-- mvh 20260902 Added checkaccess to control access by ip through dicom.ini
 
 ---------------------------------------------
 --preflight
@@ -68,6 +69,7 @@ routes:get('/app/dgate.exe', function (params) -- when opening without trailing 
    redirect( '/app/newweb/dgate.exe?' .. request.query_string)
 end )
 routes:post('/app/newweb/dgate.exe', function (params)
+   if (not checkaccess('store', remote_addr)) then return false end
    redirect( '/app/newweb/dgate.exe')
 end )
 -- Static route: overrule conquest jpeg
@@ -401,6 +403,38 @@ function oldinstances(query,st,se,sop)
   getinstances(nil,bd,st,se,sop)
 end
 
+---------------------------------------------
+-- streaming retrieve in batches (divnet 20260811).
+-- returns a state table (= call me again) or nil.
+-- Requires the streaming loop in lua/ladle.lua luascript.handler().
+local BATCH = 50
+
+function instances(query, st, se, sop)
+  include('/api/dicom/rquery.lua')
+  local state = __stream_state                 -- nil on the first call
+
+  if state == nil then                         -- first batch: headers + list
+    local bd = generateRandomString(32)
+    write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
+    write('Access-Control-Allow-Headers: *\r\n')
+    write('Access-Control-Allow-Origin: *\r\n')
+    write('Content-Type: multipart/related; boundary='..bd..'\r\n\r\n')
+    state = { bd = bd, pos = 1, items = getinstancelist(nil, st, se, sop) }
+  end
+
+  local last = math.min(state.pos + BATCH - 1, #state.items)
+  if last >= state.pos then
+    emitinstances(nil, state.bd, st, state.items, state.pos, last)
+  end
+  state.pos = last + 1
+
+  if state.pos > #state.items then
+    write('\r\n--'..state.bd..'--\r\n')      -- closing; concat: does not append a CRLF after the part
+    return nil
+  end
+  return state
+end
+
 function frame(query,st,se,sop,fr)
   include('/api/dicom/rquery.lua')
   local bd = 'Hallo'..generateRandomString(32)
@@ -437,6 +471,7 @@ end
 
 -- list all modalities
 routes:get('/api/dicom/rs/modalities', function (params)
+  if (not checkaccess('move', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -446,6 +481,7 @@ end )
 
 -- echo a modality
 routes:get('/api/dicom/rs/modalities/:modality', function (params)
+  if (not checkaccess('move', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -455,36 +491,42 @@ end )
 
 -- query all studies on modality
 routes:get('/api/dicom/rs/modalities/:modality/studies', function (params)
+  if (not checkaccess('remote', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   querystudies(request.query, params.modality)
 end )
 
 -- query series of a study on modality
 routes:get('/api/dicom/rs/modalities/:modality/studies/:suid/series', function (params)
+  if (not checkaccess('remote', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   queryseries(request.query, params.suid, params.modality)
 end )
 
 -- query all series on modality
 routes:get('/api/dicom/rs/modalities/:modality/series', function (params)
+  if (not checkaccess('remote', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   queryseries(request.query, '', params.modality)
 end )
 
 -- query instances of series on modality
 routes:get('/api/dicom/rs/modalities/:modality/studies/:suid/series/:euid/instances', function (params)
+  if (not checkaccess('remote', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   queryinstances(request.query, params.suid, params.euid, params.modality)
 end )
 
 -- query all instances on modality
 routes:get('/api/dicom/rs/modalities/:modality/instances', function (params)
+  if (not checkaccess('remote', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   queryinstances(request.query, '', '', params.modality)
 end )
 
 -- move an instance
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/move', function (params)
+  if (not checkaccess('move', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -494,6 +536,7 @@ end )
 
 -- move a series
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/move', function (params)
+  if (not checkaccess('move', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -503,6 +546,7 @@ end )
 
 -- move a study
 routes:get('/api/dicom/rs/studies/:suid/move', function (params)
+  if (not checkaccess('move', remote_addr)) then return false end
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -512,6 +556,8 @@ end )
 
 -- zip an instance (script can be passed)
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/zip', function (params)
+  if (not checkaccess('zip', remote_addr)) then return false end
+  if not checkaccess('script', remote_addr) and request.query.script then return false end
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -521,6 +567,8 @@ end )
 
 -- zip a series (script can be passed)
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/zip', function (params)
+  if (not checkaccess('zip', remote_addr)) then return false end
+  if not checkaccess('script', remote_addr) and request.query.script then return false end
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -530,6 +578,8 @@ end )
 
 -- zip a study (script can be passed)
 routes:get('/api/dicom/rs/studies/:suid/zip', function (params)
+  if (not checkaccess('zip', remote_addr)) then return false end
+  if not checkaccess('script', remote_addr) and request.query.script then return false end
   include('/api/dicom/rquery.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -539,6 +589,7 @@ end )
 
 -- run a script
 routes:post('/api/dicom/rs/script', function (params)
+  if (not checkaccess('script', remote_addr)) then return false end
   include('/api/dicom/posters.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -551,6 +602,7 @@ end )
 
 -- start a script
 routes:post('/api/dicom/rs/startscript', function (params)
+  if (not checkaccess('script', remote_addr)) then return false end
   include('/api/dicom/posters.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -563,6 +615,7 @@ end )
 
 -- get a script progress
 routes:get('/api/dicom/rs/startscript/:uid', function (params)
+  if (not checkaccess('script', remote_addr)) then return false end
   include('/api/dicom/posters.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -576,6 +629,8 @@ end )
 
 -- attach a file
 routes:post('/api/dicom/rs/attach', function (params)
+  if (not checkaccess('store', remote_addr)) then return false end
+  if not checkaccess('script', remote_addr) and request.query.script then return false end
   include('/api/dicom/posters.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -588,6 +643,8 @@ end )
 
 -- attach a dicom file
 routes:post('/api/dicom/rs/attachdicom', function (params)
+  if (not checkaccess('store', remote_addr)) then return false end
+  if not checkaccess('script', remote_addr) and request.query.script then return false end
   include('/api/dicom/posters.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -600,6 +657,7 @@ end )
 
 -- stow
 routes:post('/api/dicom/rs/studies', function (params)
+  if (not checkaccess('stow', remote_addr)) then return false end
   include('/api/dicom/posters.lua')
   write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
   write('Access-Control-Allow-Origin: *\r\n')
@@ -609,36 +667,3 @@ routes:post('/api/dicom/rs/studies', function (params)
   poststow(file)
   unlink(file)
 end )
-
-
----------------------------------------------
--- streaming retrieve in batches (divnet 20260811).
--- returns a state table (= call me again) or nil.
--- Requires the streaming loop in lua/ladle.lua luascript.handler().
-local BATCH = 50
-
-function instances(query, st, se, sop)
-  include('/api/dicom/rquery.lua')
-  local state = __stream_state                 -- nil on the first call
-
-  if state == nil then                         -- first batch: headers + list
-    local bd = generateRandomString(32)
-    write('HTTP/1.1 200 OK\r\nServer: Ladle\r\n')
-    write('Access-Control-Allow-Headers: *\r\n')
-    write('Access-Control-Allow-Origin: *\r\n')
-    write('Content-Type: multipart/related; boundary='..bd..'\r\n\r\n')
-    state = { bd = bd, pos = 1, items = getinstancelist(nil, st, se, sop) }
-  end
-
-  local last = math.min(state.pos + BATCH - 1, #state.items)
-  if last >= state.pos then
-    emitinstances(nil, state.bd, st, state.items, state.pos, last)
-  end
-  state.pos = last + 1
-
-  if state.pos > #state.items then
-    write('\r\n--'..state.bd..'--\r\n')      -- closing; concat: does not append a CRLF after the part
-    return nil
-  end
-  return state
-end

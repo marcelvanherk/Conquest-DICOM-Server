@@ -28,6 +28,7 @@
 // 20210913  mvh  Put wordpress login test here as option
 // 20220823  mvh  Added optional CORS headers
 // 20220827  mvh  Use configuration, stopped supporting old cgi interface
+// 20260902  mvh  Pass REMOTE_ADDR
 
 include 'config.php';
 
@@ -107,6 +108,7 @@ if(!empty($_SERVER["CONTENT_LENGTH"])) {
 // pass parameters to cgi application
 putenv("SCRIPT_NAME=".$_SERVER["SCRIPT_NAME"]);
 putenv("SCRIPT_FILENAME=".$_SERVER["SCRIPT_FILENAME"]);
+putenv("REMOTE_ADDR=".$_SERVER["REMOTE_ADDR"]);
 
 // Run the cgi executable
 header_remove();

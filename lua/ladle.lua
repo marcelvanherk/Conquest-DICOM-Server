@@ -49,6 +49,7 @@
 -- mvh 20260815 Export tonumber
 -- mvh 20260826 Export remote_addr; no longer export os for service mode
 -- mvh 20260826 Fix in dgatecgi passing of client to get remote_addr
+-- mvh 20260902 Export checkaccess
 
 -----------------------------------------------------
 
@@ -476,9 +477,7 @@ function luascript.genEnv(_Env, request, config, handleIt, client)
 	Env.tempfile=tempfile
 	Env.tonumber=tonumber
 	Env.md5=md5
-        --if string.find(request.orguri, 'mode=service') then
-  	--  Env.os=os
-	--end
+	Env.checkaccess=checkaccess
 	Env.writefile=function(nam, dat) local f=io.open(nam, 'wb') f:write(dat) f:close() end
 	Env.unlink=function(nam) os.remove(nam) end
 	Env.JSON=require('json')

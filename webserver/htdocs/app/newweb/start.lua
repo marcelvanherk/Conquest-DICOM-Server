@@ -50,7 +50,8 @@
 -- mvh 20221012: storeclick stores link in clicks.txt
 -- mvh 20230605: readOnly disables upload methods and post
 -- mvh 20230625: Made all links relative
--- 20260815 mvh Use rquote throughout
+-- mvh 20260815: Use rquote throughout
+-- mvh 20260902: Use checkaccess to control access to server control channel
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
@@ -262,6 +263,7 @@ if CGI('parameter')=='test' then
 end
 
 if CGI('parameter')=='dbquery' then
+  if (not checkaccess('script', remote_addr)) then return false end
   HTML('Content-type: application/json\n\n')
   local maxresult=tonumber(CGI('maxresults', '9999999'))
   local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
@@ -275,12 +277,14 @@ if CGI('parameter')=='dbquery' then
   return
 end
 if CGI('parameter')=='dbqueryluaformat' then
+  if (not checkaccess('script', remote_addr)) then return false end
   HTML('Content-type: application/text\n\n')
   local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
   io.write(table_print(r))
   return
 end
 if CGI('parameter')=='dbquerysqldownload' then
+  if (not checkaccess('script', remote_addr)) then return false end
   io.write('Content-type: application/text\nContent-Disposition: attachment;filename="'..
     CGI('filename', 'dbquery.sql')..'"\n\n');
   local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
@@ -305,6 +309,7 @@ if CGI('parameter')=='dicomqueryluaformat' then
 end
 
 if CGI('parameter')=='dicommove' then
+  if (not checkaccess('move', remote_addr)) then return false end
   HTML('Content-type: application/json\n\n')
   local r=remotemove(CGI('from'),CGI('to'),CGI('query'),CGI('xtra'))
   io.write('"'..(r or '')..'"')
@@ -312,23 +317,27 @@ if CGI('parameter')=='dicommove' then
 end
 
 if CGI('parameter')=='sql' then
+  if (not checkaccess('script', remote_addr)) then return false end
   HTML('Content-type: application/json\n\n')
   io.write(remotesql(CGI('query')))
   return
 end
 
 if CGI('parameter')=='servercommand' then
+  if (not checkaccess('script', remote_addr)) then return false end
   HTML('Content-type: application/json\n\n')
   if not readOnly then io.write(servercommand(CGI('command'))) end
   return
 end
 
 if CGI('parameter')=='serverpage' then
+  if (not checkaccess('script', remote_addr)) then return false end
   if not readOnly then io.write(servercommand(CGI('command'))) end
   return
 end
 
 if CGI('parameter')=='swupdate' and not readOnly then
+  if (not checkaccess('script', remote_addr)) then return false end
   HTML('Content-type: application/json\n\n')
   local n, ds, web, cgi = '', '/'
   local fn = CGI('filename', 'x.x')
@@ -448,6 +457,7 @@ if CGI('parameter')=='swupdate' and not readOnly then
 end
 
 if CGI('parameter')=='uploadsql' and not readOnly then
+  if (not checkaccess('script', remote_addr)) then return false end
   if CGI('ref')~='' then
     servercommand("lua:sql([[delete from UIDMODS where Stage like '"..CGI('ref').."%']])")
     servercommand("lua:changeuid('')") -- clear UID cache
@@ -472,6 +482,7 @@ if CGI('parameter')=='uploadsql' and not readOnly then
 end
 
 if CGI('parameter')=='uploadinfo' and not readOnly then
+  if (not checkaccess('script', remote_addr)) then return false end
   local web
   local ds='/'
   local fn = safetempfile(".pdf")
@@ -500,6 +511,7 @@ if CGI('parameter')=='uploadinfo' and not readOnly then
 end
 
 if CGI('parameter')=='uploadtable' and not readOnly then
+  if (not checkaccess('script', remote_addr)) then return false end
   local ds = '/'
   local g = servercommand('lua:return Global.basedir')
   local fn = safetempfile(".csv")
@@ -531,6 +543,7 @@ if CGI('parameter')=='uploadtable' and not readOnly then
 end
 
 if CGI('parameter')=='uploadfile' and not readOnly then
+  if (not checkaccess('store', remote_addr)) then return false end
   local fn = safetempfile(".tmp")
   local a
   if CGI('_passfile_', '')~='' then
@@ -732,6 +745,7 @@ end
 HTML("</table>");
 
 if not readOnly then
+  if (not checkaccess('store', remote_addr)) then return false end
   HTML("<FORM ID=upx ACTION=\"\" METHOD=POST ENCTYPE=\"multipart/form-data\">");
   HTML("<INPUT NAME=mode      TYPE=HIDDEN VALUE=start>");
   HTML("<INPUT NAME=parameter TYPE=HIDDEN VALUE=uploadfile>");

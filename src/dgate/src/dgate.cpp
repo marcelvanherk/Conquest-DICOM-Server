@@ -1253,7 +1253,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260818	mvh	Fixed above fix that broke formatting of float values
 20260823	mvh	Disable most of old CGI interface; keep newweb working
 20260824	mvh	Fix parameter check on concat:; avoid 9999,0400 buffer overrun; protect some dicom.ini entries
-20260826	mvh	Export remote_addr to cgi web pages
+20260826	mvh	Export remote_addr to cgi web pages 
+20260901	mvh	Start on checkaccess for servercommands; failure logged to console
+20260902	mvh	Finalise checkaccess and export to lua; default allows 127.0.0.1 only; comma separared list with simple wildcards
 
 ENDOFUPDATEHISTORY
 */
@@ -1676,6 +1678,126 @@ int MaybeDownsize(DICOMDataObject* pDDO, DICOMCommandObject* pDCO, int size);
 BOOL ExtractFrame(DICOMDataObject* pDDO, unsigned int Frame);
 BOOL ExtractFrames(DICOMDataObject* pDDO, unsigned int FirstFrame, unsigned int LastFrame, int skip);
 int GetNumberOfFrames(DICOMDataObject* pDDO);
+
+#define ca_archive 1
+#define ca_change 2
+#define ca_move 3
+#define ca_remote 4 
+#define ca_script 5
+#define ca_status 6
+#define ca_store 7
+#define ca_wado 8
+#define ca_zip 9
+#define ca_stow 10
+#define ca_delete 11
+
+// Allows e.g. 127.0.0.1,192.168.1.*,10.127.*.* wildcards in dicom.ini
+BOOL checkaccess(int op, unsigned int ip)
+{ char ips1[20], ips2[20], ips3[20], ips4[20], ips5[20], buffer[258], szRootSC[64];
+  if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile)) return false;
+  strcpy(buffer, ",");
+  sprintf(ips1, ",%d.%d.%d.%d", ip&255, (ip>>8)&255, (ip>>16)&255, (ip>>24)&255);
+  sprintf(ips2, ",%d.%d.%d.*", ip&255, (ip>>8)&255, (ip>>16)&255);
+  sprintf(ips3, ",%d.%d.*.*", ip&255, (ip>>8)&255);
+  sprintf(ips4, ",%d.*.*.*", ip&255);
+  sprintf(ips5, ",*.*.*.*");
+
+  MyGetPrivateProfileString(szRootSC, "DeniedIPs", "none", buffer+1, 256, ConfigFile);
+  if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+  
+  if (op==ca_archive)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsArchive", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsArchive", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_change)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsChange", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsChange", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_move)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsMove", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsMove", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_remote)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsRemote", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsRemote", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_script)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsScript", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsScript", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_status)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStatus", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsStatus", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_store)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStore", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsStore", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_wado)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsWado", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsWado", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_zip)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsZip", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsZip", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_stow)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStow", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsStow", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_delete)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsDelete", "none", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsDelete", "127.0.0.1", buffer+1, 256, ConfigFile);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  MyGetPrivateProfileString(szRootSC, "AllowedIPs", "127.0.0.1", buffer+1, 256, ConfigFile);
+  if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+
+  return false;
+}
 
 /* error handling for out of memory and such */
 
@@ -8482,6 +8604,42 @@ static char uploadedfile[256];
     return 1;
   }
 
+  static int luacheckaccess(lua_State *L)
+  { int op=0;
+    unsigned int ip, a, b, c, d;
+
+    if (lua_gettop(L)!=2) 
+    { lua_pushboolean(L, false);
+      return 1;
+    }
+    if (strcmp(lua_tostring(L,1), "archive")==0) op=ca_archive;
+    if (strcmp(lua_tostring(L,1), "change")==0) op=ca_change;
+    if (strcmp(lua_tostring(L,1), "move")==0) op=ca_move;
+    if (strcmp(lua_tostring(L,1), "remote")==0) op=ca_remote;
+    if (strcmp(lua_tostring(L,1), "script")==0) op=ca_script;
+    if (strcmp(lua_tostring(L,1), "status")==0) op=ca_status;
+    if (strcmp(lua_tostring(L,1), "store")==0) op=ca_store;
+    if (strcmp(lua_tostring(L,1), "wado")==0) op=ca_wado;
+    if (strcmp(lua_tostring(L,1), "zip")==0) op=ca_zip;
+    if (strcmp(lua_tostring(L,1), "stow")==0) op=ca_stow;
+    if (strcmp(lua_tostring(L,1), "delete")==0) op=ca_delete;
+    if (op==0)
+    { OperatorConsole.printf("*** checkaccess passed unknown item: %s\n", lua_tostring(L,1));
+      lua_pushboolean(L, false);
+      return 1;
+    }
+  
+    if (sscanf(lua_tostring(L,2), "%d.%d.%d.%d", &a, &b, &c, &d)!=4) 
+    { OperatorConsole.printf("*** checkaccess passed bad ip: %s\n", lua_tostring(L,2));
+      lua_pushboolean(L, false);
+      return 1;
+    }
+
+    ip = a+(b<<8)+(c<<16)+(d<<24);
+    lua_pushboolean(L, checkaccess(op, ip));
+    return 1;
+  }
+
 //todo (now read/write directly from dicom.ini): 
 //IgnoreOutOfMemoryErrors, ImportExportDragAndDrop, TruncateFieldNames, ForwardAssociationRelease, 
 //RetryForwardFailed, UIDPrefix, ForwardAssociationLevel, ForwardAssociationRefreshDelay
@@ -9156,6 +9314,7 @@ const char *do_lua(lua_State **L, char *cmd, struct scriptdata *sd)
     lua_register      (*L, "HTML",          luaHTML);
     lua_register      (*L, "CGI",           luaCGI);
     lua_register      (*L, "gpps",          luagpps);
+    lua_register      (*L, "checkaccess",   luacheckaccess);
     lua_register      (*L, "heapinfo",      luaheapinfo);
     lua_register      (*L, "dictionary",    luadictionary);
     lua_register      (*L, "changeuid",     luachangeuid);
@@ -21304,7 +21463,7 @@ static void SimplifyDicom(DICOMDataObject *pDDO)
 
 static int cgi_parse(char *in, char *out, const char *name, const char *def);
 
-void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &DCO,
+BOOL ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &DCO,
                 char *Response, unsigned int ConnectedIP, char *tempfile, int Thread)
 	{
 	VR *vr;
@@ -21316,37 +21475,41 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 
 	if (memcmp(SilentText, "lua:", 4)==0)
 		{ 
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		struct scriptdata sd = {&PDU, &DCO, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, ConnectedIP};
 		p = (char *)do_lua(&(PDU.L), SilentText+4, &sd);
 		if (p) strcpy(Response, p);
 		p = (char *)do_lua(&(PDU.L), "return returnfile", &sd);
 		if (p) strcpy(tempfile, p);
 		if (sd.DDO) delete sd.DDO;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "luastart:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		struct scriptdata sd = {&PDU, &DCO, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, ConnectedIP};
 		PDU.Link.Close();
 		p = (char *)do_lua(&(PDU.L), SilentText+9, &sd);
 		if (p) strcpy(Response, p);
 		if (sd.DDO) delete sd.DDO;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "globallua:", 10)==0)		////// Note: not used by dgate --dolua: at all, for use in servercommand only
 		{					// Runs in global context so keeps data over instances
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		EnterCriticalSection(&dolua_critical);
 		struct scriptdata sd = {&globalPDU, &DCO, NULL, -1, NULL, NULL, NULL, NULL, NULL, 0, ConnectedIP};
 		p = (char *)do_lua(&(globalPDU.L), SilentText+10, &sd);
 		if (p) strcpy(Response, p);
 		LeaveCriticalSection(&dolua_critical);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "extract:", 8)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char t[512], u[512];
 		Database DB;
 		char fld[48][256];
@@ -21414,7 +21577,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 					else      sprintf(u, "X%s", tabname);
 					if (!DB2.CreateTable (u, s))
 					{ OperatorConsole.printf("*** extract: cannot create database on: %s\n", Physical);
-				          return;
+				          return false;
 					}
 
 					if (j==3)
@@ -21463,11 +21626,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			}
 			else
 				strcpy(Response, "1");
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "todbf:", 6)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char t[512], u[512];
 		Database DB;
 		char fld[48][256];
@@ -21539,7 +21703,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 
 			if (!DB2.CreateTable (tabname, s))
 			{ OperatorConsole.printf("*** todbf: cannot create database on: %s\n", folder);
-		          return;
+		          return true;
 			}
 
 			DB.Query(tabname, t, query, sort);
@@ -21571,11 +21735,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			}
 		else
 			strcpy(Response, "1");
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "query:", 6)==0 || memcmp(SilentText, "query2:", 7)==0 )
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		int n=1;
 		unsigned int i, L, mx,  flds=1;
 		char *items[6];
@@ -21677,7 +21842,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			DB.Close();
 			QueryFromGui++;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "patientfinder:", 14)==0 ||
@@ -21685,6 +21850,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		 memcmp(SilentText, "seriesfinder:", 13)==0 ||
 		 memcmp(SilentText, "imagefinder:", 12)==0 )
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps2[] = "%s %s";
 		char ps5[] = "%s %s %s %s %s";
 		char ps7[] = "%s %s %s %s %s %s %s";
@@ -21744,12 +21910,13 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (memcmp(SilentText, "ser", 3)==0) PatientStudyFinder(items[0], items[1], format, f, "SERIES");
 		if (memcmp(SilentText, "ima", 3)==0) PatientStudyFinder(items[0], items[1], format, f, "IMAGE");
 		fclose(f);
-		return;
+		return true;
 		}
 
 
 	if (memcmp(SilentText, "concat:", 7)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		int n=1, L;
 		char *items[9];
 
@@ -21768,7 +21935,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				}
 			}
 			
-		if (!items[8]) return; // insufficient parameters
+		if (!items[8]) return false; // insufficient parameters
 			
 		p=items[8];
 		if (strcmp(p, "binary")==0 || *p==0)
@@ -21785,6 +21952,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		 memcmp(SilentText, "imagefilelister:", 16)==0
 	   )
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		int i, n=1, L;//, flds=1, mx;
 		char *items[6];
 		FILE *f;
@@ -21838,11 +22006,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		else if (SilentText[1]=='m') ImageFileLister(items[0], items[1], NULL, items[2], NULL, format, f);
 		else 			SeriesUIDLister(items[0], items[1], items[2], format, f);
 		fclose(f);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "addrecord:", 10)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		int i, n=1, L;
 		char *items[3];
 		memset(items, 0, sizeof(items));
@@ -21867,11 +22036,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			DB.Close();
 			QueryFromGui++;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deleterecord:", 13)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		Database DB;
 		if (DB.Open ( DataSource, UserName, Password, DataHost ) )
 			{
@@ -21880,17 +22050,19 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			DB.Close();
 			QueryFromGui++;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deleteimagefromdb:", 18)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		DeleteImageFile(SilentText+18, TRUE);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deletesopfromdb:", 16)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		Database DB;
 		if (DB.Open ( DataSource, UserName, Password, DataHost ) )
 			{ if (p) 
@@ -21906,53 +22078,60 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			     }
 			  }
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deleteimagefile:", 16)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		DeleteImageFile(SilentText+16, FALSE);
 		DeleteImageFromGui++;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deletepatient:", 14)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		DeletePatient(SilentText+14, FALSE, Thread);
 		DeletePatientFromGui++;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deletestudy:", 12)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		DeleteStudy(SilentText+12, FALSE, Thread);
 		DeleteStudyFromGui++;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deletestudies:", 14)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		DeleteStudies(SilentText+14, FALSE, Thread);
 		DeleteStudiesFromGui++;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deleteseries:", 13)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		DeleteSeries(SilentText+13, FALSE, Thread);
 		DeleteSeriesFromGui++;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deleteimage:", 12)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		DeleteImage(SilentText+12, FALSE, Thread);
 		DeleteImageFromGui++;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "movepatient:", 12)==0)
 		{
+                if (!checkaccess(ca_move, ConnectedIP)) return false;
 		if (p) 
 		{ *p++=0;				// points after 1st comma
 		  q = strchr(p, ',');
@@ -21969,11 +22148,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		    }
 		  }
 		}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "movestudy:", 10)==0)
 		{
+                if (!checkaccess(ca_move, ConnectedIP)) return false;
 		if (p) 
 		  { *p++=0;				// points after 1st comma
 		    q = strchr(p, ',');
@@ -21999,11 +22179,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		      }
 		    }
 		  }
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "moveaccession:", 14)==0)
 		{
+                if (!checkaccess(ca_move, ConnectedIP)) return false;
 		if (p) 
 		  { *p++=0;				// points after 1st comma
 		    q = strchr(p, ',');
@@ -22030,11 +22211,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		      }
 		    }
 		  }
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "movestudies:", 12)==0)
 		{
+                if (!checkaccess(ca_move, ConnectedIP)) return false;
 		if (p) 
 		  { *p++=0;				// points after 1st comma
 		    q = strchr(p, ',');
@@ -22051,11 +22233,13 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		      }
 		    }
 		  }
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "moveseries:", 11)==0)
-		{ t1 = blank;
+		{ 
+                if (!checkaccess(ca_move, ConnectedIP)) return false;
+	        t1 = blank;
 		  if (p) 
 		  { *p++=0;				// points after 1st comma
 		    q = strchr(p, ',');
@@ -22085,33 +22269,37 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		      }
 		    }
 		  }
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "packdbf:", 8)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		Database DB;
 		NeedPack = 3;	// pack and threaded index creation
 		DB.Open ( DataSource, UserName, Password, DataHost);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "clonedb:", 8)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		CloneDB(SilentText+8);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "indexdbf:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		Database DB;
 		NeedPack = 4;	// threaded index creation - used after full regen from GUI
 		DB.Open ( DataSource, UserName, Password, DataHost);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "backupdatabase:", 15)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		int blocks=640, delay=250;
 		if (p)
 		{ *p++=0;				// points after 1st comma
@@ -22128,23 +22316,25 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			DB.Backup(SilentText+15, blocks, delay);
 			DB.Close();
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "browsepatient:", 14)==0)
 		{
 		OperatorConsole.printf("Browse patient: %s\n", SilentText+14);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "regenfile:", 10)==0)
 		{
+                if (!checkaccess(ca_store, ConnectedIP)) return false;
 		RegenFile(SilentText+10);
-		return;
+		return true;
 		}
 		
 	if (memcmp(SilentText, "addimagefile:", 13)==0)
 		{
+                if (!checkaccess(ca_store, ConnectedIP)) return false;
 		p = CommaInFilenameWorkAround(SilentText);
 		int rc = 0;
 		//p = strchr(SilentText+13, '|');
@@ -22167,32 +22357,35 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			rc=!AddImageFile(SilentText+13, p, &PDU);
 		sprintf(Response, "%d", rc);
 		AddedFileFromGui++;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "loadanddeletedir:", 17)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		Database DB;
 		if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
 			{
 			OperatorConsole.printf("***Error Connecting to SQL\n");
-			return;
+			return false;
 			}
 		p = CommaInFilenameWorkAround(SilentText);
 		if (p) *p++ = 0;
 		LoadAndDeleteDir(SilentText+17, p, &PDU, Thread, NULL, &DB);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "modifypatid:", 12)==0 && p)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		if (p) *p++=0;				// points after 1st comma
 		if (p) ModifyPATIDofImageFile(p, SilentText+12, TRUE, NULL, &PDU);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "modifyimage:", 12)==0 && p)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		if (p) 
 		{ *p++=0;				// points after 1st comma
 		  char test[1024];
@@ -22211,11 +22404,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			  ModifyImageFile(SilentText+12, p, &PDU, TRUE);
 			  }
 		}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "modifystudy:", 12)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		if (p) 					// study
 		{ *p++=0;				// points after 1st comma
 		  q = strchr(p, ',');			// script
@@ -22225,11 +22419,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		}
 
 		ModifyData(SilentText+12, p, NULL, NULL, q, &PDU, TRUE, Thread);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "modifyseries:", 13)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		if (p) 					// study
 		{ *p++=0;				// points after 1st comma
 		  q = strchr(p, ',');			// script
@@ -22239,11 +22434,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		}
 
 		ModifyData(SilentText+13, NULL, p, NULL, q, &PDU, TRUE, Thread);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "modifier:", 9)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		char *r=NULL, *r2=NULL, *r3=NULL;
 		if (p) 					// study
 		{ *p++=0;				// points after 1st comma
@@ -22265,11 +22461,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		}
 
 		ModifyData(SilentText+9, p, q, r, r3, &PDU, atoi(r2), Thread);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "anonymize:", 10)==0 && p)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		*p++=0;				// points after 1st comma
 
 		lua_setvar(&PDU, "command_line",  SilentText+10);      
@@ -22297,23 +22494,26 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		  "set 0009,1200 to \"\";";
 		  ModifyPATIDofImageFile(p, SilentText+10, TRUE, anonscript, &PDU);
 		}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "mergeseriesfile:", 16)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		MergeUIDofImageFile(SilentText+16, TRUE, "SeriesUID", "", NULL, &PDU);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "mergestudyfile:", 15)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		MergeUIDofImageFile(SilentText+15, TRUE, "StudyUID", "", NULL, &PDU);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "mergeseries:", 12)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		char temp[128];
 		int i, n=1, L;
 		char *uids[1000];
@@ -22330,11 +22530,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				}
 			}
 		if (uids[0][0]) MergeUIDs(uids, n, "SeriesUID", temp);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "mergestudy:", 11)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		char temp[128];
 		int i, n=1, L;
 		char *uids[1000];
@@ -22352,141 +22553,161 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			}
 
 		if (uids[0][0]) MergeUIDs(uids, n, "StudyUID", temp);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "initializetables:", 17)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		InitializeTables (atoi(SilentText+17));
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "regen:", 6)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		Regen();
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "regendevice:", 12)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		Regen(SilentText+12, FALSE);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "regendir:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		if (p) *p++=0;				// points after 1st comma
 		Regen(SilentText+9, FALSE, p);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "makespace:", 10)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		if (LargestFreeMAG()<(unsigned int)atoi(SilentText+10))
 			PanicKillOff((unsigned int)atoi(SilentText+10));
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "selectlruforarchival:", 21)==0 && p)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		if (p) *p++=0;				// points after 1st comma
 		if (p) SelectLRUForArchival(p, atoi(SilentText+21), &PDU);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "selectseriestomove:", 19)==0 && p)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		if (p) 
 		  { *p++=0;				// points after 1st comma
 		    q = strchr(p, ',');
 		    if (q) *q++=0;			// points after 2nd comma
 		  }
 		if (p && q) SelectSeriesForArchival(SilentText+19, atoi(p), atoi(q));
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "preparebunchforburning:", 23)==0 && p)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		if (p) *p++=0;				// points after 1st comma
 		if (p) PrepareBunchForBurning(p, SilentText+23);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "movedatatodevice:", 17)==0 && p)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		if (p) *p++=0;				// points after 1st comma
 		if (p) MoveDataToDevice(p, SilentText+17);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "moveseriestodevice:", 19)==0 && p)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		if (p) *p++=0;				// points after 1st comma
 		if (p) MoveSeriesToDevice(p, SilentText+19);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "restoremagflags:", 16)==0)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		RestoreMAGFlags();
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "comparebunchafterburning:", 25)==0)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		CompareBunchAfterBurning(SilentText+25);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "verifymirrordisk:", 17)==0)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		VerifyMirrorDisk(SilentText+17);
-		return;
+		return true;
 		}
 		
 	if (memcmp(SilentText, "testimages:", 11)==0)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		TestImages(SilentText+11);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "deletebunchafterburning:", 24)==0)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		DeleteBunchAfterBurning(SilentText+24);
-		return;
+		return true;
 		}
 			
 	if (memcmp(SilentText, "renamedevice:", 13)==0 && p)
 		{
+                if (!checkaccess(ca_archive, ConnectedIP)) return false;
 		if (p) *p++=0;				// points after 1st comma
 		if (p) RenameDevice(SilentText+13, p);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "testcompress:", 13)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 #ifdef HAVE_J2K
 		TestCompress(SilentText+13, "unasn1n2n3n4j1j2j3j4j5j6jkjlk1k2k4k8", &PDU);
 #else
 		TestCompress(SilentText+13, "unasn1n2n3n4j1j2j3j4j5j6k1k2k4k8", &PDU);
 #endif
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "debuglevel:", 11)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		DebugVRs = DebugLevel = atoi(SilentText+11);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "testmode:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		strcpy(TestMode, SilentText+9);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "debuglog_on:", 12)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		if (SilentText[12]>='0' && SilentText[12]<='9')
 			{
 			SystemDebug.Off();
@@ -22517,11 +22738,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			SystemDebug.AddTimeStamps(1);
 			StartZipThread();
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "log_on:", 7)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		if (SilentText[7]>='0' && SilentText[7]<='9')
 			{
 			SystemDebug.Off();
@@ -22546,28 +22768,31 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			OperatorConsole.AddTimeStamps(1);
 			StartZipThread();
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "read_amap:", 10)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		CloseACRNemaAddressArray();
 		if(!InitACRNemaAddressArray())
 			{
 			OperatorConsole.printf("***Error loading acr-nema map file:%s\n",ACRNEMAMAP);
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "read_ini:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		ConfigDgate();
 		ConfigMicroPACS();
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_ini:", 8)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps[]="%s";
 		FILE *f, *g;
 		char line[512];
@@ -22580,11 +22805,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			fprintf(g, p, line);
 		fclose(f);
 		fclose(g);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_param:", 10)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps[] = "%s";
 		char szRootSC[64], Parameter[512];
 		if (p) *p++=0;				// points after 1st comma
@@ -22595,11 +22821,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				sprintf(Response, p, Parameter);
 			}
 
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_ini_param:", 14)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps[] = "%s";
 		char szRootSC[64], Parameter[512];
 		if (p) *p++=0;				// points after 1st comma
@@ -22610,11 +22837,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				sprintf(Response, p, Parameter);
 			}
 
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_ini_num:", 12)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps[] = "%s";
 //					char szRootSC[64], Parameter[512];
 		int r, i;
@@ -22632,11 +22860,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			i++;
 			}
 		fclose(f);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "put_param:", 10)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		FILE *f, *g;
 		char line[512];
 		BOOL written=FALSE;
@@ -22683,11 +22912,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		unlink(ConfigFile);
 		rename(newConfigFile, ConfigFile);
 		FlushPrivateProfileStringCache();
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "delete_param:", 13)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		FILE *f, *g;
 		char line[512];
 		time_t TimeOfDay3;
@@ -22720,11 +22950,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		unlink(ConfigFile);
 		rename(newConfigFile, ConfigFile);
 		FlushPrivateProfileStringCache();
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_freestore:", 14)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char pd[] = "%d";
 		int r = -1;
 		if (p) *p++=0;				// points after 1st comma
@@ -22736,11 +22967,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (memicmp("MIRROR", SilentText+14, 6)==0) 
 			r = CheckFreeStoreOnMIRRORDevice(atoi(SilentText+20));
 		sprintf(Response, p, r);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_amap:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char pq[] = "%-17s %-30s %-10s %-16s";
 		if (p) *p++=0;				// points after 1st comma
 		unsigned int r = atoi(SilentText+9);
@@ -22752,11 +22984,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 					     AAPtr->Name, AAPtr->IP, AAPtr->Port, AAPtr->Compress,
 					     AAPtr->Name, AAPtr->IP, AAPtr->Port, AAPtr->Compress);
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_amaps:", 10)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char pq[] = "%-17s %-30s %-10s %-16s\n";
 		FILE *g;
 		p = SilentText+10;
@@ -22772,11 +23005,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				      AAPtr->Name, AAPtr->IP, AAPtr->Port, AAPtr->Compress);
 			}
 		fclose(g);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "write_amap:", 11)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char pq[]="%-17s %-30s %-10s %-16s\n";
 		unsigned int r = 0;
 		if (p) *p++=0;				// points after 1st comma
@@ -22820,11 +23054,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			r++;
 			}
 		fclose(f);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "put_amap:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		int i, n=1, L;
 		char *items[5];
 		ACRNemaAddress	*AAPtr;
@@ -22862,11 +23097,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (items[2]) strcpy(AAPtr->IP,       items[2]);
 		if (items[3]) strcpy(AAPtr->Port,     items[3]);
 		if (items[4]) strcpy(AAPtr->Compress, items[4]);				
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "delete_amap:", 12)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		ACRNemaAddress	*AAPtr;
 
 		unsigned int r = atoi(SilentText+12);
@@ -22876,11 +23112,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			delete AAPtr;
 			ACRNemaAddressArray.RemoveAt(r);
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_sqldef:", 11)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char pq[] = "0x%4.4x, 0x%4.4x %20s %4d %10s %12s";
 		int r=0;
 		if (p) 
@@ -22901,18 +23138,19 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			if (DBE[r].Group)
 				sprintf(Response, q, DBE[r].Group, DBE[r].Element, DBE[r].SQLColumn,
 				DBE[r].SQLLength, SQLTypeSymName(DBE[r].SQLType), DICOMTypeSymName(DBE[r].DICOMType));
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_sop:", 8)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps2[]="%s %s";
 		if (p) *p++=0;				// points after 1st comma
 		unsigned int r = atoi(SilentText+8);
 		if (p==NULL) p = ps2;
 		if (r<PDU.SOPUIDListCount)
 			sprintf(Response, p, PDU.SOPUIDList[r], PDU.SOPUIDListNames[r]);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "put_sop:", 8)==0 ||
@@ -22922,6 +23160,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		 memcmp(SilentText, "put_application:", 16)==0
 		)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		unsigned int r = atoi(strchr(SilentText, ':')+1);
 		char **List, **ListNames;
 		unsigned int *Count;
@@ -23007,7 +23246,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		for (r=0; r<PDU.TransferUIDListCount; r++)
 			fprintf(f, "%-42s %-44s transfer\n", PDU.TransferUIDListNames[r], PDU.TransferUIDList[r]);
 		fclose(f);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "delete_sop:", 11)==0 ||
@@ -23017,6 +23256,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		 memcmp(SilentText, "delete_application:", 19)==0
 		)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		unsigned int r = atoi(strchr(SilentText, ':')+1), i;
 		char **List, **ListNames;
 		unsigned int *Count;
@@ -23096,55 +23336,60 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		for (r=0; r<PDU.TransferUIDListCount; r++)
 			fprintf(f, "%-42s %-44s transfer\n", PDU.TransferUIDListNames[r], PDU.TransferUIDList[r]);
 		fclose(f);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_transfer:", 13)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps2[]="%s %s";
 		if (p) *p++=0;				// points after 1st comma
 		unsigned int r = atoi(SilentText+13);
 		if (p==NULL) p = ps2;
 		if (r<PDU.TransferUIDListCount)
 			sprintf(Response, p, PDU.TransferUIDList[r], PDU.TransferUIDListNames[r]);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_application:", 16)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps2[]="%s %s";
 		if (p) *p++=0;				// points after 1st comma
 		unsigned int r = atoi(SilentText+16);
 		if (p==NULL) p = ps2;
 		if (r<PDU.ApplicationUIDListCount)
 			sprintf(Response, p, PDU.ApplicationUIDList[r], PDU.ApplicationUIDListNames[r]);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_localae:", 12)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps2[]="%s %s";
 		if (p) *p++=0;				// points after 1st comma
 		unsigned int r = atoi(SilentText+12);
 		if (p==NULL) p = ps2;
 		if (r<PDU.LocalAEListCount)
 			sprintf(Response, p, PDU.LocalAEList[r], PDU.LocalAEListNames[r]);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_remoteae:", 13)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps2[]="%s %s";
 		if (p) *p++=0;				// points after 1st comma
 		unsigned int r = atoi(SilentText+13);
 		if (p==NULL) p = ps2;
 		if (r<PDU.RemoteAEListCount)
 			sprintf(Response, p, PDU.RemoteAEList[r], PDU.RemoteAEListNames[r]);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "get_dic:", 8)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char ps3[]="%04x %04x %c%c %s";
 		if (p) *p++=0;				// points after 1st comma
 		unsigned int r = atoi(SilentText+8);
@@ -23155,17 +23400,19 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			e = &(VRType.TypeCodes->Get(r));
 			sprintf(Response, p, VRType.TypeCodes->Get(r).Group, VRType.TypeCodes->Get(r).Element, VRType.TypeCodes->Get(r).TypeCode>>8, VRType.TypeCodes->Get(r).TypeCode&255, VRType.TypeCodes->Get(r).Description);
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "mk_binary_dic:", 14)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		MkBinaryRtc(DicomDict, SilentText+14, TRUE);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "dump_header:", 12)==0)
 		{ 
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		FILE *f;
 		if (p) *p++=0;				// points after 1st comma
 		if (p==NULL || *p==0)
@@ -23197,11 +23444,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		if (f) fclose(f);
 		if (pDDO) delete pDDO;
 		DumpHeaderFromGui++;
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "display_status:", 15)==0)
 		{ 
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		FILE *f;
 		p = SilentText+15;
 		if (p==NULL || *p==0)
@@ -23230,11 +23478,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			f = fopen(p, "wt");
 		StatusDisplay(f);
 		if (f) fclose(f);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "status_string:", 14)==0)
 		{ 
+                if (!checkaccess(ca_status, ConnectedIP)) return false;
 		FILE *f;
 		p = SilentText+14;
 		if (p==NULL || *p==0)
@@ -23268,11 +23517,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			strcpy(SilentText, "text/plain");
 			}
 		if (f) fclose(f);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "echo:", 5)==0)
 		{ 
+                if (!checkaccess(ca_remote, ConnectedIP)) return false;
 		FILE *f;
 		if (p) *p++=0;	// points after 1st comma (file)
 		if (p==NULL || *p==0)
@@ -23304,11 +23554,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		else
 			fprintf(f, "%s is DOWN", SilentText+5);
 		if (f) fclose(f);
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "forward:", 8)==0)
 		{
+                if (!checkaccess(ca_move, ConnectedIP)) return false;
 		if (p) 
 		{ *p++=0;				// points after 1st comma
 		  q = strchr(p, ',');
@@ -23318,11 +23569,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		    ForwardFromGui++;
 		  }
 		}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "convert_to_gif:", 15)==0 || memcmp(SilentText, "convert_to_bmp:", 15)==0 || memcmp(SilentText, "convert_to_jpg:", 15)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		int level, window;
 		unsigned int frame;
 		DICOMDataObject *pDDO;
@@ -23428,11 +23680,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				}
 			delete pDDO;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "convert_to_dicom:", 17)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		DICOMDataObject *pDDO;
 		if (p) 
 		{ *p++=0;				// points after 1st comma
@@ -23459,11 +23712,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			ImagesToDicomFromGui++;
 			delete pDDO;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "convert_to_json:", 16)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char *r2=NULL;
 		DICOMDataObject *pDDO;
 		if (p) 
@@ -23497,11 +23751,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		        CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, script2);
 			delete pDDO;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "uncompress:", 11)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		DICOMDataObject *pDDO;
 		if (p) 
 		  *p++=0;				// points after 1st comma
@@ -23515,11 +23770,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			ImagesToDicomFromGui++;
 			delete pDDO;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "compress:", 9)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		DICOMDataObject *pDDO;
 		if (p) 
 		{ *p++=0;				// points after 1st comma
@@ -23536,11 +23792,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			ImagesToDicomFromGui++;
 			delete pDDO;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "extract_frames:", 15)==0)
 		{
+                if (!checkaccess(ca_change, ConnectedIP)) return false;
 		DICOMDataObject *pDDO;
 		if (p) 
 		{ *p++=0;				// points after 1st comma
@@ -23560,11 +23817,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			SaveDICOMDataObject(p, pDDO);
 			delete pDDO;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "wadorequest:", 12)==0 || memcmp(SilentText, "wadoparse:", 10)==0)
 		{
+                if (!checkaccess(ca_wado, ConnectedIP)) return false;
 		DICOMDataObject *pDDO;
 		char *begin = SilentText+12;
 		if (memcmp(SilentText, "wadoparse:", 10)==0)
@@ -23703,7 +23961,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				ImageStripforSeries(stud, ser, tempfile, size, 1, level, window, 0, -frame);
 				}
 			if (r7) tempfile[0]=0;
-			return;
+			return true;
 			}
 
 		// experimental jpg strip, will likely be removed
@@ -23728,7 +23986,7 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				ImageStripforSeries(stud, ser, tempfile, size, 1, level, window, 1, -frame);
 				}
 			if (r7) tempfile[0]=0;
-			return;
+			return true;
 			}
 
 		if (r6==NULL || *r6==0)
@@ -23867,11 +24125,12 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			delete pDDO;
 			if (r7) tempfile[0]=0;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "count_frames:", 13)==0)
 		{
+                if (!checkaccess(ca_wado, ConnectedIP)) return false;
 		DICOMDataObject *pDDO;
 		pDDO = LoadForGUI(SilentText+13);
 		if (pDDO)
@@ -23879,23 +24138,26 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			sprintf(Response, "%d", GetNumberOfFrames(pDDO));
 			delete pDDO;
 			}
-		return;
+		return true;
 		}
 
 	if (memcmp(SilentText, "grabimagesfromserver:", 21)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		if (p) *p++=0;				// points after 1st comma
 		if (p) GrabImagesFromServer((unsigned char *)SilentText+21, p, (char *)MYACRNEMA, Thread);
 		GrabFromGui++;
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "prefetch:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		PrefetchPatientData((char *)SilentText+9, 0, Thread);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "loadhl7:", 8)==0)
 		{
+                if (!checkaccess(ca_store, ConnectedIP)) return false;
 		unsigned int len = DFileSize(SilentText+8);
 		if (len)
 			{
@@ -23908,21 +24170,24 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			ProcessHL7Data(p2);
 			free(p2);
 			}
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "quit:", 5)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		exit(0);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "safequit:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		while (OpenThreadCount>1) Sleep(1000);
 		exit(0);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "checklargestmalloc:", 19)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		// mvh: on 32 bits system the malloc will fail before size_t(32 bits) overflows
 		// on 64 bits the test will happily continue to 8 GB and further
 		for(long long i=0; i<1000; i++)
@@ -23934,28 +24199,31 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				break;
 				}
 			}
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "genuid:", 7)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char uid[70];
 		GenUID(uid);
 		sprintf(Response, "%s", uid);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "changeuid:", 10)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char uid[70];
 		ChangeUID(SilentText+10, "--changeuid", uid, NULL, NULL);
 		sprintf(Response, "%s", uid);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "changeuidback:", 14)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char uid[70];
 		ChangeUIDBack(SilentText+14, uid, NULL, NULL, NULL);
 		sprintf(Response, "%s", uid);
-		return;
+		return true;
 		}
 
 /*	if (memcmp(SilentText, "scheduletransfer:", 17)==0)
@@ -24005,35 +24273,41 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		*/
 	if (memcmp(SilentText, "checksum:", 9)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		sprintf(Response, "%u", ComputeCRC(SilentText+9, strlen(SilentText+9)));
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "attachrtplantortstruct:", 23)==0)
 		{
+                if (!checkaccess(ca_store, ConnectedIP)) return false;
 		if (p) *p++=0;				// points after 1st comma
 		if (p) AttachRTPLANToRTSTRUCT(SilentText+23, p, &PDU);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "attachanytopatient:", 19)==0)
 		{
+                if (!checkaccess(ca_store, ConnectedIP)) return false;
 		if (p) *p++=0;
 		if (p) AttachAnyToPatient(SilentText+19, p, &PDU);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "attachanytostudy:", 17)==0)
 		{
+                if (!checkaccess(ca_store, ConnectedIP)) return false;
 		if (p) *p++=0;
 		if (p) AttachAnyToStudy(SilentText+17, p, &PDU);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "attachanytoseries:", 18)==0)
 		{
+                if (!checkaccess(ca_store, ConnectedIP)) return false;
 		if (p) *p++=0;
 		if (p) AttachAnyToSeries(SilentText+18, p, &PDU);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "attachfile:", 11)==0)
 		{
+                if (!checkaccess(ca_store, ConnectedIP)) return false;
 		char rFilename[1024];
 		if (p) *p++=0;
 		if ((vr = DCO.GetVR(0x9999,0x0402)))
@@ -24053,10 +24327,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 			{
 			if (p) AttachFile(SilentText+11, p, rFilename, &PDU);
 			}
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "submit:", 7)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char scr[] = "call submit.cq";		// default script
 		char *r2=NULL, *r3=NULL, *r4=NULL;
 		if (p) 					// study
@@ -24083,10 +24358,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		}
 		// DcmSubmitData(SilentText+7, p, q, r1, "call submit.cq", "sftp", r2, 22, r3);
 		if (r2) DcmSubmitData(SilentText+7, p, q, r1, r4, "sftp", r2, 22, r3, Thread);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "submit2:", 7)==0)
 		{
+                if (!checkaccess(ca_script, ConnectedIP)) return false;
 		char scr[] = "call submit.cq";		// default script
 		char *r2=NULL, *r3=NULL, *r4=NULL;
 		if (p) 					// study
@@ -24112,10 +24388,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		  }
 		}
 		if (r2) DcmSubmitData(SilentText+8, p, q, r1, r4, "other", r2, 22, r3, Thread);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "export:", 7)==0)
 		{
+                if (!checkaccess(ca_zip, ConnectedIP)) return false;
 		char *r2=NULL, *r3=NULL;
 		if (p) 					// study
 		{ *p++=0;				// points after 1st comma
@@ -24150,10 +24427,11 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		}
 
 		if (r2) DcmSubmitData(SilentText+7, p, q, r1, r3, "zip", r2, 0, NULL, Thread);
-		return;
+		return true;
 		}
 	if (memcmp(SilentText, "move:", 5)==0)
 		{
+                if (!checkaccess(ca_move, ConnectedIP)) return false;
 		char *empty="";
 		char *r2=empty, *r3=empty;
 		if (p) 					// dest
@@ -24188,8 +24466,9 @@ void ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		    strcpy(Response, "0");
 		  }
 		}
-		return;
+		return true;
 		}
+	return false;
 	}
 	
 BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
@@ -24545,7 +24824,9 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 				}
 
 			if (SilentText[0])
-				ServerTask(SilentText, PDU, DCO, Response, ConnectedIP, tempfile, ThreadNum);
+				if (!ServerTask(SilentText, PDU, DCO, Response, ConnectedIP, tempfile, ThreadNum))
+					OperatorConsole.printf("*** command forbidden or error\n");
+					
 			
   		        VR *vr2 = DCO.GetVR(0x9999, 0x0403);
 			if (vr2==NULL) vr2=DCO.GetVR(0x0008,0x3001);

@@ -1256,6 +1256,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260826	mvh	Export remote_addr to cgi web pages 
 20260901	mvh	Start on checkaccess for servercommands; failure logged to console
 20260902	mvh	Finalise checkaccess and export to lua; default allows 127.0.0.1 only; comma separared list with simple wildcards
+20260904	mvh	servercommand --checkaccess:op,ip where ip maybe v6, matching e.g 1:*, 1:2:*, 1:2:3:4:*, 1:2:3:4:5:6:*
 
 ENDOFUPDATEHISTORY
 */
@@ -1692,15 +1693,31 @@ int GetNumberOfFrames(DICOMDataObject* pDDO);
 #define ca_delete 11
 
 // Allows e.g. 127.0.0.1,192.168.1.*,10.127.*.* wildcards in dicom.ini
-BOOL checkaccess(int op, unsigned int ip)
+// when ip6 address string is passed then matches e.g 1:*, 1:2:*, 1:2:3:4:*, 1:2:3:4:5:6:*
+BOOL checkaccess(int op, unsigned int ip, char *ip6=NULL)
 { char ips1[20], ips2[20], ips3[20], ips4[20], ips5[20], buffer[258], szRootSC[64];
   if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile)) return false;
   strcpy(buffer, ",");
-  sprintf(ips1, ",%d.%d.%d.%d", ip&255, (ip>>8)&255, (ip>>16)&255, (ip>>24)&255);
-  sprintf(ips2, ",%d.%d.%d.*", ip&255, (ip>>8)&255, (ip>>16)&255);
-  sprintf(ips3, ",%d.%d.*.*", ip&255, (ip>>8)&255);
-  sprintf(ips4, ",%d.*.*.*", ip&255);
-  sprintf(ips5, ",*.*.*.*");
+
+  if (ip6) // ipv6
+  { int cc=0;
+    sprintf(ips1, ",%s", ip6);
+    for (int i=0; i<strlen(ip6); i++)
+    { if (ip6[i]==':') cc++;
+      if (cc==1) sprintf(ips2, ",%-.*s*", i, ip6);
+      if (cc==2) sprintf(ips3, ",%-.*s*", i, ip6);
+      if (cc==4) sprintf(ips4, ",%-.*s*", i, ip6);
+      if (cc==6) sprintf(ips5, ",%-.*s*", i, ip6);
+    }
+    if (cc!=7) return false;
+  }
+  else // ipv4
+  { sprintf(ips1, ",%d.%d.%d.%d", ip&255, (ip>>8)&255, (ip>>16)&255, (ip>>24)&255);
+    sprintf(ips2, ",%d.%d.%d.*", ip&255, (ip>>8)&255, (ip>>16)&255);
+    sprintf(ips3, ",%d.%d.*.*", ip&255, (ip>>8)&255);
+    sprintf(ips4, ",%d.*.*.*", ip&255);
+    sprintf(ips5, ",*.*.*.*");
+  }
 
   MyGetPrivateProfileString(szRootSC, "DeniedIPs", "none", buffer+1, 256, ConfigFile);
   if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
@@ -8629,6 +8646,13 @@ static char uploadedfile[256];
       return 1;
     }
   
+    // ipv6 as string
+    if (strchr(lua_tostring(L,2), ':'))
+    { lua_pushboolean(L, checkaccess(op, 0, (char *)lua_tostring(L,2)));
+      return 1;
+    }
+    
+    // ipv4 as integer
     if (sscanf(lua_tostring(L,2), "%d.%d.%d.%d", &a, &b, &c, &d)!=4) 
     { OperatorConsole.printf("*** checkaccess passed bad ip: %s\n", lua_tostring(L,2));
       lua_pushboolean(L, false);
@@ -13986,6 +14010,7 @@ PrintOptions ()
 	fprintf(stderr, "    --luastart:chunk                    Run lua chunk in server, retn immediate\n" );
 	fprintf(stderr, "    --dolua:chunk                       Run lua chunk in this dgate instance\n" );
 	fprintf(stderr, "    --dolua:filename                    Run lua file in this dgate instance\n" );
+	fprintf(stderr, "    --checkaccess:option,ip             Check ip against dicom.ini options\n" );
 	return ( TRUE );
 	}
 
@@ -21472,6 +21497,39 @@ BOOL ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 	
 	char *p = strchr(SilentText, ','), *q=NULL, *r1=NULL, *s1=NULL, *t1=NULL, *u1=NULL;
 	GuiRequest++;
+
+	if (memcmp(SilentText, "checkaccess:", 12)==0)
+		{
+		strcpy(Response, "0");
+		if (p)
+		{ int op=0, a, b, c, d;
+	          *p++=0;
+                  if      (strcmp(SilentText+12, "archive")==0) op=ca_archive;
+                  else if (strcmp(SilentText+12, "change")==0) op=ca_change;
+                  else if (strcmp(SilentText+12, "move")==0) op=ca_move;
+                  else if (strcmp(SilentText+12, "remote")==0) op=ca_remote;
+                  else if (strcmp(SilentText+12, "script")==0) op=ca_script;
+                  else if (strcmp(SilentText+12, "status")==0) op=ca_status;
+                  else if (strcmp(SilentText+12, "store")==0) op=ca_store;
+                  else if (strcmp(SilentText+12, "wado")==0) op=ca_wado;
+                  else if (strcmp(SilentText+12, "zip")==0) op=ca_zip;
+                  else if (strcmp(SilentText+12, "stow")==0) op=ca_stow;
+                  else if (strcmp(SilentText+12, "delete")==0) op=ca_delete;
+		  else return true;
+
+                  // ipv6
+		  if (strchr(p, ':'))
+		  { if (checkaccess(op, 0, p)) strcpy(Response, "1");
+                    return true;
+		  }
+
+		  // ipv4
+		  if (sscanf(p, "%d.%d.%d.%d", &a, &b, &c, &d)!=4) return true;
+                  unsigned int ip = a+(b<<8)+(c<<16)+(d<<24);
+                  if (checkaccess(op, ip)) strcpy(Response, "1");
+		}
+		return true;
+		}
 
 	if (memcmp(SilentText, "lua:", 4)==0)
 		{ 

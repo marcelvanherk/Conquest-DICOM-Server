@@ -704,6 +704,7 @@ When            Who     What
 20260810        mvh     Move all temporary files to GetTempDir; change GetTempDir to curdir if there is no access
 20260813        mvh     Auto configure BackupSchedule for Sqlite (required folder backup); call now require([[ladle]])()
 20260826        mvh     Make sure conquest_browser is also created during install
+20260904        mvh     Adapt hint to LadlePort; use valid scripts on starting
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -740,7 +741,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0f';
-const BUILDDATE = '20260813';
+const BUILDDATE = '20260904';
 const testmode = 0;
 
 {************************************************************************}
@@ -1805,7 +1806,7 @@ begin
 
   resp := 1;
   try
-    resp := DcmEcho(trim(ServerName.text), trim(ServerName.text), '127.0.0.1', trim(TCPIPport.text), 'User interface test: local server is running!', 'silent');
+    resp := DcmEcho(trim(ServerName.text), trim(ServerName.text), '127.0.0.1', trim(TCPIPport.text), 'User interface test: local server is running!', 'checkaccess:script,127.0.0.1');
   except
   end;
   case resp of
@@ -3543,6 +3544,8 @@ begin
 
     if Copy(s, 0, length('ladleport')) = 'ladleport' then
       LadlePort := GetData(s);
+      
+    CheckBoxWebServer.Hint := 'Starts built-in webserver on port '+LadlePort+' (right click to browse)';
 
     if Copy(s, 0, length('demoviewer')) = 'demoviewer' then
       DemoViewer := GetData(s);
@@ -8423,7 +8426,7 @@ var resp: integer;
 begin
   resp := 1;
   try
-    resp := DcmEcho(trim(ServerName.text), trim(ServerName.text), '127.0.0.1', trim(TCPIPport.text), '', 'silent');
+    resp := DcmEcho(trim(ServerName.text), trim(ServerName.text), '127.0.0.1', trim(TCPIPport.text), '', 'checkaccess:script,127.0.0.1');
   except
   end;
 

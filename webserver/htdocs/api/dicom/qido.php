@@ -1,4 +1,7 @@
 <?php
+  // mvh 20260901: Use escapeshellarg
+  // mvh 20260903: Use squote, functions in index.php
+
   function processData($params, $tags, $query, $level) {
     include 'config.php';
     foreach($tags as $element) {
@@ -10,10 +13,11 @@
       if ($key=='offset') $params["99990C02"]=$value;
     };
     $params = array_merge($params, $query);
-    $t = str_replace('"', $quote, json_encode($params));    
+    // $t = str_replace('"', $quote, json_encode($params));    
+    $t = json_encode($params);    
  
     ob_start();
-    passthru($exe . ' "--dolua:dofile([[rquery.lua]]);rquery(nil, [[ ' . $t . ' ]], [[' . $level . ']])"');
+    passthru($exe . ' ' . squote('--dolua:dofile([[rquery.lua]]);rquery(nil,  ' . rquote($t) . ' , ' . rquote($level) . ')'));
     $var = ob_get_contents();
     ob_end_clean();
    
@@ -58,7 +62,7 @@
   function getmetadata($st,$se,$sop) {
     include 'config.php';
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getmetadata(nil,[['.$st.']],[['.$se.']],[['.$sop.']])"');
+    passthru($exe . ' ' . squote('--dolua:dofile([[rquery.lua]]);getmetadata(nil,' . rquote($st).','.rquote($se).','.rquote($sop).')'));
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Origin: *');
@@ -74,7 +78,7 @@
     include 'config.php';
     $bd = generateRandomString(32);
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getinstances(nil,[['.$bd.']],[['.$st.']],[['.$se.']],[['.$sop.']])"');
+    passthru($exe. ' ' . squote('--dolua:dofile([[rquery.lua]]);getinstances(nil,'.rquote($bd).','.rquote($st).','.rquote($se).','.rquote($sop).')'));
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
@@ -87,7 +91,7 @@
     include 'config.php';
     $bd = generateRandomString(32);
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getframe(nil,[['.$st.']],[['.$se.']],[['.$sop.']],'.$fr.')"');
+    passthru($exe . ' ' . squote('--dolua:dofile([[rquery.lua]]);getframe(nil,'.rquote($st).','.rquote($se).','.rquote($sop).','.strval($fr).')'));
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
@@ -105,7 +109,7 @@
   function thumbnail($st,$se,$sop,$fr,$sz) {
     include 'config.php';
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);getthumbnail(nil,[['.$st.']],[['.$se.']],[['.$sop.']],'.$fr.','.$sz.')"');
+    passthru($exe . ' ' . squote('--dolua:dofile([[rquery.lua]]);getthumbnail(nil,'.rquote($st).','.rquote($se).','.rquote($sop).','.strval($fr).','.strval($sz).')'));
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
@@ -117,7 +121,7 @@
   function modalities() {
     include 'config.php';
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);remotemodalities()"');
+    passthru($exe . ' ' . squote('--dolua:dofile([[rquery.lua]]);remotemodalities()'));
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
@@ -129,7 +133,7 @@
   function dicomecho($ae) {
     include 'config.php';
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);remoteecho([['.$ae.']])"');
+    passthru($exe . ' ' . squote('--dolua:dofile([[rquery.lua]]);remoteecho('.rquote($ae).')'));
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
@@ -141,7 +145,7 @@
   function zip($st,$se,$sop,$script) {
     include 'config.php';
     ob_start();
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);remotezip(nil,[['.$st.']],[['.$se.']],[['.$sop.']],[['.$script.']])"');
+    passthru($exe . ' ' . squote('--dolua:dofile([[rquery.lua]]);remotezip(nil,'.rquote($st).','.rquote($se).','.rquote($sop).','.rquote($script).')'));
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');
@@ -154,8 +158,9 @@
     include 'config.php';
     ob_start();
     $params = array("StudyInstanceUID"=>$st, "SeriesInstanceUID"=>$se, "SOPInstanceUID"=>$sop, "99990900"=>$script);
-    $t = str_replace('"', $quote, json_encode($params));    
-    passthru($exe.' "--dolua:dofile([[rquery.lua]]);remotemove([['.$src.']],[['.$dest.']],[['.$t.']])"');
+    //$t = str_replace('"', $quote, json_encode($params));    
+    $t = json_encode($params);    
+    passthru($exe . ' ' . squote('--dolua:dofile([[rquery.lua]]);remotemove('.rquote($src).','.rquote($dest).','.rquote($t).')'));
     $var = ob_get_contents();
     ob_end_clean();
     header('Access-Control-Allow-Headers: *');

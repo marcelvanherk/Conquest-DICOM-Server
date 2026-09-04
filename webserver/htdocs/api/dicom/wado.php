@@ -1,5 +1,7 @@
 <?php 
 // mvh 20220814: Simple and fast WADO server using conquest1.5.0c wadoparse command and servertask
+// mvh 20260904: Use squote instead of escapeshellarg
+
 include 'config.php';
 
 $t = parse_url($_SERVER["REQUEST_URI"]);
@@ -9,7 +11,8 @@ if (array_key_exists("query", $t))
 // Run the executable
 header_remove();
 ob_start();
-passthru($exe . ' "--wadoparse:' . str_replace('"', $quote, http_build_query($output)) . '"');
+
+passthru($exe . ' '. squote('--wadoparse:' . http_build_query($output)));
 $var = ob_get_contents();
 ob_end_clean();
 

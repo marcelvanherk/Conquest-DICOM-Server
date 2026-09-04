@@ -1,7 +1,30 @@
 <?php
+// mvh 20260903: Use squote instead of escapeshellarg; implemented checkaccess
+// mvh 20260904: checkaccess is run remotely
+
     require_once 'Router.php';
     include 'config.php';
-    
+
+    function squote($val) {
+      include 'config.php';
+      $t = str_replace('"', $quote, $val);    
+      return '"' . $t . '"';
+    }
+
+    function rquote($val) {
+      if(strstr($val, ']=]')) return 'INVALID';
+      return '[=[' . $val . ']=]';
+    }
+  
+    function checkaccess($item) {
+      include 'config.php';
+      ob_start();
+      passthru($exe . ' ' . squote('--checkaccess:' . $item . ',' . $_SERVER["REMOTE_ADDR"]));
+      $var = ob_get_contents();
+      ob_end_clean();
+      return $var=='1';
+    }
+        
     if ($wplogin) {
       if (!defined("DISABLE_WP_CRON")) define( 'DISABLE_WP_CRON', true );
       if (!defined("WP_PLUGIN_DIR"))   define( 'WP_PLUGIN_DIR', 'xxx' );
@@ -162,6 +185,7 @@ EOD;
 
     // post instance(s)
     $router->post('/rs/studies$', function () {
+       if (!checkaccess('stow')) return false;
        include 'posters.php';
        poststow();
     });
@@ -194,6 +218,7 @@ EOD;
 
     // zip an image, synchronous; script can modify (e.g. anonymise)
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances/([0-9%.]+)/zip$', function ($st,$se,$sop) {
+       if (!checkaccess('zip')) return false;
        include 'qido.php';
        $script = CGI('script', '');
        zip($st,$se,$sop,$script);
@@ -201,6 +226,7 @@ EOD;
 
     // zip a series, synchronous; script can modify (e.g. anonymise)
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/zip$', function ($st,$se) {
+       if (!checkaccess('zip')) return false;
        include 'qido.php';
        $script = CGI('script', '');
        zip($st,$se,'',$script);
@@ -208,6 +234,7 @@ EOD;
 
     // zip a study, synchronous; script can modify (e.g. anonymise)
     $router->get('/rs/studies/([0-9%.]+)/zip$', function ($st) {
+       if (!checkaccess('zip')) return false;
        include 'qido.php';
        $script = CGI('script', '');
        zip($st,'','',$script);
@@ -215,6 +242,7 @@ EOD;
     
     // move an image
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/instances/([0-9%.]+)/move$', function ($st,$se,$sop) {
+       if (!checkaccess('move')) return false;
        include 'qido.php';
        $script = CGI('script', '');
        $target = CGI('target', '');
@@ -223,6 +251,7 @@ EOD;
 
     // move a series
     $router->get('/rs/studies/([0-9%.]+)/series/([0-9%.]+)/move$', function ($st,$se) {
+       if (!checkaccess('move')) return false;
        include 'qido.php';
        $script = CGI('script', '');
        $target = CGI('target', '');
@@ -231,6 +260,7 @@ EOD;
 
     // move a study
     $router->get('/rs/studies/([0-9%.]+)/move$', function ($st) {
+       if (!checkaccess('move')) return false;
        include 'qido.php';
        $script = CGI('script', '');
        $target = CGI('target', '');
@@ -239,18 +269,21 @@ EOD;
 
     // list modalities
     $router->get('/rs/modalities$', function () {
+       if (!checkaccess('move')) return false;
        include 'qido.php';
        modalities();
     });
 
     // echo
     $router->get('/rs/modalities/(.+)$', function ($ae) {
+       if (!checkaccess('move')) return false;
        include 'qido.php';
        dicomecho($ae);
     });
 
     // attach instance (allow importconverter style script query parameter run for each object in e.g. zip)
     $router->post('/rs/attach$', function () {
+       if (!checkaccess('store')) return false;
        include 'posters.php';
        $script = CGI('script', '');
        attachfile($script);
@@ -258,6 +291,7 @@ EOD;
 
     // attach instance (use lua script query parameter, let it return JSON string for response)
     $router->post('/rs/attachdicom$', function () {
+       if (!checkaccess('store')) return false;
        include 'posters.php';
        $script = CGI('script', '');
        attachdicomfile($script);
@@ -265,18 +299,21 @@ EOD;
 
     // runs a script
     $router->post('/rs/script$', function () {
+       if (!checkaccess('script')) return false;
        include 'posters.php';
        runscript();
     });
 
     // start a script
     $router->post('/rs/startscript$', function () {
+       if (!checkaccess('script')) return false;
        include 'posters.php';
        startscript();
     });
 
     // get (or set) a script progress (uri parameter setvalue writes the value)
     $router->get('/rs/startscript/([0-9%.]+)$', function ($uid) {
+       if (!checkaccess('script')) return false;
        include 'posters.php';
        $val = CGI('setvalue', -1);
        if ($val>=0) 

@@ -16,10 +16,15 @@
 -- 20240928   mvh   Added #UID hash with full UID tooltip
 -- 20260815   mvh   Use rquote throughout
 -- 20260902   mvh   Modify dropdown menu based on checkaccess
+-- 20260904   mvh   checkaccess is run remotely
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
   return '[=['..str..']=]'
+end
+
+function checkaccess(a, b)
+  return servercommand('checkaccess:'..a..','..b)=='1'
 end
 
 local query_pid = '';

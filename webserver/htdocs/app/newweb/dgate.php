@@ -28,9 +28,15 @@
 // 20210913  mvh  Put wordpress login test here as option
 // 20220823  mvh  Added optional CORS headers
 // 20220827  mvh  Use configuration, stopped supporting old cgi interface
-// 20260902  mvh  Pass REMOTE_ADDR
+// 20260903  mvh  Pass REMOTE_ADDR; use squote (not escapeshellarg)
 
 include 'config.php';
+
+function squote($val) {
+  include 'config.php';
+  $t = str_replace('"', $quote, $val);    
+  return '"' . $t . '"';
+}
 
 if ($wplogin) {
   if (!defined("DISABLE_WP_CRON")) define( 'DISABLE_WP_CRON', true );
@@ -42,13 +48,13 @@ if ($wplogin) {
 chdir($folder); 
 
 // nasty: patch dicom.ini to use dgate.php
-$ini=file_get_contents("dicom.ini");
-$n = strpos($ini, "WebScriptAddress         = http");
-if ($n>0) {
-  $m = strpos(substr($ini, $n), "\n");
-  $t = substr($ini, 0, $n) . "WebScriptAddress = dgate.php" . substr($ini, $n+$m);
-  file_put_contents("dicom.ini", $t);
-}
+//$ini=file_get_contents("dicom.ini");
+//$n = strpos($ini, "WebScriptAddress         = http");
+//if ($n>0) {
+//  $m = strpos(substr($ini, $n), "\n");
+//  $t = substr($ini, 0, $n) . "WebScriptAddress = dgate.php" . substr($ini, $n+$m);
+//  file_put_contents("dicom.ini", $t);
+//}
 
 // this script offers login dialog etc; it stores user.db in $folder
 if ($userlogin) {
@@ -113,7 +119,7 @@ putenv("REMOTE_ADDR=".$_SERVER["REMOTE_ADDR"]);
 // Run the cgi executable
 header_remove();
 ob_start();
-passthru($exe . ' "-y' . http_build_query($output) . '"');
+passthru($exe . ' ' . squote('-y' . http_build_query($output)));
 $var = ob_get_contents();
 ob_end_clean();
 

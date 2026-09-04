@@ -52,10 +52,15 @@
 -- mvh 20230625: Made all links relative
 -- mvh 20260815: Use rquote throughout
 -- mvh 20260902: Use checkaccess to control access to server control channel
+-- mvh 20260904: checkaccess is run remotely
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
   return '[=['..str..']=]'
+end
+
+function checkaccess(a, b)
+  return servercommand('checkaccess:'..a..','..b)=='1'
 end
 
 local readOnly = gpps('webdefaults', 'readOnly', '0')~='0'

@@ -20,10 +20,15 @@
 -- 20260815   mvh   Use rquote throughout
 -- 20260823   mvh   Use rquote also for luastart: code
 -- 20260902   mvh   Use checkaccess to control access to server control channel and dropdown
+-- 20260904   mvh   checkaccess is run remotely
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
   return '[=['..str..']=]'
+end
+
+function checkaccess(a, b)
+  return servercommand('checkaccess:'..a..','..b)=='1'
 end
 
 version = version  or ''

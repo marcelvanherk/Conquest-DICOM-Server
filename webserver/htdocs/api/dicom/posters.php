@@ -1,4 +1,5 @@
 <?php
+  // mvh 20260903: Use squote instead of escapeshellarg
 /**
  * Parse arbitrary multipart/form-data content
  * Note: null result or null values for headers or value means error
@@ -40,7 +41,7 @@ function poststow() {
     fwrite($file, $d[$i]["value"]);
     $path = stream_get_meta_data($file)['uri'];
     ob_start();
-    passthru($exe . ' "--dolua:dofile([[posters.lua]]);poststow([['.$path.']])"');
+    passthru($exe . ' ' . squote('--dolua:dofile([[posters.lua]]);poststow('.rquote($path).')'));
     $var = $var . ob_get_contents();
     ob_end_clean();
     fclose($file);
@@ -95,7 +96,7 @@ function attachfile($script) {
   }
 
   ob_start();
-  passthru($exe . ' "--dolua:dofile([[posters.lua]]);attachfile([['.$path.']], [['. str_replace('"', $quote, $script).']], [['. $ext .']])"');
+  passthru($exe . ' ' . squote('--dolua:dofile([[posters.lua]]);attachfile('.rquote($path).','. rquote($script).','. rquote($ext) .')'));
   $var = ob_get_contents();
   ob_end_clean();
   if ($file!=null)
@@ -144,7 +145,7 @@ function attachdicomfile($script) {
   }
 
   ob_start();
-  passthru($exe . ' "--dolua:dofile([[posters.lua]]);attachdicomfile([['.$path.']], [['. str_replace('"', $quote, $script).']])"');
+  passthru($exe . ' ' . squote('--dolua:dofile([[posters.lua]]);attachdicomfile('.rquote($path).','. rquote($script).')'));
   $var = ob_get_contents();
   ob_end_clean();
   if ($file!=null)
@@ -164,7 +165,7 @@ function runscript() {
   $scrpath = stream_get_meta_data($scr)['uri'];
   
   ob_start();
-  passthru($exe . ' "--dolua:dofile([[posters.lua]]);runscript([['. $scrpath . ']])"');
+  passthru($exe . ' ' . squote('--dolua:dofile([[posters.lua]]);runscript('. rquote($scrpath) . ')'));
   $var = ob_get_contents();
   ob_end_clean();
   fclose($scr);
@@ -183,7 +184,7 @@ function startscript() {
   $scrpath = stream_get_meta_data($scr)['uri'];
   
   ob_start();
-  passthru($exe . ' "--dolua:dofile([[posters.lua]]);startscript([['. $scrpath . ']])"');
+  passthru($exe . ' ' . squote('--dolua:dofile([[posters.lua]]);startscript('. rquote($scrpath) . ')'));
   $var = ob_get_contents();
   ob_end_clean();
   fclose($scr);
@@ -196,7 +197,7 @@ function startscript() {
 function readprogress($uid) {
   include 'config.php';
   ob_start();
-  passthru($exe . ' "--dolua:dofile([[posters.lua]]);readprogress([['. $uid . ']])"');
+  passthru($exe . ' ' . squote('--dolua:dofile([[posters.lua]]);readprogress('. rquote($uid) . ')'));
   $var = ob_get_contents();
   ob_end_clean();
   header('Access-Control-Allow-Origin: *');
@@ -208,7 +209,7 @@ function readprogress($uid) {
 function writeprogress($uid, $val) {
   include 'config.php';
   ob_start();
-  passthru($exe . ' "--dolua:dofile([[posters.lua]]);writeprogress([['. $uid . ']], ' . $val . ')"');
+  passthru($exe . ' ' . squote('--dolua:dofile([[posters.lua]]);writeprogress('. rquote($uid) . ',' . rquote($val) . ')'));
   $var = ob_get_contents();
   ob_end_clean();
   header('Access-Control-Allow-Origin: *');

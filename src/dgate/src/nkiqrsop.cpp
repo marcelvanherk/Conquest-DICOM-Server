@@ -287,6 +287,7 @@
 20240927        mvh     Fix crash on non-images there
 20250216        mvh     Implement pixelRepresentation in To8bitMonochromeOrRGB
 20250218        mvh     Fixed outgoing J7: must propose lossy first, then lossless
+20260906	mvh	Use VR->GetString
 */
 
 //#define bool BOOL
@@ -585,8 +586,7 @@ BOOL	StandardRetrieveNKI	::	Read (
 	if (vr)
 		{ 
 		char split[64];
-		strncpy(split, (const char*)vr->Data, vr->Length);
-		split[vr->Length] = 0;
+		vr->GetString(split, sizeof(split));
 		if (strchr(split, '/')) 
 			splitinto = atoi(strchr(split, '/')+1);
 		splitselect = atoi(split);
@@ -631,8 +631,7 @@ BOOL	StandardRetrieveNKI	::	Read (
 	vr = DCO->GetVR(0x9999, 0x0a00);
 	if (vr)
 		{ 
-		strncpy((char *)MyACR, (const char*)vr->Data, vr->Length);
-		MyACR[vr->Length] = 0;
+                vr->GetString((char *)MyACR, sizeof(MyACR));
 		}
 	
 	if (! SearchOn (&DDO, &ADDO) )//bcb, mvh: fills ADDO, must delete before exit
@@ -802,16 +801,14 @@ BOOL	StandardRetrieveNKI	::	Read (
 					vr = DCO->GetVR(0x9999, 0x0700);
 						if (vr)
 						{ 
-						strncpy(mode, (const char*)vr->Data, vr->Length);
-						mode[vr->Length] = 0;
+						vr->GetString(mode, sizeof(mode));
 						}
 
 					// optional requested custom script
 					vr = DCO->GetVR(0x9999, 0x0900);
 						if (vr)
 						{ 
-						strncpy(script, (const char*)vr->Data, vr->Length);
-						script[vr->Length] = 0;
+						vr->GetString(script, sizeof(script));
 						}
 
 					vr = DCO->GetVR(0x9999, 0x0600);
@@ -2383,8 +2380,7 @@ int MaybeDownsize(DICOMDataObject* pDDO, DICOMCommandObject* pDCO, int size)
   pVR1 = pDDO->GetVR(0x0028, 0x0030);	/* Pixelspacing */
   if (!pVR1)
     return TRUE;
-  strncpy(s, (const char*)pVR1->Data, pVR1->Length);
-  s[pVR1->Length] = 0;
+  pVR1->GetString(s, sizeof(s));
   fSpacingX = (float)(atof(s));
   pSeparator = strchr(s, '\\');
   if (pSeparator)
@@ -2560,8 +2556,7 @@ int ScaleClip(DICOMDataObject* pDDO, int factor, int clip)
   pVR1 = pDDO->GetVR(0x0028, 0x1053);	/* change RescaleSlope */
   if (pVR1)
   { char s[64];
-    memcpy(s, pVR1->Data, pVR1->Length);
-    s[pVR1->Length]=0;
+    pVR1->GetString(s, sizeof(s));
     float slope = atof(s)*factor;
     sprintf(s, "%.2f", slope);
     pDDO->ChangeVR(0x0028, 0x1053, s, 'DS');
@@ -2673,7 +2668,7 @@ BOOL ProcessDDO(DICOMDataObject** pDDO, DICOMCommandObject* pDCO, ExtendedPDU_Se
   VR *vr;
   if (pDCO) 
   { vr = pDCO->GetVR(0x0000, 0x0600);
-    if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+    if (vr) vr->GetString(dest, sizeof(dest));
   }
   while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -2784,8 +2779,7 @@ int DcmConvertPixelData(DICOMDataObject*pDDO, bool bConvertToMono, bool	bCrop,
   /* Maybe more than one frame */
   pVR = pDDO->GetVR(0x0028,0x0008);		// NumberOfFrames
   if (pVR)
-  { strncpy(s, (char*)pVR->Data, pVR->Length);
-    s[pVR->Length] = 0;
+  { pVR->GetString(s, sizeof(s));
     iNbFrames = atoi(s);
   }
 
@@ -2940,8 +2934,7 @@ void SaveDICOMDataObject(char *Filename, DICOMDataObject* pDDO)
 	pVR = pDDO->GetVR(0x0002, 0x0010);	// TransferSyntaxUID
 	if (pVR && pVR->Data)
 		{
-		strncpy(s, (char*)pVR->Data, pVR->Length);
-		s[pVR->Length] = 0;
+		pVR->GetString(s, sizeof(s));
 		if ((strcmp(s, "1.2.840.10008.1.2")   != 0) &&
 		    (strcmp(s, "1.2.840.10008.1.2.1") != 0) &&
 		    (strcmp(s, "1.2.840.10008.1.2.2") != 0))
@@ -3062,8 +3055,7 @@ SLICE_INFO*	getpSliceInfo(DICOMDataObject* pDDO)
 	// PhotometricInterpretation
 	pVR = pDDO->GetVR(0x0028, 0x0004);
 	if (pVR && pVR->Length && pVR->Data)
-		strncpy(pSliceInfo->szPhotometricInterpretation,
-			(char*)pVR->Data, pVR->Length<19 ? pVR->Length : 19);
+		pVR->GetString(pSliceInfo->szPhotometricInterpretation, sizeof(pSliceInfo->szPhotometricInterpretation));
 
 	return pSliceInfo;
 	
@@ -4818,7 +4810,7 @@ BOOL recompress(DICOMDataObject **pDDO, const char *Compression, const char *Fil
 		VR *vr = (*pDDO)->GetVR(0x0002, 0x0010);
 		if (vr && vr->Data)
 			{
-			strncpy(s, (char*)vr->Data, vr->Length); s[vr->Length] = 0;
+			vr->GetString(s, sizeof(s));
 			s[18] = '0';// Used for switch in LittleEndianImplicit.
 
 			// skip recompression to original level, only LittleEndianImplicit is 17 long
@@ -4877,7 +4869,7 @@ BOOL recompress(DICOMDataObject **pDDO, const char *Compression, const char *Fil
 		VR *vr = (*pDDO)->GetVR(0x0002, 0x0010);
 		if (vr && vr->Data)
 			{
-			strncpy(s, (char*)vr->Data, vr->Length); s[vr->Length] = 0;
+			vr->GetString(s, sizeof(s));
 
 			// skip recompression to original level
 			if(strncmp(s,"1.2.840.10008.1.2.4.",20)==0)//Common to all jpeg
@@ -4970,7 +4962,7 @@ BOOL recompress(DICOMDataObject **pDDO, const char *Compression, const char *Fil
 		VR *vr = (*pDDO)->GetVR(0x0002, 0x0010);
 		if (vr && vr->Data)
 			{
-			strncpy(s, (char*)vr->Data, vr->Length); s[vr->Length] = 0;
+			vr->GetString(s, sizeof(s));
 
 			// leave JPEG as is
 			if ((strcmp(s, "1.2.840.10008.1.2.4.70")==0) ||
@@ -5361,14 +5353,12 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
     char text[256];
     pVR=pDDO->GetVR(0x0028, 0x1050);
     if (pVR) {
-      memset(text, 0, 256);
-      if (pVR->Length<256) memcpy(text, (char *)(pVR->Data), pVR->Length);
+      pVR->GetString(text, sizeof(text));
       level = (int)(atof(text)+0.5);
     }
     pVR=pDDO->GetVR(0x0028, 0x1051);
     if (pVR) {
-      memset(text, 0, 256);
-      if (pVR->Length<256) memcpy(text, (char *)(pVR->Data), pVR->Length);
+      pVR->GetString(text, sizeof(text));
       window = (int)(atof(text)+0.5);
     }
     //level = pDDO->Getatoi(0x0028, 0x1050);
@@ -5403,8 +5393,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
     pVR = pDDO->GetVR(0x0028, 0x1053);	/* RescaleSlope */
     if (pVR)
     { char s[64];
-      memcpy(s, pVR->Data, pVR->Length);
-      s[pVR->Length]=0;
+      pVR->GetString(s, sizeof(s));
       slope = atof(s);
     }
     if (window==0 && slope>0.999 && slope<1.001)

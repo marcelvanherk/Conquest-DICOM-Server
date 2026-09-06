@@ -1257,11 +1257,15 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260901	mvh	Start on checkaccess for servercommands; failure logged to console
 20260902	mvh	Finalise checkaccess and export to lua; default allows 127.0.0.1 only; comma separared list with simple wildcards
 20260904	mvh	servercommand --checkaccess:op,ip where ip maybe v6, matching e.g 1:*, 1:2:*, 1:2:3:4:*, 1:2:3:4:5:6:*
+20260905	mvh	Increase buffer sizes and check Length to avoid crash on incorrect dicom object
+20260906	mvh	protect checkaccess against too long ip6
+20260906	mvh	Use new vr->GetString to avoid buffer overruns and simplify code
+20260906	mvh	Version to 1.5.0g
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0f"
+#define DGATE_VERSION "1.5.0g"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -1695,12 +1699,13 @@ int GetNumberOfFrames(DICOMDataObject* pDDO);
 // Allows e.g. 127.0.0.1,192.168.1.*,10.127.*.* wildcards in dicom.ini
 // when ip6 address string is passed then matches e.g 1:*, 1:2:*, 1:2:3:4:*, 1:2:3:4:5:6:*
 BOOL checkaccess(int op, unsigned int ip, char *ip6=NULL)
-{ char ips1[20], ips2[20], ips3[20], ips4[20], ips5[20], buffer[258], szRootSC[64];
+{ char ips1[64], ips2[64], ips3[64], ips4[64], ips5[64], buffer[258], szRootSC[64];
   if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile)) return false;
   strcpy(buffer, ",");
-
+  
   if (ip6) // ipv6
-  { int cc=0;
+  { if (strlen(ip6)>63) return FALSE;
+    int cc=0;
     sprintf(ips1, ",%s", ip6);
     for (int i=0; i<strlen(ip6); i++)
     { if (ip6[i]==':') cc++;
@@ -3022,8 +3027,7 @@ GetImageFileUID(char *filename, char *UID)
 		}
 
 	vrSOPInstanceUID = pDDO->GetVR(0x0008, 0x0018);
-	memset(UID, 0, 255);
-	memcpy(UID, vrSOPInstanceUID->Data, vrSOPInstanceUID->Length);
+	vrSOPInstanceUID->GetString(UID, 256);
 
 	delete pDDO;
 
@@ -3135,8 +3139,7 @@ NewUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, const char *Reason
 
     			if (TypeCode=='UI' && strstr(desc, "Class")==NULL && strcmp(desc, "TransferSyntaxUID"))
 				{
-				memcpy(s, vr->Data, vr->Length);
-				s[vr->Length]=0;
+				vr->GetString(s, sizeof(s));
 
 				// 20140309: blocked
 				// if (strlen(s)==0) GenUID(s);
@@ -3236,8 +3239,8 @@ OldUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, char *Stage, Datab
 
     			if (TypeCode=='UI' && strstr(desc, "Class")==NULL && strcmp(desc, "TransferSyntaxUID"))
 				{
-				memcpy(s, vr->Data, vr->Length);
-				s[vr->Length]=0;
+				vr->GetString(s, sizeof(s));
+
 				if (strlen(s)==0) GenUID(s);
 				strcat(s, ";");
 				sprintf(name, "%04x,%04x|", vr->Group, vr->Element);
@@ -3342,8 +3345,7 @@ ModifyPATIDofDDO(DICOMDataObject *pDDO, char *NewPATID, char *Reason=NULL)
 
 	// change patient ID
 	vr = pDDO->GetVR(0x0010, 0x0020);
-	memset(s, 0, 255);
-	memcpy(s, vr->Data, vr->Length);
+	//vr->GetString(s, sizeof(s));
 
 	len = strlen(NewPATID); if (len&1) len++;
         vr->ReAlloc(len);
@@ -3458,8 +3460,7 @@ OffsetDatesInDICOMObject(DICOMObject *DO, const char *Exceptions, int Offset, Da
     			
 			if (TypeCode=='DA')
 				{
-				memcpy(s, vr->Data, vr->Length);
-				s[vr->Length]=0;
+				vr->GetString(s, sizeof(s));
 
 				sprintf(name, "%04x,%04x|", vr->Group, vr->Element);
 
@@ -3467,8 +3468,7 @@ OffsetDatesInDICOMObject(DICOMObject *DO, const char *Exceptions, int Offset, Da
 					{
 					SystemDebug.printf("[OffsetDatesInDICOMObject] changing %04x,%04x (%s)\n", vr->Group, vr->Element, desc);
 					memset(&tmbuf, 0, sizeof(tmbuf));
-					memcpy(s, vr->Data, vr->Length);
-					s[vr->Length]=0;
+					vr->GetString(s, sizeof(s));
 					if (sscanf(s, "%04d%02d%02d", &tmbuf.tm_year, &tmbuf.tm_mon, &tmbuf.tm_mday)==3) {
 						tmbuf.tm_year -= 1900;
 						tmbuf.tm_mon  -= 1;
@@ -3489,8 +3489,7 @@ OffsetDatesInDICOMObject(DICOMObject *DO, const char *Exceptions, int Offset, Da
 			
     			if (TypeCode=='DT')
 				{
-				memcpy(s, vr->Data, vr->Length);
-				s[vr->Length]=0;
+				vr->GetString(s, sizeof(s));
 
 				sprintf(name, "%04x,%04x|", vr->Group, vr->Element);
 
@@ -3498,8 +3497,7 @@ OffsetDatesInDICOMObject(DICOMObject *DO, const char *Exceptions, int Offset, Da
 					{
 					SystemDebug.printf("[OffsetDatesInDICOMObject] changing %04x,%04x (%s)\n", vr->Group, vr->Element, desc);
 					memset(&tmbuf, 0, sizeof(tmbuf));
-					memcpy(s, vr->Data, vr->Length);
-					s[vr->Length]=0;
+					vr->GetString(s, sizeof(s));
 					if (sscanf(s, "%04d%02d%02d", &tmbuf.tm_year, &tmbuf.tm_mon, &tmbuf.tm_mday)==3) {
 						tmbuf.tm_year -= 1900;
 						tmbuf.tm_mon  -= 1;
@@ -4081,19 +4079,6 @@ ModifyPATIDofImageFile(char *filename, char *NewPATID, BOOL DelFile, char *scrip
 			OperatorConsole.printf("[ModifyPATIDofImageFile] %s rejected by script\n", filename);
 			return ( FALSE );
 			}
-
-		/*if (NewPATID)
-			{
-			// change patient ID
-			VR *vr = pDDO->GetVR(0x0010, 0x0020);
-			memset(s, 0, 255);
-			memcpy(s, vr->Data, vr->Length);
-
-			len = strlen(NewPATID); if (len&1) len++;
-			vr->ReAlloc(len);
-			memcpy(vr->Data, NewPATID, len);
-			}
-		*/
 		}
 
 	// remove image file from database
@@ -4324,7 +4309,7 @@ AttachRTPLANToRTSTRUCT(char *planfilename, char *structfilename, ExtendedPDU_Ser
 	{
 	DICOMDataObject*	pDDO2;
 	char			rFilename[1024];
-	char			Sop[66], Study[66], Pat[66], Name[66], Sex[66], Birth[66], script[1024];
+	char			Sop[256], Study[256], Pat[256], Name[256], Sex[256], Birth[256], script[2048];
 
 	// load image into memory
 	pDDO2 = LoadForGUI(structfilename);
@@ -4357,7 +4342,7 @@ BOOL
 AttachAnyToPatient(char *anyfilename, char *samplefilename, ExtendedPDU_Service *PDU)
 	{
 	DICOMDataObject*	pDDO2;
-	char			rFilename[1024], Pat[66], Name[66], Birth[66], Sex[66], script[1024];//, Study[66], Sop[66];
+	char			rFilename[1024], Pat[256], Name[256], Birth[256], Sex[256], script[1280];//, Study[66], Sop[66];
 
 	// load image into memory
 	pDDO2 = LoadForGUI(samplefilename);
@@ -4386,7 +4371,7 @@ BOOL
 AttachAnyToStudy(char *anyfilename, char *samplefilename, ExtendedPDU_Service *PDU)
 	{
 	DICOMDataObject*	pDDO2;
-	char			rFilename[1024], Study[66], Pat[66], Name[66], Birth[66], Sex[66], script[1024];//, Sop[66];
+	char			rFilename[1024], Study[256], Pat[256], Name[256], Birth[256], Sex[256], script[1536];//, Sop[66];
 
 	// load image into memory
 	pDDO2 = LoadForGUI(samplefilename);
@@ -4417,7 +4402,7 @@ BOOL
 AttachAnyToSeries(char *anyfilename, char *samplefilename, ExtendedPDU_Service *PDU)
 	{
 	DICOMDataObject*	pDDO2;
-	char			rFilename[1024], Study[66], Series[66], Pat[66], Name[66], Birth[66], Sex[66], script[1024];//, Sop[66];
+	char			rFilename[1024], Study[256], Series[256], Pat[256], Name[256], Birth[256], Sex[256], script[2048];//, Sop[66];
 
         // load image into memory
 	pDDO2 = LoadForGUI(samplefilename);
@@ -4901,7 +4886,7 @@ int TestFilter(char *query, char *sop, int maxname, char *patid=NULL)
 			{
 			if (ImageDB[Index].Group==0x0010 && ImageDB[Index].Element==0x0020)
 				{ 
-				char newpatid[128];
+				char newpatid[256];
 				strcpy(newpatid, patid);
 				DICOM2SQLValue(newpatid);	// allow exact match only
 				sprintf(QueryString+strlen(QueryString), " AND DICOMImages.ImagePat = %s", newpatid);
@@ -5703,9 +5688,9 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
         if (level==3) vr = DDO->GetVR(0x0020, 0x000e);
         if (level==4) vr = DDO->GetVR(0x0008, 0x0018);
         if (level==5) vr = DDO->GetVR(0x0008, 0x0016);
-        if (vr) memcpy(szTemp, vr->Data, vr->Length);
-	if (vr) szTemp[vr->Length]=0;
-  
+	szTemp[0]=0;
+        if (vr) vr->GetString(szTemp, sizeof(szTemp));
+ 
         // get sopclass (to check whether it is accepted at the current connection)
         vr = DDO -> GetVR(0x0008, 0x0016);
         if (!vr)
@@ -6280,7 +6265,7 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
                memicmp(line, "submit2 series ",   15)==0  ||
                memicmp(line, "submit2 image ",    14)==0)
       { char *p = strchr(line, ' ')+1; const char *compress="", *dest="", *date="", *modality="", *sop="", *imagetype="", *seriesdesc="", *script="";
-        char studyuid[65], seriesuid[65], vr[200], dat[200];
+        char studyuid[65], seriesuid[65], vr[200], dat[256];
         VR *pVR;
         int len, delay=0;
 
@@ -6434,46 +6419,19 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
         if (DDO)
         { pVR = DDO->GetVR(0x0020, 0x000d);
           if (pVR && (memicmp(level, "stu", 3)==0 || memicmp(level, "ser", 3)==0) || memicmp(level, "ima", 3)==0)
-          { strncpy(vr, (char*)pVR->Data, pVR->Length);
-            vr[pVR->Length] = 0;
-            len = pVR->Length - 1;
-            while(len>0)
-            { if (vr[len] == ' ')
-                vr[len] = 0;
-              else
-                break;
-              len--;
-            }
+          { pVR->GetString(vr, sizeof(vr));
             strcpy(studyuid, vr);
           }
 
           pVR = DDO->GetVR(0x0020, 0x000e);
           if (pVR && (memicmp(level, "ser", 3)==0 || memicmp(level, "ima", 3)==0))
-          { strncpy(vr, (char*)pVR->Data, pVR->Length);
-            vr[pVR->Length] = 0;
-            len = pVR->Length - 1;
-            while(len>0)
-            { if (vr[len] == ' ')
-                vr[len] = 0;
-              else
-                break;
-              len--;
-            }
+          { pVR->GetString(vr, sizeof(vr));
             strcpy(seriesuid, vr);
           }
 
           pVR = DDO->GetVR(0x0008, 0x0018);
           if (pVR && memicmp(level, "ima", 3)==0)
-          { strncpy(vr, (char*)pVR->Data, pVR->Length);
-            vr[pVR->Length] = 0;
-            len = pVR->Length - 1;
-            while(len>0)
-            { if (vr[len] == ' ')
-                vr[len] = 0;
-              else
-                break;
-              len--;
-            }
+          { pVR->GetString(vr, sizeof(vr));
             sop = vr;
           }
         }
@@ -7069,7 +7027,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
           memset(fn , 0, 100);
           fn[0]=':';
 	  VR *vr = A->Get(i)->GetVR(0x0008, 0x0018);
-	  memcpy(fn+1, (char *)vr->Data, vr->Length);
+	  vr->GetString(fn+1, sizeof(fn)-1);
 	  DICOMDataObject *DDO = LoadForGUI(fn, limit);
 	  if (limit && !DDO->GetUINT16(0x0028, 0x0010)) // only limit images, check or Rows
 	  { delete DDO;
@@ -7193,7 +7151,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
 
   static int getptr(lua_State *L, unsigned int *ptr, int *veclen, int *bytes, int *count, int *step, VR **vr, int mode)
   { struct scriptdata *sd = getsd(L); //mode:0,1,2,3=pixel,row,col,image
-    int pars=lua_gettop(L), n, x=0, y=0, z=0, rows, cols, frames, vec;
+    unsigned int pars=lua_gettop(L), n, x=0, y=0, z=0, rows, cols, frames, vec;
     Array < DICOMDataObject *> *pADDO;
     DICOMDataObject *pDDO;
     *veclen = 0;
@@ -7807,7 +7765,7 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
       if (O)
       { Array < DICOMDataObject * > *A2;
         DICOMDataObject *O2;
-        char buf[2000]; buf[0]=0;
+        char buf[256]; buf[0]=0;
         SearchDICOMObject(O, lua_tostring(L,2), buf, &A2, &O2);
 	if (A2)
 	  A2->RemoveAt(lua_tointeger(L, 3));
@@ -8658,7 +8616,6 @@ static char uploadedfile[256];
       lua_pushboolean(L, false);
       return 1;
     }
-
     ip = a+(b<<8)+(c<<16)+(d<<24);
     lua_pushboolean(L, checkaccess(op, ip));
     return 1;
@@ -9823,16 +9780,7 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
                     pVR = PDU->VariableVRs[tolower(szExecName[i+1])-'x'];
                     if (!pVR) pVR = new VR;
                     PDU->VariableVRs[tolower(szExecName[i+1])-'x'] = pVR;
-	            strncpy(vr1, (char*)pVR->Data, pVR->Length);
-	            vr1[pVR->Length] = 0;
-	            len1 = pVR->Length - 1;
-                    while(len1>0)
-                    { if (vr1[len1] == ' ')
-	                vr1[len1] = 0;
-                      else
-                        break;
-                      len1--;
-                    }
+		    pVR->GetString(vr1, sizeof(vr1));
                     strcat(line, vr1);
                     break;
           case 'v': 				// %Vxxxx,yyyy=any vr (group and element must have 4 digits)
@@ -9987,16 +9935,7 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
 		    else  		  pVR = NULL;
 
                     if (pVR) 
-	            { strncpy(vr1, (char*)pVR->Data, pVR->Length);
-	              vr1[pVR->Length] = 0;
-	              len1 = pVR->Length - 1;
-                      while(len1>0)
-                      { if (vr1[len1] == ' ')
-	                  vr1[len1] = 0;
-                        else
-                          break;
-                        len1--;
-                      }
+	            { pVR->GetString(vr1, sizeof(vr1));
                       strcat(line, vr1);
 	            }
 
@@ -10163,8 +10102,8 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
       if (level==3) vr = pDDO->GetVR(0x0020, 0x000e);
       if (level==4) vr = pDDO->GetVR(0x0008, 0x0018);
       if (level==5) vr = pDDO->GetVR(0x0008, 0x0016);
-      if (vr) memcpy(szTemp, vr->Data, vr->Length);
-      if (vr) szTemp[vr->Length]=0;
+      szTemp[0]=0;
+      if (vr) vr->GetString(szTemp, sizeof(szTemp));
 
       // get sopclass (to check whether it is accepted at the current connection)
       vr = pDDO -> GetVR(0x0008, 0x0016);
@@ -10989,7 +10928,7 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
              memicmp(line, "submit2 series ",   15)==0  ||
              memicmp(line, "submit2 image ",    14)==0)
     { char *p = strchr(line, ' ')+1; const char *compress="", *dest="", *date="", *modality="", *sop="", *imagetype="", *seriesdesc="", *script="";
-      char studyuid[65], seriesuid[65], vr[200], dat[200];
+      char studyuid[65], seriesuid[65], vr[200], dat[256];
       VR *pVR1;
       int len, delay=0;
       
@@ -11139,46 +11078,19 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
 
       pVR1 = DDO->GetVR(0x0020, 0x000d);
       if (pVR1 && (memicmp(level, "stu", 3)==0 || memicmp(level, "ser", 3)==0) || memicmp(level, "ima", 3)==0)
-      { strncpy(vr, (char*)pVR1->Data, pVR1->Length);
-        vr[pVR1->Length] = 0;
-        len = pVR1->Length - 1;
-        while(len>0)
-        { if (vr[len] == ' ')
-            vr[len] = 0;
-          else
-            break;
-          len--;
-        }
+      { pVR1->GetString(vr, sizeof(vr));
         strcpy(studyuid, vr);
       }
 
       pVR1 = DDO->GetVR(0x0020, 0x000e);
       if (pVR1 && (memicmp(level, "ser", 3)==0 || memicmp(level, "ima", 3)==0))
-      { strncpy(vr, (char*)pVR1->Data, pVR1->Length);
-        vr[pVR1->Length] = 0;
-        len = pVR1->Length - 1;
-        while(len>0)
-        { if (vr[len] == ' ')
-            vr[len] = 0;
-          else
-            break;
-          len--;
-        }
+      { pVR1->GetString(vr, sizeof(vr));
         strcpy(seriesuid, vr);
       }
 
       pVR1 = DDO->GetVR(0x0008, 0x0018);
       if (pVR1 && memicmp(level, "ima", 3)==0)
-      { strncpy(vr, (char*)pVR1->Data, pVR1->Length);
-        vr[pVR1->Length] = 0;
-        len = pVR1->Length - 1;
-        while(len>0)
-        { if (vr[len] == ' ')
-            vr[len] = 0;
-          else
-            break;
-          len--;
-        }
+      { pVR1->GetString(vr, sizeof(vr));
         sop = vr;
       }
 
@@ -12952,16 +12864,7 @@ BOOL prefetcher(DICOMDataObject *DDO, BOOL move)
     id[0] = 0;
   else
   { id[0] = 'P';
-    strncpy(id+1, (char*)pVR->Data, pVR->Length);
-    id[pVR->Length+1] = 0;
-    len = pVR->Length - 1;
-    while(len>0)
-    { if (id[len+1] == ' ')
-        id[len+1] = 0;
-      else
-        break;
-      len--;
-    }
+    pVR->GetString(id+1, sizeof(id)-1);
   }
 
   // no patient id or wildcard provided: try study
@@ -12970,8 +12873,7 @@ BOOL prefetcher(DICOMDataObject *DDO, BOOL move)
     if (!(pVR && pVR->Length)) return FALSE;	// no study: do not affect prefetch
 
     id[0]='S';					// prefetch on study (for e.g. kpacs)
-    strncpy(id+1, (char*)pVR->Data, pVR->Length);
-    id[pVR->Length+1] = 0;
+    pVR->GetString(id+1, sizeof(id)-1);
   }
 
   // any other query will start prefetch of patient or study
@@ -13012,8 +12914,7 @@ BOOL ApplyWorklist(DICOMDataObject *DDOPtr, Database *DB)
 //		strcat(QueryString, DBE[0].SQLColumn);
 		strcat(QueryString, " = '");
 		QueryString[strlen(QueryString) + vr->Length]=0;
-		memcpy(QueryString+strlen(QueryString), vr->Data, vr->Length);
-		if (QueryString[strlen(QueryString)-1]==' ') QueryString[strlen(QueryString)-1]=0;
+		vr->GetString(QueryString+strlen(QueryString), sizeof(QueryString)-strlen(QueryString)-2);
 		strcat(QueryString, "'");
 
 //		strcat(QueryString, " and PatientID = '");	// patient ID cannnot be used: may be the same in image as in worklist !
@@ -13126,10 +13027,10 @@ SaveToDisk(Database	*DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 	int		len, UseChapter10, devlen, has_dcm_extension=0;
 	unsigned int	sIndex;
 	VR*		pVR;
-	char		szModality[66];
-	char		szStationName[66];
-	char		szSop[66], szSeries[66], szStudy[66];
-	char		patid[66];
+	char		szModality[256];
+	char		szStationName[256];
+	char		szSop[256], szSeries[256], szStudy[256];
+	char		patid[256];
 	BOOL		bForcedImplicit = FALSE;
 	char		*p;
 	char		Storage[64];
@@ -13355,8 +13256,7 @@ SaveToDisk(Database	*DB, DICOMCommandObject *DCO, DICOMDataObject	*DDOPtr, char 
 	pVR = DDOPtr->GetVR(0x0002, 0x0010);	// TransferSyntaxUID
 	if (pVR && pVR->Data)
 		{
-		strncpy(s, (char*)pVR->Data, pVR->Length);
-		s[pVR->Length] = 0;
+		pVR->GetString(s, sizeof(s));
 		if ((strcmp(s, "1.2.840.10008.1.2")   != 0) &&
 		    (strcmp(s, "1.2.840.10008.1.2.1") != 0) &&
 		    (strcmp(s, "1.2.840.10008.1.2.2") != 0))
@@ -13747,7 +13647,7 @@ static BOOL WINAPI timerthread(int ms)
 	
 	int m=0;
 	while (TRUE)
-	{ sortName[0]=255;
+	{ sortName[0]=-1;
           sortName[1]=0;
           int n=0;
 	  fdHandle = FindFirstFile(Folder, &FileData);	
@@ -13782,7 +13682,6 @@ static BOOL WINAPI timerthread(int ms)
         BackupTriggered = FALSE;
       }
     }
-    
   }
 
   return TRUE;
@@ -15546,10 +15445,7 @@ void KodakFixer(DICOMDataObject	*DDOPtr, BOOL tokodak)
 	if (!vr->Length) return;
 	if (vr->Length>8) return;
 
-	memset(patid, 0, 10);
-	memcpy(patid, (char *)(vr->Data), vr->Length);
-	patid[vr->Length]=0;
-	if (patid[vr->Length-1]==' ') patid[vr->Length-1] = 0;
+	vr->GetString(patid, sizeof(patid));
 
 	if (!tokodak && strlen(patid)==8 && patid[0] == '0' && atoi(patid)>1000000 )
 		{
@@ -15651,9 +15547,7 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
   ImageType[0]=0;
   VR *vr = DDO->GetVR(0x0008, 0x0008);
   if (vr && vr->Length)
-  { strncpy(ImageType, (char*)vr->Data, vr->Length);
-    ImageType[vr->Length] = 0;
-    if (ImageType[vr->Length-1]==' ') ImageType[vr->Length-1]=0;
+  { vr->GetString(ImageType, sizeof(ImageType));
   }
 
   if (*VirtualServerFor[N]==0) return 0;
@@ -15711,7 +15605,7 @@ int VirtualQueryCached(DICOMDataObject *DDO, const char *Level, int N, Array < D
 
     // perform sub-query per series/study and combine results
     for (unsigned int i=0; i<Series.GetSize(); i++)
-    { char studuid[70], seruid[70], num[70], pat[70], date[70];
+    { char studuid[256], seruid[256], num[256], pat[256], date[256];
 
       SearchDICOMObject(Series[i], "0010,0020", pat);  
       if (*pat==0)  strcpy(pat,  "unknown");
@@ -15967,9 +15861,7 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 	vr = DDOPtr->GetVR(0x0008, 0x0008);
 	if (vr && vr->Length)
 		{
-		strncpy(ImageType, (char*)vr->Data, vr->Length);
-		ImageType[vr->Length] = 0;
-		if (ImageType[vr->Length-1]==' ') ImageType[vr->Length-1]=0;
+		vr->GetString(ImageType, sizeof(ImageType));
 		}
 	
 	// EchoNumbers in query needed for IMAGETYPEFIX below
@@ -15978,9 +15870,7 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 	vr = DDOPtr->GetVR(0x0018, 0x0068);
 	if (vr && vr->Length)
 		{
-		strncpy(EchoNumbers, (char*)vr->Data, vr->Length);
-		EchoNumbers[vr->Length] = 0;
-		if (EchoNumbers[vr->Length-1]==' ') EchoNumbers[vr->Length-1]=0;
+		vr->GetString(EchoNumbers, sizeof(EchoNumbers));
 		}
 
 		// forward query
@@ -16165,9 +16055,7 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 					char it[256];
 					char *p=it+1;
 					strcpy(it, "\\");
-					strncpy(p, (char*) vr->Data, vr->Length);
-					p[vr->Length]=0;
-					if (p[vr->Length-1]==' ') p[vr->Length-1]=0;
+					vr->GetString(p, sizeof(it)-2);
 					strcat(it, "\\");
 					char *q = strstr(it, ImageType);
 					if (!q)
@@ -16181,9 +16069,7 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 					char en[256];
 					char *p=en+1;
 					strcpy(en, "\\");
-					strncpy(p, (char*) vr->Data, vr->Length);
-					p[vr->Length]=0;
-					if (p[vr->Length-1]==' ') p[vr->Length-1]=0;
+					vr->GetString(p, sizeof(en)-2);
 					strcat(en, "\\");
 					char *q = strstr(en, EchoNumbers);
 					if (!q)
@@ -16311,9 +16197,7 @@ int VirtualQueryToDB(DICOMDataObject *DDO, int N, char *ae=NULL)
 	vr = DDOPtr->GetVR(0x0008, 0x0008);
 	if (vr && vr->Length)
 		{
-		strncpy(ImageType, (char*)vr->Data, vr->Length);
-		ImageType[vr->Length] = 0;
-		if (ImageType[vr->Length-1]==' ') ImageType[vr->Length-1]=0;
+		vr->GetString(ImageType, sizeof(ImageType));
 
 		// mvh 20120914: a move with an imagetype of e.g. original\phasemap
 		// will match original OR phase; this is typically not intended
@@ -16817,9 +16701,8 @@ BOOL	PatientStudyFinder(char *server, char *str, char *fmt, FILE *f, const char 
 
 			if (j<7)
 				{
-				memcpy(outp[j], vr->Data, vr->Length);
-				if (vr->Length && outp[j][vr->Length-1]==' ') outp[j++][vr->Length-1]=0;
-				else                                          outp[j++][vr->Length]=0;
+				vr->GetString(outp[j], sizeof(outp[j]));
+				j++;
 				}
 			delete vr;
 			}
@@ -16940,23 +16823,17 @@ BOOL	ImageFileLister(const char *server, char *pat, char *study, char *series, c
 		vr = ADDO.Get(i)->GetVR(0x9999, 0x0800);
 		if (vr) 
 			{ 
-			memcpy(Filename, vr->Data, vr->Length);
-  		  	if (vr->Length && Filename[vr->Length-1]==' ') Filename[vr->Length-1] = 0;
-			else                                           Filename[vr->Length] = 0;
+			vr->GetString(Filename, sizeof(Filename));
 			}
 		vr = ADDO.Get(i)->GetVR(0x9999, 0x0801);
 			if (vr) 
 			{
-			memcpy(Device, vr->Data, vr->Length);
-  			if (vr->Length && Device[vr->Length-1]==' ') Device[vr->Length-1] = 0;
-			else Device[vr->Length] = 0;
+			vr->GetString(Device, sizeof(Device));
 			}
 		vr = ADDO.Get(i)->GetVR(0x0008, 0x0018);
 			if (vr) 
 			{
-			memcpy(Sop, vr->Data, vr->Length);
-  			if (vr->Length && Sop[vr->Length-1]==' ') Sop[vr->Length-1] = 0;
-			else Sop[vr->Length] = 0;
+			vr->GetString(Sop, sizeof(Sop));
 			}
 
 		SearchDICOMObject(ADDO.Get(i), "0028,0008", frames);
@@ -17051,9 +16928,7 @@ BOOL	SeriesUIDLister(char *server, char *pat, char *study, char *fmt, FILE *f)
 		vr = ADDO.Get(i)->GetVR(0x0020, 0x000e);
 		if (vr) 
 			{ 
-			memcpy(UID, vr->Data, vr->Length);
-  		  	if (vr->Length && UID[vr->Length-1]==' ') UID[vr->Length-1] = 0;
-			else UID[vr->Length] = 0;
+			vr->GetString(UID, sizeof(UID));
 
 			fprintf(f, fmt, UID, i, UID, i, UID, i);
 			}
@@ -17130,9 +17005,7 @@ int	DcmMergeStudy(const char *server, char *pat, char *study, char *modality, ch
 		vr = ADDO.Get(i)->GetVR(0x0020, 0x000e);
 		if (vr) 
 			{ 
-			memcpy(UID, vr->Data, vr->Length);
-  		  	if (vr->Length && UID[vr->Length-1]==' ') UID[vr->Length-1] = 0;
-			else UID[vr->Length] = 0;
+			vr->GetString(UID, sizeof(UID));
 
 			uids[i] = strdup(UID);
 			}
@@ -17683,7 +17556,7 @@ BOOL	MyPatientRootRetrieve	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObj
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
         if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -17756,7 +17629,7 @@ BOOL	MyPatientRootRetrieveNKI	::	QueryMoveScript (PDU_Service *PDU, DICOMCommand
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -17829,7 +17702,7 @@ BOOL	MyPatientRootRetrieveGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCom
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -17841,7 +17714,7 @@ BOOL	MyPatientRootGetGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandO
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -17975,7 +17848,7 @@ BOOL	MyStudyRootRetrieve	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObjec
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -18048,7 +17921,7 @@ BOOL	MyStudyRootRetrieveNKI	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandOb
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -18121,7 +17994,7 @@ BOOL	MyStudyRootRetrieveGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMComma
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -18133,7 +18006,7 @@ BOOL	MyStudyRootGetGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCommandObj
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -18267,7 +18140,7 @@ BOOL	MyPatientStudyOnlyRetrieve	::	QueryMoveScript (PDU_Service *PDU, DICOMComma
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -18340,7 +18213,7 @@ BOOL	MyPatientStudyOnlyRetrieveNKI	::	QueryMoveScript (PDU_Service *PDU, DICOMCo
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -18413,7 +18286,7 @@ BOOL	MyPatientStudyOnlyRetrieveGeneric	::	QueryMoveScript (PDU_Service *PDU, DIC
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -18425,7 +18298,7 @@ BOOL	MyPatientStudyOnlyGetGeneric	::	QueryMoveScript (PDU_Service *PDU, DICOMCom
 	char dest[20];
 	memset(dest, 0, 20);
 	VR *vr = DCO->GetVR(0x0000, 0x0600);
-	if (vr) memcpy(dest, (char *)(vr->Data), vr->Length);
+	if (vr) vr->GetString(dest, sizeof(dest));
 	if (dest[0]>32)
           while (strlen(dest)>0 && dest[strlen(dest)-1]==' ') dest[strlen(dest)-1] = 0;
 
@@ -19415,31 +19288,28 @@ RetrieveOn (
 			vr = tt->GetVR(0x9999, 0x0800);
 			if (vr) 
 				{ 
-				memcpy(ratd->ObjectFiles+i*256, vr->Data, vr->Length);
-  			  	if (vr->Length && (ratd->ObjectFiles+i*256)[vr->Length-1]==' ') (ratd->ObjectFiles+i*256)[vr->Length-1] = 0;
+				vr->GetString(ratd->ObjectFiles+i*256, 256);
 				}
 
 			vr = tt->GetVR(0x9999, 0x0801);
 			if (vr) 
 				{
-				memcpy(ratd->Devices+i*32, vr->Data, vr->Length);
-  			  	if (vr->Length && (ratd->Devices+i*32)[vr->Length-1]==' ') (ratd->Devices+i*32)[vr->Length-1] = 0;
+				vr->GetString(ratd->Devices+i*32, 32);
 				}
 
 			vr = tt->GetVR(0x0008, 0x0018);
-			if (vr) memcpy(ratd->SOPs+i*66, vr->Data, vr->Length);
+			if (vr) vr->GetString(ratd->SOPs+i*66, 66);
 
 			vr = tt->GetVR(0x0020, 0x000d);
-			if (vr) memcpy(ratd->Studies+i*66, vr->Data, vr->Length);
+			if (vr) vr->GetString(ratd->Studies+i*66, 66);
 
 			vr = tt->GetVR(0x0020, 0x000e);
-			if (vr) memcpy(ratd->Series+i*66, vr->Data, vr->Length);
+			if (vr) vr->GetString(ratd->Series+i*66, 66);
 
 			vr = tt->GetVR(0x0010, 0x0020);
 			if (vr) 
                         	{ 
-				memcpy(ratd->pats+i*66, vr->Data, vr->Length);
-  			  	if (vr->Length && (ratd->pats+i*66)[vr->Length-1]==' ') (ratd->pats+i*66)[vr->Length-1] = 0;
+				vr->GetString(ratd->pats+i*66, 66);
 				}
 			}
 
@@ -19597,9 +19467,7 @@ further:
 	vr1 = DDOMask->GetVR(0x0010, 0x0020);
 	if (vr1) 
         	{ 
-		memcpy(pat, vr1->Data, vr1->Length);
-                pat[vr1->Length]=0;
-  		if (vr1->Length && pat[vr1->Length-1]==' ') pat[vr1->Length-1] = 0;
+		vr1->GetString(pat, sizeof(pat));
 		}
 
 	char series[66];			/* get the series UID */
@@ -19607,9 +19475,7 @@ further:
 	vr1 = DDOMask->GetVR(0x0020, 0x000e);
 	if (vr1) 
         	{ 
-		memcpy(series, vr1->Data, vr1->Length);
-                series[vr1->Length]=0;
-  		if (vr1->Length && series[vr1->Length-1]==' ') series[vr1->Length-1] = 0;
+		vr1->GetString(series, sizeof(series));
 		}
 
 	char study[66];			/* get the study UID */
@@ -19617,9 +19483,7 @@ further:
 	vr1 = DDOMask->GetVR(0x0020, 0x000d);
 	if (vr1) 
         	{ 
-		memcpy(study, vr1->Data, vr1->Length);
-                study[vr1->Length]=0;
-  		if (vr1->Length && study[vr1->Length-1]==' ') study[vr1->Length-1] = 0;
+		vr1->GetString(study, sizeof(study));
 		}
 
 	vr1 = DDOMask->GetVR(0x0008, 0x0018);	/* The SOPInstanceUID */
@@ -20024,7 +19888,7 @@ BOOL	RunTimeClassStorage :: SetUID ( VR	*vr )
 	memset((void*)s, 0, 66);
 	if(vr)
 		{
-		memcpy((void*)s, vr->Data, vr->Length>64 ? 64 : vr->Length);
+		vr->GetString(s, sizeof(s));
 		MyUID.Set(s);
 		return(TRUE);
 		}
@@ -20720,8 +20584,7 @@ EPRSP	EventReportPrinterResponse;
 
 	if (vr && vr->Length >= strlen("1.2.840.10008.5.1.1.1 "))
 		{
-		strncpy(szPrintSOP, (char*)vr->Data, vr->Length);
-		szPrintSOP[vr->Length] = 0;
+		vr->GetString(szPrintSOP, sizeof(szPrintSOP));
 
 		if (strcmp(szPrintSOP, "1.2.840.10008.5.1.1.16") == 0)
 			{
@@ -20889,8 +20752,7 @@ EPRSP	EventReportPrinterResponse;
 				if (avr)
 					{
 					char *p1, *p2;
-					memset(text, 0, 256);
-					memcpy(text, avr->Data, avr->Length);
+					avr->GetString(text, sizeof(text));
 					p1 = strchr(text, '\\');
 					p2 = strchr(text, ',');
 					if (p1 && p2)
@@ -20905,8 +20767,7 @@ EPRSP	EventReportPrinterResponse;
 				avr = DDO->GetVR(0x2010, 0x0040);
 				if (avr)
 					{
-					memset(text, 0, 256);
-					memcpy(text, avr->Data, avr->Length);
+					avr->GetString(text, sizeof(text));
 					}
 
 				Array < DICOMDataObject * > *SQE = new Array < DICOMDataObject * >;
@@ -21007,7 +20868,7 @@ EPRSP	EventReportPrinterResponse;
 					i = strlen(Filename);
 					Filename[i]   = PATHSEPCHAR;
 					Filename[i+1] = 0;
-					memcpy(Filename + strlen(Filename), vr->Data, vr->Length);
+					vr->GetString(Filename + strlen(Filename), sizeof(Filename)-strlen(Filename)-4);
 					strcat(Filename, ".dcm");
 					}
 
@@ -21051,7 +20912,7 @@ EPRSP	EventReportPrinterResponse;
 					i = strlen(Filename);
 					Filename[i]   = PATHSEPCHAR;
 					Filename[i+1] = 0;
-					memcpy(Filename + strlen(Filename), vr->Data, vr->Length);
+					vr->GetString(Filename + strlen(Filename), sizeof(Filename)-strlen(Filename)-4);
 					strcat(Filename, ".dcm");
 					}
 
@@ -21276,14 +21137,12 @@ BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMComma
 
 	vr = DCO->GetVR(0x0000, 0x0003);
 	if (!vr) return FALSE;
-	strncpy(Sop, (char*)vr->Data, vr->Length);
-	Sop[vr->Length] = 0;
+	vr->GetString(Sop, sizeof(Sop));
 	if (strcmp(Sop, "1.2.840.10008.1.20.1")!=0) return FALSE;
 
 	vr = DCO->GetVR(0x0000, 0x1001);
 	if (!vr) return FALSE;
-	strncpy(Sop, (char*)vr->Data, vr->Length);
-	Sop[vr->Length] = 0;
+	vr->GetString(Sop, sizeof(Sop));
 	if (strcmp(Sop, "1.2.840.10008.1.20.1.1")!=0) return FALSE;
 
 	vr = DCO->GetVR(0x0000, 0x1008);
@@ -21360,17 +21219,7 @@ void CloneDB(char *AE)
   for (unsigned int i=0; i<ADDO.GetSize(); i++)
   { while((vr=ADDO.Get(i)->Pop()))
     { if (0x0020==vr->Element && 0x0010==vr->Group)
-      { strncpy(patid, (char*)vr->Data, vr->Length);
-	patid[vr->Length] = 0;
-	len = vr->Length - 1;
-        while(len>0)
-        { if (patid[len] == ' ')
-	    patid[len] = 0;
-          else
-            break;
-          len--;
-        }
-
+      { vr->GetString(patid, sizeof(patid));
         OperatorConsole.printf("cloning db for patient id=%s\n", patid);
 
         DDO.Reset();
@@ -24755,9 +24604,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
                   }
 
 		  if(vrsilent->Length>0 && vrsilent->Length<sizeof(SilentText)-1)
-		  { memcpy(SilentText, vrsilent->Data, vrsilent->Length);
-  		    SilentText[vrsilent->Length]=0;
-		    if (SilentText[vrsilent->Length-1]==' ') SilentText[vrsilent->Length-1]=0;
+		  { vrsilent->GetString(SilentText, sizeof(SilentText));
                   }
                 }
 		else
@@ -24786,7 +24633,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 		/* get OrgMoveAE */
 		OrgMoveAE[0]=0;
 		vr = DCO.GetVR(0x0000, 0x1030);
-		if (vr)
+		if (vr && vr->Length<=16)
 			{
 			memset(OrgMoveAE, ' ', 16); OrgMoveAE[16]=0;
 			memcpy(OrgMoveAE, (char *)(vr->Data), vr->Length);
@@ -24806,8 +24653,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 		if (vr1 && !vrsilent)
 			{
 			char text[256];
-			memset(text, 0, 256);
-			memcpy(text, (char *)(vr1->Data), vr1->Length);
+			vr1->GetString(text, sizeof(text));
 			OperatorConsole.printf("\tC-Move Destination: \"%s\"\n", text);
 			}
 
@@ -24818,8 +24664,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 		if (vr)
 			{
 			char text[1024];
-			memset(text, 0, 1024);
-			memcpy(text, (char *)(vr->Data), vr->Length);
+			vr->GetString(text, sizeof(text));
 			OperatorConsole.printf("%s\n", text);
 			}
 
@@ -24960,7 +24805,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 				else
 					{
 					void *p=malloc(vr2->Length);
-					memcpy(p, vr2->Data, vr2->Length);
+					if (p) memcpy(p, vr2->Data, vr2->Length);
 					VR *vr3 = new VR(0x9999, 0x0401, vr2->Length, p, TRUE);
 					SOPVerification.WriteResponse(&PDU, &DCO, vr3);
 					}
@@ -25922,8 +25767,7 @@ BOOL GrabImagesFromServer(BYTE *calledae, const char *studydate, char *destinati
 			if (vr1->Group == 0x0008 && vr1->Element == 0x0018)
 				{
 				char s[255], none[] = "";
-				memset(s, 0, 255);
-				memcpy(s, vr1->Data, vr1->Length);
+				vr1->GetString(s, sizeof(s));
 
 				// is it on the local server (note: test may be speeded by passing patid) ?		
 				if (!TestFilter(none, s, 10))

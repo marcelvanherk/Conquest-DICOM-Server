@@ -83,6 +83,7 @@
 20220820        mvh     Overhaul of sorting code
 20230620        mvh     Fix sorting code for PostGres; use CAST and pass expression to columnstring through OrderExp
 20250814        mvh     Prepend TableName to sort field in ColumnString and sort string in OrderCalc
+20260906	mvh	Use VR->GetString
 */
 
 #ifndef	WHEDGE
@@ -857,8 +858,7 @@ BOOL	QueryOnPatient (
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x0c00)
 				{
-				memcpy(Order, vr->Data, vr->Length);
-				Order[vr->Length]=0;
+				vr->GetString(Order, sizeof(Order));
 				if (strstr(Order, "Number")) 
                                 { Order[10]=0;
                                   if (DB.db_type!=DT_POSTGRES) sprintf(OrderCalc, "(%s+0)", Order);
@@ -879,16 +879,14 @@ BOOL	QueryOnPatient (
 				{
                                 int len = strlen(OrderCalc);
                                 strcat(OrderCalc, " LIMIT ");
-				memcpy(OrderCalc+len+7, vr->Data, vr->Length);
-				OrderCalc[vr->Length+len+7]=0;
+				vr->GetString(OrderCalc+len+7, sizeof(OrderCalc)-len-7);
                                 }
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x0c02)
 				{
                                 int len = strlen(OrderCalc);
                                 strcat(OrderCalc, " OFFSET ");
-				memcpy(OrderCalc+len+8, vr->Data, vr->Length);
-				OrderCalc[vr->Length+len+8]=0;
+				vr->GetString(OrderCalc+len+8, sizeof(OrderCalc)-len-8);
                                 }
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x9999)
@@ -1284,8 +1282,7 @@ BOOL	QueryOnStudy (
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x0c00)
 				{
-				memcpy(Order, vr->Data, vr->Length);
-				Order[vr->Length]=0;
+				vr->GetString(Order, sizeof(Order));
 				if (strstr(Order, "Number")) 
                                 { Order[10]=0;
                                   if (DB.db_type!=DT_POSTGRES) sprintf(OrderCalc, "(%s+0)", Order);
@@ -1306,16 +1303,14 @@ BOOL	QueryOnStudy (
 				{
                                 int len = strlen(OrderCalc);
                                 strcat(OrderCalc, " LIMIT ");
-				memcpy(OrderCalc+len+7, vr->Data, vr->Length);
-				OrderCalc[vr->Length+len+7]=0;
+				vr->GetString(OrderCalc+len+7, sizeof(OrderCalc)-len-7);
                                 }
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x0c02)
 				{
                                 int len = strlen(OrderCalc);
                                 strcat(OrderCalc, " OFFSET ");
-				memcpy(OrderCalc+len+8, vr->Data, vr->Length);
-				OrderCalc[vr->Length+len+8]=0;
+				vr->GetString(OrderCalc+len+8, sizeof(OrderCalc)-len-8);
                                 }
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x9999)
@@ -1709,8 +1704,7 @@ BOOL	QueryOnSeries (
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x0c00)
 				{
-				memcpy(Order, vr->Data, vr->Length);
-				Order[vr->Length]=0;
+				vr->GetString(Order, sizeof(Order));
 				if (strstr(Order, "Number")) 
                                 { Order[10]=0;
                                   if (DB.db_type!=DT_POSTGRES) sprintf(OrderCalc, "(%s+0)", Order);
@@ -1731,16 +1725,14 @@ BOOL	QueryOnSeries (
 				{
                                 int len = strlen(OrderCalc);
                                 strcat(OrderCalc, " LIMIT ");
-				memcpy(OrderCalc+len+7, vr->Data, vr->Length);
-				OrderCalc[vr->Length+len+7]=0;
+				vr->GetString(OrderCalc+len+7, sizeof(OrderCalc)-len-7);
                                 }
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x0c02)
 				{
                                 int len = strlen(OrderCalc);
                                 strcat(OrderCalc, " OFFSET ");
-				memcpy(OrderCalc+len+8, vr->Data, vr->Length);
-				OrderCalc[vr->Length+len+8]=0;
+				vr->GetString(OrderCalc+len+8, sizeof(OrderCalc)-len-8);
                                 }
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x9999)
@@ -2187,8 +2179,7 @@ BOOL	QueryOnImage (
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x0c00)
 				{
-				memcpy(Order, vr->Data, vr->Length);
-				Order[vr->Length]=0;
+				vr->GetString(Order, sizeof(Order));
 				if (strstr(Order, "Number")) 
                                 { Order[10]=0;
                                   if (DB.db_type!=DT_POSTGRES) sprintf(OrderCalc, "(%s+0)", Order);
@@ -2209,16 +2200,14 @@ BOOL	QueryOnImage (
 				{
                                 int len = strlen(OrderCalc);
                                 strcat(OrderCalc, " LIMIT ");
-				memcpy(OrderCalc+len+7, vr->Data, vr->Length);
-				OrderCalc[vr->Length+len+7]=0;
+				vr->GetString(OrderCalc+len+7, sizeof(OrderCalc)-len-7);
                                 }
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x0c02)
 				{
                                 int len = strlen(OrderCalc);
                                 strcat(OrderCalc, " OFFSET ");
-				memcpy(OrderCalc+len+8, vr->Data, vr->Length);
-				OrderCalc[vr->Length+len+8]=0;
+				vr->GetString(OrderCalc+len+8, sizeof(OrderCalc)-len-8);
                                 }
 		if(vr->Group == 0x9999)
 			if(vr->Element == 0x9999)

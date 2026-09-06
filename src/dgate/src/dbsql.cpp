@@ -247,6 +247,7 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20240103	mvh	Maintain typecodes in MakeCopy
 20240924	mvh     Added \n after all Progress.printf output
 20260811	mvh     md5 now has 'correct' flag; set for lua call, not for UIDs for backwards compatibility
+20260906	mvh	Use VR->GetString
 */
 
 #define NCACHE 256
@@ -1128,8 +1129,7 @@ FixImage(DICOMDataObject *DDOPtr)
 		char patid[11];
 		int Length;
 
-		memcpy(patid, (char *)(vr->Data), 10);
-		patid[10]=0;
+		vr->GetString(patid, sizeof(patid));
 
 		if ( patid[0] == '0' && patid[1] == '0' && atoi(patid)>1000000 )
 			{
@@ -1152,8 +1152,7 @@ FixImage(DICOMDataObject *DDOPtr)
 		char patid[11];
 		int Length;
 
-		memcpy(patid, (char *)(vr->Data), 8);
-		patid[8]=0;
+		vr->GetString(patid, sizeof(patid));
 
 		if ( patid[0] == '0' && atoi(patid)>1000000 )
 			{
@@ -1299,7 +1298,7 @@ SaveToDataBase(
 			{
 			if(vr1->Length != 0)
 				{
-				memcpy(LastPatid, vr1->Data, vr1->Length);
+				vr1->GetString(LastPatid, sizeof(LastPatid));
 				PIDcnt = vr1->Length;
 				}
 			}
@@ -1333,25 +1332,12 @@ SaveToDataBase(
 		if ( !vr->Data ) return ( FALSE );	// memory error
 		memcpy(vr->Data, LastPatid, vr->Length);
 		}
-	else memcpy(LastPatid, vr->Data, vr->Length);// Have a patient ID
-	if (vr && vr->Length)
-        	if (LastPatid[vr->Length-1]==' ') LastPatid[vr->Length-1]=0;
+	else 
+		vr->GetString(LastPatid, sizeof(LastPatid));
 
-	memset(Modality, 0, 17);
+	Modality[0] = 0;
 	vr = DDOPtr->GetVR(0x0008, 0x0060);
-	if(vr)
-		{
-		len = vr->Length;
-		memcpy(Modality, vr->Data, len);
-		while (len>0)
-			if (Modality[len-1]==' ')
-				{
-				Modality[len-1] = 0;
-				len--;
-				}
-			else
-				break;
-		}
+	if(vr) vr->GetString(Modality, sizeof(Modality));
 	// Modality[2] = 0;	// option to truncate all RT item to save StudyModality space
 
 	// FixImage(DDOPtr);
@@ -3535,14 +3521,7 @@ RemoveFromPACS(
 		char pat[66];				/* get the patient ID */
         	pat[0]=0;
 		vr2 = qDDO->GetVR(0x0010, 0x0020);
-		if (vr2) 
-        		{ 
-			memcpy(pat, vr2->Data, vr2->Length);
-  			if (pat[vr2->Length-1]==' ')
-				pat[vr2->Length-1] = 0;
-			else
-				pat[vr2->Length] = 0;
-			}
+		if (vr2) vr2->GetString(pat, sizeof(pat));
 
 		if(GetFileName(vr, fn, dv, DB, FALSE, pat))
 			{
@@ -4264,14 +4243,7 @@ NewDeleteDICOM(
 		char pat[66];				/* get the patient ID */
         	pat[0]=0;
 		vr2 = qDDO->GetVR(0x0010, 0x0020);
-		if (vr2) 
-        		{ 
-			memcpy(pat, vr2->Data, vr2->Length);
-  			if (pat[vr2->Length-1]==' ')
-				pat[vr2->Length-1] = 0;
-			else
-				pat[vr2->Length] = 0;
-			}
+		if (vr2) vr2->GetString(pat, sizeof(pat));
 			
 		if(GetFileName(vr, fn, dv, DB, FALSE, pat))
 			{
@@ -4411,14 +4383,7 @@ int	NewModifyDICOM(DICOMDataObject	*DDO, const char *script, int Thread, int cop
 		char pat[66];				/* get the patient ID */
         	pat[0]=0;
 		vr2 = qDDO->GetVR(0x0010, 0x0020);
-		if (vr2) 
-        		{ 
-			memcpy(pat, vr2->Data, vr2->Length);
-  			if (pat[vr2->Length-1]==' ')
-				pat[vr2->Length-1] = 0;
-			else
-				pat[vr2->Length] = 0;
-			}
+		if (vr2) vr2->GetString(pat, sizeof(pat));
 			
 		if(GetFileName(vr, fn, dv, DB, FALSE, pat))
 			{

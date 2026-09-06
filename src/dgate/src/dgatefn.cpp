@@ -76,6 +76,7 @@
 20160316	mvh	Avoid buffer overflow reading string[-1]
 20220227	mvh	Added RenameOnRewrite flag: will force rename of any object rewritten 
 20240522	mvh	Fix lua: FilenameSyntax (998), incorrectly replaced .lua with .dcm
+20260906	mvh	Use VR->GetString
 */
 
 #ifndef	WHEDGE
@@ -268,13 +269,11 @@ GenerateFileName(
 	// First, make test if image is already in the database.  In which
 	// case we allow the PACS to rewrite it.
 
-	memset((void*)CID, 0, 65);
+	CID[0]=0;
 	PatientID = DDOPtr->GetVR(0x0010, 0x0020);
 	if(PatientID)
 		{
-	        strncpy(CID, (char*) PatientID->Data, dgatefnmin(PatientID->Length,64));
-		if (PatientID->Length)
-	        	if (CID[PatientID->Length-1]==' ') CID[PatientID->Length-1]=0;
+		PatientID->GetString(CID, sizeof(CID));
 		}
 
 	if (GetFileName ( DDOPtr->GetVR(0x0008, 0x0018),
@@ -331,19 +330,6 @@ GenerateFileName(
 		return ( FALSE );
 		}
 
-	memset((void*)CID, 0, 65);
-	memset((void*)CName, 0, 65);
-	memset((void*)CSeries, 0, 65);
-	memset((void*)CImageNum, 0, 65);
-	memset((void*)CImageID, 0, 65);
-	memset((void*)CSeriesUID, 0, 65);
-	memset((void*)CStudyUID, 0, 65);
-	memset((void*)CStudyID, 0, 65);
-	memset((void*)CModality, 0, 65);
-	memset((void*)CStudyDate, 0, 65);
-	memset((void*)CStudyDesc, 0, 65);
-	memset((void*)CSOPUID, 0, 65);
-
 	ImageNumber = DDOPtr->GetVR(0x0020, 0x0013);
 	if(!ImageNumber)
 		{
@@ -354,7 +340,7 @@ GenerateFileName(
 		}
 	else
 		{
-		strncpy(CImageNum, (char*) ImageNumber->Data, dgatefnmin(ImageNumber->Length,64));
+		ImageNumber->GetString(CImageNum, sizeof(CImageNum));
 		iImage = atoi(CImageNum);
 		}
 
@@ -368,7 +354,7 @@ GenerateFileName(
 		}
 	else
 		{
-		strncpy(CSeries, (char*) SeriesNumber->Data, dgatefnmin(SeriesNumber->Length,64));
+		SeriesNumber->GetString(CSeries, sizeof(CSeries));
 		iSeries = atoi(CSeries);
 		}
 
@@ -380,7 +366,7 @@ GenerateFileName(
 		//if (!AcceptError) return ( FALSE );
 		}
 	else
-		strncpy(CSeriesUID, (char*) SeriesUID->Data, dgatefnmin(SeriesUID->Length,64));
+		SeriesUID->GetString(CSeriesUID, sizeof(CSeriesUID));
 
 	StudyID = DDOPtr->GetVR(0x0020, 0x0010);
 	if(!StudyID)
@@ -391,8 +377,7 @@ GenerateFileName(
 		}
 	else
 		{
-		strncpy(CStudyID, (char*) StudyID->Data, dgatefnmin(StudyID->Length,64));
-		if (StudyID->Length) if (CStudyID[strlen(CStudyID)-1]==' ') CStudyID[strlen(CStudyID)-1]=0;
+		StudyID->GetString(CStudyID, sizeof(CStudyID));
 		}
 
 	Modality = DDOPtr->GetVR(0x0008, 0x0060);
@@ -404,8 +389,7 @@ GenerateFileName(
 		}
 	else
 		{
-		strncpy(CModality, (char*) Modality->Data, dgatefnmin(Modality->Length,64));
-		if (Modality->Length) if (CModality[strlen(CModality)-1]==' ') CModality[strlen(CModality)-1]=0;
+		Modality->GetString(CModality, sizeof(CModality));
 		}
 
 	StudyDate = DDOPtr->GetVR(0x0008, 0x0020);
@@ -417,8 +401,7 @@ GenerateFileName(
 		}
 	else
 		{
-		strncpy(CStudyDate, (char*) StudyDate->Data, dgatefnmin(StudyDate->Length,64));
-		if (StudyDate->Length) if (CStudyDate[strlen(CStudyDate)-1]==' ') CStudyDate[strlen(CStudyDate)-1]=0;
+		StudyDate->GetString(CStudyDate, sizeof(CStudyDate));
 		}
 
 	StudyDesc = DDOPtr->GetVR(0x0008, 0x1030);
@@ -430,8 +413,7 @@ GenerateFileName(
 		}
 	else
 		{
-		strncpy(CStudyDesc, (char*) StudyDesc->Data, dgatefnmin(StudyDesc->Length,64));
-		if (StudyDesc->Length) if (CStudyDesc[strlen(CStudyDesc)-1]==' ') CStudyDesc[strlen(CStudyDesc)-1]=0;
+		StudyDesc->GetString(CStudyDesc, sizeof(CStudyDesc));
 		}
 
 	StudyUID = DDOPtr->GetVR(0x0020, 0x000d);
@@ -442,7 +424,7 @@ GenerateFileName(
 		//if (!AcceptError) return ( FALSE );
 		}
 	else
-		strncpy(CStudyUID, (char*) StudyUID->Data, dgatefnmin(StudyUID->Length,64));
+		StudyUID->GetString(CStudyUID, sizeof(CStudyUID));
 
 	SOPUID = DDOPtr->GetVR(0x0008, 0x0018);
 	if(!SOPUID)
@@ -452,7 +434,7 @@ GenerateFileName(
 		//if (!AcceptError) return ( FALSE );
 		}
 	else
-		strncpy(CSOPUID, (char*) SOPUID->Data, dgatefnmin(SOPUID->Length,64));
+		SOPUID->GetString(CSOPUID, sizeof(SOPUID));
 
 	PatientID = DDOPtr->GetVR(0x0010, 0x0020);
 	if(!PatientID)
@@ -462,7 +444,7 @@ GenerateFileName(
 		//if (!AcceptError) return(FALSE);
 		}
 	else
-		strncpy(CID, (char*) PatientID->Data, dgatefnmin(PatientID->Length,64));
+		PatientID->GetString(CID, sizeof(CID));
 
 	PatientName = DDOPtr->GetVR(0x0010, 0x0010);
 	if(!PatientName)
@@ -472,7 +454,7 @@ GenerateFileName(
 		//if (!AcceptError) return(FALSE);
 		}
 	else
-		strncpy(CName, (char*) PatientName->Data, dgatefnmin(PatientName->Length,64));
+		PatientName->GetString(CName, sizeof(CName));
 
 	ImageID = DDOPtr->GetVR(0x0054, 0x0400);
 	if(!ImageID)
@@ -483,8 +465,7 @@ GenerateFileName(
 		}
 	else
 		{
-		strncpy(CImageID, (char*) ImageID->Data, dgatefnmin(ImageID->Length,64));
-		if (ImageID->Length) if (CImageID[strlen(CImageID)-1]==' ') CImageID[strlen(CImageID)-1]=0;
+		ImageID->GetString(CImageID, sizeof(CImageID));
 		}
 
 	/* Cleanup various strings */
@@ -681,8 +662,7 @@ GenerateFileName(
 		pVR = DDOPtr->GetVR(0x0002, 0x0010);	// TransferSyntaxUID
 		if (pVR && pVR->Data)
 			{
-			strncpy(s, (char*)pVR->Data, pVR->Length);
-			s[pVR->Length] = 0;
+			pVR->GetString(s, sizeof(s));
 			if ((strcmp(s, "1.2.840.10008.1.2")   != 0) &&
 			    (strcmp(s, "1.2.840.10008.1.2.1") != 0) &&
 			    (strcmp(s, "1.2.840.10008.1.2.2") != 0))

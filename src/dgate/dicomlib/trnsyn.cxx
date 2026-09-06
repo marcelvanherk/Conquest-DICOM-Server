@@ -82,6 +82,7 @@
 20240103   mvh   Added information about previous tag when parsing goes wrong
 20240326   mvh   Added type 'OL' with 32 bits length
 20250214   mvh   Made mis-encoded pixel data a warning
+20260906   mvh   Use VR->GetString
 */
 
 /*
@@ -1508,14 +1509,7 @@ BOOL	PDU_Service	::	Dynamic_ParseRawVRIntoDCM(
 			UINT		Index,sLen;
 			if(vrTRN)
 				{
-				memset((void*)s, 0,128);
-				memcpy((void*)s,vrTRN->Data, vrTRN->Length%64);
-				sLen = strlen(s);
-				if(sLen)
-					{
-					if(s[sLen-1]==' ')
-						s[sLen-1]='\0';
-					}
+				vrTRN->GetString(s, sizeof(s));
 				Index = 0;
 				while(TransferSyntaxAliases[Index].TransferSyntaxUID)
 					{
@@ -1959,14 +1953,7 @@ BOOL	PDU_Service	::	Dynamic_ParseDCMIntoRawVR(
 			{
 			// Key on the vrTRN
 			UINT		Index2,sLen;
-			memset((void*)s, 0,128);
-			memcpy((void*)s,vrTRN->Data, vrTRN->Length%64);
-			sLen = strlen(s);
-			if(sLen)
-				{
-				if(s[sLen-1]==' ')
-					s[sLen-1]='\0';
-				}
+			vrTRN->GetString(s, sizeof(s));
 			Index2 = 0;
 			while(TransferSyntaxAliases[Index2].TransferSyntaxUID)
 				{

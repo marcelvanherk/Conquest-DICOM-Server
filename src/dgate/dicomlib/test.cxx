@@ -28,6 +28,7 @@
    mvh 20061127: Allow (and disabled) looping alternating c-move and c-find to test server
    mvh 20070902: Fixed for ms7 and ms8
    mvh 20090411: mode -fp adds more transfer syntaxes uid2..uid8 (experimental)
+   mvh 20260906: Use VR->GetString; note: this file is not part of the dicomserver
 */
 
 /* Usage summary:
@@ -1074,8 +1075,7 @@ goto next;
 
 			if(vr)
 				{
-				memset((void*)s, 0, 256);
-				memcpy((void*)s, vr->Data, vr->Length%250);
+				vr->GetString(s, sizeof(s));
 				}
 			else
 				{
@@ -1651,7 +1651,7 @@ BOOL	RunTimeClassStorage :: SetUID ( VR	*vr )
 	memset((void*)s, 0, 64);
 	if(vr)
 		{
-		memcpy((void*)s, vr->Data, vr->Length%64);
+		vr->GetString(s, sizeof(s));
 		MyUID.Set(s);
 		return(TRUE);
 		}
@@ -1777,8 +1777,7 @@ FixImage(DICOMDataObject *DDOPtr)
 		char orgpatid[11];
 		int Length;
 
-		memcpy(patid, (char *)(vr->Data), 10);
-		patid[10]=0;
+		vr->GetString(patid, sizeof(patid));
 		strcpy(orgpatid, patid);
 
 		if ( patid[0] == '0' && patid[1] == '0' && atoi(patid)>1000000 )
@@ -1809,8 +1808,7 @@ FixImage(DICOMDataObject *DDOPtr)
 		char orgpatid[11];
 		int Length;
 
-		memcpy(patid, (char *)(vr->Data), 8);
-		patid[8]=0;
+		vr->GetString(patid, sizeof(patid));
 		strcpy(orgpatid, patid);
 
 		if ( patid[0] == '0' && atoi(patid)>1000000 )
@@ -1924,8 +1922,8 @@ CForwarder(BYTE *PORT, BYTE *ip, BYTE *port, int dump, int once, int SocketFd, i
 	VR			*vr, *vr2;
 	UID			uid, uid2, uid3, uid4, uid5, uid6, uid7, uid8;
 	LE_UINT16		command, status, dataset;
-	char			Type[64];
-	char			UID[64];
+	char			Type[65];
+	char			UID[65];
 	unsigned char		called[17], calling[17], destination[17];
 	int			first = 1;
 	ForwardData 		FData;
@@ -1969,15 +1967,13 @@ again:
 			case	0x0000:	delete vr;      break;
 			case	0x0002:	if (vr->Group==0)
 						{ 
-						memset(UID, 0, 64); 
-  					  	memcpy(UID, vr->Data, vr->Length); 
+						vr->GetString(UID, sizeof(UID));
 						}
 					DCOF.Push(vr);	break;
 			case	0x0600:	if (vr->Group==0)
 						{ 
 						// save original C-MOVE destination
-						memset(destination, 0, 17); 
-  					  	memcpy(destination, vr->Data, vr->Length);
+						vr->GetString(destination, sizeof(destination));
 
 						// replace c-move destination for mode 'b'
 						if ((mode=='b' || mode=='B') && gatewayname[0])

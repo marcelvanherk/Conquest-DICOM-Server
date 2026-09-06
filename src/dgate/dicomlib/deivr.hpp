@@ -15,6 +15,7 @@
                    Moved defaults from implementation to header files
 20100823    mvh    bcb moved default parameter here
 20140528    lsp    Member initialization and private copy constructors are not GNUC specific
+20260905    mvh    VR.GetString(buf, max), fills buf returns FALSE if truncated at max-1
 */
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -86,12 +87,14 @@ class	VR
 		UINT		GetUINT();
 		unsigned long long	GetULongLong();
 		INT		Getatoi();
+		BOOL		GetString(char *buf, size_t max = 256);
 
 		// To support SetIf/Morph
 
 		BOOL		SetIf(VR	*);
 //		BOOL		Morph(DICOMObject	*);
 		BOOL		Reset ();
+
 	private:// This will prevent it from being copied (it has pointers)
 		VR(const VR&);
 		VR & operator = (const VR&);

@@ -18,6 +18,7 @@
 20220824    	mvh	Added LoadDICOMDataObjectTrunc (WIP)
 20260710	mvh	SaveDICOMDataObject accepts @filename: append to file
 20260716	mvh	Merged fix by Divinus; wrote to constant string
+20260906        mvh     Use VR->GetString
 */
 
 /****************************************************************************
@@ -367,8 +368,7 @@ PDU_Service	::	SaveDICOMDataObject (
 			/* See what TransferSyntax was used */
 			pVR = DDO->GetVR(0x0002, 0x0010);
 			if (pVR && pVR->Data && (((char*)pVR->Data)[0] != 0))
-			{ memset(TransferSyntaxUID, 0, 256);
-                          memcpy(TransferSyntaxUID, (char*)pVR->Data, pVR->Length);
+			{ pVR->GetString(TransferSyntaxUID, sizeof(TransferSyntaxUID));
 			}
 			else
 			{ /* When undefined, use implicit little endian */

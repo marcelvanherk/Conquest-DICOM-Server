@@ -36,6 +36,7 @@
 20140512    ea     Updated the implementation of VR* DICOMObject::GetVR()
 20140528    lsp    Kept member initialization only in constructors: not GNUC specific
 20200203    mvh	   lsp removed DataPointer stuff to support lsp array change
+20260905    mvh    VR.GetString(buf, max), fills buf returns FALSE if truncated at max-1
 */
 
 
@@ -1213,4 +1214,20 @@ VR	::	Getatoi()
 		value = atoi(s);
 	}
 	return(value);
+}
+
+BOOL		
+VR	::	GetString(char *buf, size_t max)
+{	if (Length>max-1) 
+	{	strncpy(buf, (const char*)Data, max);
+		buf[max]=0;
+		if (max>1) 
+			if (buf[max-1]==' ') buf[max-1]=0;
+		return FALSE;
+	}
+	strncpy(buf, (const char*)Data, Length);
+	buf[Length] = 0;
+	if (Length>1) 
+		if (buf[Length-1]==' ') buf[Length-1]=0;
+	return TRUE;
 }

@@ -1261,6 +1261,11 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260906	mvh	protect checkaccess against too long ip6
 20260906	mvh	Use new vr->GetString to avoid buffer overruns and simplify code
 20260906	mvh	Version to 1.5.0g
+20260907	mvh	checkaccess adds regular DICOM services, better matching, some ip6 fixes
+20260907	mvh	Pass len to GetImageFileUID and MakeSafeStringValues
+20260907	mvh	Implemented map in checkaccess (any occurance will append all non-wildcard IP addresses in acrnema.map); 
+			Fix :: and lowercase in IPv6 as reported by Divinus; 
+20260907	mvh	Gotten rid of nasty SetString function, use GetString instead
 
 ENDOFUPDATEHISTORY
 */
@@ -1695,127 +1700,282 @@ int GetNumberOfFrames(DICOMDataObject* pDDO);
 #define ca_zip 9
 #define ca_stow 10
 #define ca_delete 11
+#define ca_cverification 12
+#define ca_cfind 13
+#define ca_cmove 14
+#define ca_cget 15
+#define ca_cstore 16
+#define ca_cmovedest 17
 
 // Allows e.g. 127.0.0.1,192.168.1.*,10.127.*.* wildcards in dicom.ini
-// when ip6 address string is passed then matches e.g 1:*, 1:2:*, 1:2:3:4:*, 1:2:3:4:5:6:*
+// when ip6 address string is passed, expand ::, lowercase and then try e.g 1:*, 1:2:*, 1:2:3:4:*, 1:2:3:4:5:6:*
 BOOL checkaccess(int op, unsigned int ip, char *ip6=NULL)
-{ char ips1[64], ips2[64], ips3[64], ips4[64], ips5[64], buffer[258], szRootSC[64];
+{ char ips1[64], ips2[64], ips3[64], ips4[64], ips5[64], buffer[2048], szRootSC[64];
   if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile)) return false;
-  strcpy(buffer, ",");
   
   if (ip6) // ipv6
   { if (strlen(ip6)>63) return FALSE;
     int cc=0;
-    sprintf(ips1, ",%s", ip6);
-    for (int i=0; i<strlen(ip6); i++)
-    { if (ip6[i]==':') cc++;
-      if (cc==1) sprintf(ips2, ",%-.*s*", i, ip6);
-      if (cc==2) sprintf(ips3, ",%-.*s*", i, ip6);
-      if (cc==4) sprintf(ips4, ",%-.*s*", i, ip6);
-      if (cc==6) sprintf(ips5, ",%-.*s*", i, ip6);
+    char ipv6[64];
+    for (int i=0; i<strlen(ip6); i++) if (ip6[i]==':') cc++;
+    char *p = strstr(ip6, "::");
+    if (p && cc<7) 
+    { memset(ipv6, 0, sizeof(ipv6));
+      if (p==ip6) ipv6[0]='0';
+      memcpy(ipv6+strlen(ipv6), ip6, (p-ip6));
+      for (; cc<8; cc++) strcat(ipv6, ":0");
+      strcat(ipv6, p+1);
     }
-    if (cc!=7) return false;
+    for (int i=0; i<strlen(ipv6); i++) ipv6[i]=tolower(ipv6[i]);
+    
+    cc=0;
+    sprintf(ips1, ",%s,", ipv6);
+    for (int i=0; i<strlen(ipv6); i++)
+    { if (ipv6[i]==':') 
+      { cc++;
+        if (cc==1) sprintf(ips2, ",%-.*s*,", i+1, ipv6);
+        if (cc==2) sprintf(ips3, ",%-.*s*,", i+1, ipv6);
+        if (cc==4) sprintf(ips4, ",%-.*s*,", i+1, ipv6);
+        if (cc==6) sprintf(ips5, ",%-.*s*,", i+1, ipv6);
+      }
+    }
+    //OperatorConsole.printf("*** %s!%s!%s!%s!%s\n", ips1, ips2, ips3, ips4, ips5);
   }
   else // ipv4
-  { sprintf(ips1, ",%d.%d.%d.%d", ip&255, (ip>>8)&255, (ip>>16)&255, (ip>>24)&255);
-    sprintf(ips2, ",%d.%d.%d.*", ip&255, (ip>>8)&255, (ip>>16)&255);
-    sprintf(ips3, ",%d.%d.*.*", ip&255, (ip>>8)&255);
-    sprintf(ips4, ",%d.*.*.*", ip&255);
-    sprintf(ips5, ",*.*.*.*");
+  { sprintf(ips1, ",%d.%d.%d.%d,", ip&255, (ip>>8)&255, (ip>>16)&255, (ip>>24)&255);
+    sprintf(ips2, ",%d.%d.%d.*,", ip&255, (ip>>8)&255, (ip>>16)&255);
+    sprintf(ips3, ",%d.%d.*.*,", ip&255, (ip>>8)&255);
+    sprintf(ips4, ",%d.*.*.*,", ip&255);
+    sprintf(ips5, ",*.*.*.*,");
   }
 
-  MyGetPrivateProfileString(szRootSC, "DeniedIPs", "none", buffer+1, 256, ConfigFile);
+  int Index=0;
+  char map[1024];
+  map[0]=0;
+  while ( Index < ACRNemaAddressArray.GetSize() )
+  { ACRNemaAddress *AAPtr = ACRNemaAddressArray.Get(Index);
+    if (strchr(AAPtr->IP, '*')==NULL) sprintf(map+strlen(map), ",%s", AAPtr->IP);
+    ++Index;
+    if (strlen(map)>sizeof(map)-16)
+    { OperatorConsole.printf("*** checkaccess: too many IP addresses in ACRNEMA.MAP\n");
+      break;
+    }
+  }
+  strcat(map, ",");
+  strcpy(buffer, ",");
+
+  MyGetPrivateProfileString(szRootSC, "DeniedIPs", "none", buffer+1, 1024, ConfigFile);
+  strcat(buffer, ",");
+  if (strstr(buffer, "map")) strcat(buffer, map);
   if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
   
   if (op==ca_archive)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsArchive", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsArchive", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsArchive", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsArchive", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_change)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsChange", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsChange", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsChange", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsChange", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_move)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsMove", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsMove", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsMove", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsMove", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_remote)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsRemote", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsRemote", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsRemote", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsRemote", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_script)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsScript", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsScript", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsScript", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsScript", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_status)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStatus", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStatus", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsStatus", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsStatus", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_store)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStore", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStore", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsStore", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsStore", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_wado)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsWado", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsWado", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsWado", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsWado", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_zip)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsZip", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsZip", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsZip", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsZip", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_stow)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStow", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStow", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsStow", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsStow", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
   if (op==ca_delete)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsDelete", "none", buffer+1, 256, ConfigFile);
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsDelete", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsDelete", "127.0.0.1", buffer+1, 256, ConfigFile);
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsDelete", "127.0.0.1", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
     if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
   }
 
-  MyGetPrivateProfileString(szRootSC, "AllowedIPs", "127.0.0.1", buffer+1, 256, ConfigFile);
+  // regular dicom services; default to allow *.*.*.*
+  if (op==ca_cverification)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCVerification", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsCVerification", "*.*.*.*", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_cfind)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCFind", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsCFind", "*.*.*.*", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_cmove)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCMove", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsCMove", "*.*.*.*", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_cget)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCGet", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsCGet", "*.*.*.*", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_cstore)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCStore", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsCStore", "*.*.*.*", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  if (op==ca_cmovedest)
+  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCMoveDest", "none", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+
+    MyGetPrivateProfileString(szRootSC, "AllowedIPsCMoveDest", "*.*.*.*", buffer+1, 1024, ConfigFile);
+    strcat(buffer, ",");
+    if (strstr(buffer, "map")) strcat(buffer, map);
+    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  }
+
+  MyGetPrivateProfileString(szRootSC, "AllowedIPs", "127.0.0.1", buffer+1, 1024, ConfigFile);
+  strcat(buffer, ",");
+  if (strstr(buffer, "map")) strcat(buffer, map);
   if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
 
   return false;
@@ -3005,7 +3165,7 @@ DeleteImageFile(char *filename, BOOL KeepImages)
 
 // Ask image UID
 BOOL
-GetImageFileUID(char *filename, char *UID)
+GetImageFileUID(char *filename, char *UID, int len)
 	{
 	DICOMDataObject*	pDDO;
 	VR			*vrSOPInstanceUID;
@@ -3027,7 +3187,7 @@ GetImageFileUID(char *filename, char *UID)
 		}
 
 	vrSOPInstanceUID = pDDO->GetVR(0x0008, 0x0018);
-	vrSOPInstanceUID->GetString(UID, 256);
+	vrSOPInstanceUID->GetString(UID, len);
 
 	delete pDDO;
 
@@ -3240,7 +3400,6 @@ OldUIDsInDICOMObject(DICOMObject *DO, const char *Exceptions, char *Stage, Datab
     			if (TypeCode=='UI' && strstr(desc, "Class")==NULL && strcmp(desc, "TransferSyntaxUID"))
 				{
 				vr->GetString(s, sizeof(s));
-
 				if (strlen(s)==0) GenUID(s);
 				strcat(s, ";");
 				sprintf(name, "%04x,%04x|", vr->Group, vr->Element);
@@ -4816,7 +4975,7 @@ class	RunTimeClassStorage	:
 // limitations: PatientID, SeriesInstanceUID and StudyInstanceUID 
 // cannot be queried. All other DB fields can be queried.
 
-BOOL DICOM2SQLValue (char *s);
+BOOL DICOM2SQLValue (char *s, int len);
 
 int TestFilter(char *query, char *sop, int maxname, char *patid=NULL)
 {	Database aDB;
@@ -4888,7 +5047,7 @@ int TestFilter(char *query, char *sop, int maxname, char *patid=NULL)
 				{ 
 				char newpatid[256];
 				strcpy(newpatid, patid);
-				DICOM2SQLValue(newpatid);	// allow exact match only
+				DICOM2SQLValue(newpatid, sizeof(newpatid));	// allow exact match only
 				sprintf(QueryString+strlen(QueryString), " AND DICOMImages.ImagePat = %s", newpatid);
 				break;
         			}
@@ -5688,7 +5847,6 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
         if (level==3) vr = DDO->GetVR(0x0020, 0x000e);
         if (level==4) vr = DDO->GetVR(0x0008, 0x0018);
         if (level==5) vr = DDO->GetVR(0x0008, 0x0016);
-	szTemp[0]=0;
         if (vr) vr->GetString(szTemp, sizeof(szTemp));
  
         // get sopclass (to check whether it is accepted at the current connection)
@@ -10102,7 +10260,6 @@ int CallImportConverterN(DICOMCommandObject *DCO, DICOMDataObject *DDO, int N, c
       if (level==3) vr = pDDO->GetVR(0x0020, 0x000e);
       if (level==4) vr = pDDO->GetVR(0x0008, 0x0018);
       if (level==5) vr = pDDO->GetVR(0x0008, 0x0016);
-      szTemp[0]=0;
       if (vr) vr->GetString(szTemp, sizeof(szTemp));
 
       // get sopclass (to check whether it is accepted at the current connection)
@@ -12049,7 +12206,7 @@ PrefetchPatientData(char *PatientID, unsigned int MaxRead, int Thread)
 	
 	// MakeSafeString(PatientID, PatientIDValue);
 	strcpy(PatientIDValue, PatientID);
-	DICOM2SQLValue(PatientIDValue);	// allow exact match only
+	DICOM2SQLValue(PatientIDValue, sizeof(PatientIDValue));	// allow exact match only
 	sprintf(QueryString, 	"DICOMImages.ImagePat = %s", PatientIDValue);
 
 	if (!aDB.Query(Tables, "DICOMImages.DeviceName, DICOMImages.ObjectFile", QueryString, NULL))
@@ -12726,7 +12883,7 @@ static BOOL WINAPI prefetcherthread(struct conquest_queue *q)
 
 	//MakeSafeString(data+1, QueryValue);
 	strcpy(QueryValue, data+1);
-	DICOM2SQLValue(QueryValue);	// allow exact match only
+	DICOM2SQLValue(QueryValue, sizeof(QueryValue));	// allow exact match only
 
         TimeOfDay = time(NULL);
         kb = 0;
@@ -14625,7 +14782,7 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 					else if (argv[valid_argc][2] == '?')
 						{
 						char UID[256];
-						if (!GetImageFileUID(argv[valid_argc]+3, UID))
+						if (!GetImageFileUID(argv[valid_argc]+3, UID, sizeof(UID)))
 							exit(1);
 						printf("%s\n", UID);
 						}
@@ -14969,21 +15126,6 @@ ParseArgs (int	argc, char	*argv[], ExtendedPDU_Service *PDU)
 
 	return ( Socketfd );
 	}
-
-/*
-BOOL
-SetString(VR	*vr, char	*s, int	Max)
-	{
-	memset((void*)s, 0, Max);
-	if(vr)
-		if(vr->Data)
-			{
-			memcpy((void*)s, vr->Data, vr->Length%Max);
-			return ( TRUE );
-			}
-	return ( FALSE );
-	}
-*/
 
 class	DriverApp
 	{
@@ -17285,7 +17427,10 @@ BOOL	MyPatientRootQuery	::	SearchOn (
 	BOOL	st;
 	UINT16	mask;
 
-	SetString(DDOPtr->GetVR(0x0008, 0x0052), Level, 10);
+	Level[0]=0;
+	VR *vr = DDOPtr->GetVR(0x0008, 0x0052);
+	if (vr) vr->GetString(Level, sizeof(Level));
+	
 	strcpy(QueryRetrieveLevel, Level);
 	OperatorConsole.printf("(PatientRootQuery) search level: %s\n", Level);
 	if (DebugLevel>=2) NonDestructiveDumpDICOMObject(DDOPtr);
@@ -17353,7 +17498,10 @@ BOOL	MyStudyRootQuery	::	SearchOn (
 	BOOL	st;
 	UINT16	mask;
 
-	SetString(DDOPtr->GetVR(0x0008, 0x0052), Level, 10);
+	Level[0]=0;
+	VR *vr = DDOPtr->GetVR(0x0008, 0x0052);
+	if (vr) vr->GetString(Level, sizeof(Level));
+
 	strcpy(QueryRetrieveLevel, Level);
 	OperatorConsole.printf("(StudyRootQuery) search level: %s\n", Level);
         if (DebugLevel>=2) NonDestructiveDumpDICOMObject(DDOPtr);
@@ -17423,7 +17571,10 @@ BOOL	MyPatientStudyOnlyQuery	::	SearchOn (
 	BOOL	st;
 	UINT16	mask;
 
-	SetString(DDOPtr->GetVR(0x0008, 0x0052), Level, 10);
+	Level[0]=0;
+	VR *vr = DDOPtr->GetVR(0x0008, 0x0052);
+	if (vr) vr->GetString(Level, sizeof(Level));
+
 	strcpy(QueryRetrieveLevel, Level);
 	OperatorConsole.printf("(PatientStudyOnlyQuery) search level: %s\n", Level);
         if (DebugLevel>=2) NonDestructiveDumpDICOMObject(DDOPtr);
@@ -17481,7 +17632,10 @@ BOOL	MyModalityWorkListQuery	::	SearchOn (
 	BOOL	st;
 	UINT16	mask;
 
-	SetString(DDOPtr->GetVR(0x0008, 0x0052), Level, 10);
+	Level[0]=0;
+	VR *vr = DDOPtr->GetVR(0x0008, 0x0052);
+	if (vr) vr->GetString(Level, sizeof(Level));
+
 	strcpy(QueryRetrieveLevel, Level);
 
 	mask = DDOPtr->GetUINT16(0x9999, 0x0802);
@@ -21295,7 +21449,7 @@ MakeQueryString ( DBENTRY	*DBE, char	*s)
 	return ( TRUE );
 	}
 
-BOOL MakeSafeStringValues (VR *vr, char *string);
+BOOL MakeSafeStringValues (VR *vr, char *string, int len);
 static BOOL DcmEcho(const char *AE);
 
 static char* CommaInFilenameWorkAround(char* SilentText)
@@ -21517,7 +21671,7 @@ BOOL ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 							vr2.Length = strlen(fld[i1]);
 							if (i1) strcat ( s, ", ");
 							
-							MakeSafeStringValues ( &vr2, TempString );
+							MakeSafeStringValues ( &vr2, TempString, sizeof(TempString) );
 							vr2.Data = NULL;
 							vr2.Length = 0;
 							strcat ( s, TempString );
@@ -21628,7 +21782,7 @@ BOOL ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 					vr2.Length = strlen(fld[i1]);
 					if (i1) strcat ( s, ", ");
 							
-					MakeSafeStringValues ( &vr2, TempString );
+					MakeSafeStringValues ( &vr2, TempString, sizeof(TempString) );
 					vr2.Data = NULL;
 					vr2.Length = 0;
 					strcat ( s, TempString );

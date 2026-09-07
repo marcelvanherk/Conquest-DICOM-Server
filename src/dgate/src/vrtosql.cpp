@@ -84,6 +84,8 @@
 20230620        mvh     Fix sorting code for PostGres; use CAST and pass expression to columnstring through OrderExp
 20250814        mvh     Prepend TableName to sort field in ColumnString and sort string in OrderCalc
 20260906	mvh	Use VR->GetString
+20260907	mvh	Pass lenghts to DICOM2SQL functions and MakeSafe functions
+20260907	mvh	Move SetString here (only used here) and changed interface to return size
 */
 
 #ifndef	WHEDGE
@@ -117,11 +119,97 @@ void RemoveQueryDuplicates(const char *Level, Array < DICOMDataObject * > *ADDO)
 
 extern int	UTF8ToDB;
 
+int newSetString(VR *vr, char **s)
+	{
+	int		Index, Max;
+	UINT16	*tuint16;
+	UINT32	*tuint32;
+	DBENTRY	*DBE;
+
+	if (vr) Max = 3 * vr->Length + 20; else Max = 255;	// mvh 20110105 must allow MakeSafeString in-place (!) ?E'[_]' ESCAPE '\'
+	if (Max < 255) Max = 255;
+	*s = new char[Max];
+
+	memset((void*)*s, 0, Max);
+
+	if(vr)
+		if(vr->Data)
+			{
+			DBE = FindDBE(vr);
+			if(!DBE)
+				{
+				memcpy((void*)*s, vr->Data, vr->Length); // mvh 20110105
+				return ( Max );
+				}
+			switch(DBE->DICOMType)
+				{
+				case	DT_UI:
+				case	DT_STR:
+				case	DT_ISTR:
+				case	DT_MSTR:
+				case	DT_DATE:
+					memcpy((void*)*s, vr->Data, vr->Length); // mvh 20110105
+					Index = strlen(*s);
+					if(Index)
+						{
+						if((*s)[Index-1]==' ')
+							{
+							(*s)[Index-1]='\0';
+							}
+						}
+					return ( Max );
+				case	DT_UINT16:
+					tuint16 = (UINT16*)vr->Data;
+#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
+					sprintf(*s, "%u", (*tuint16));
+#else //Big Endian like Apple power pc
+					sprintf(*s, "%u", SwitchEndian(*tuint16));
+#endif
+					return ( Max );
+				case	DT_UINT32:
+					tuint32 = (UINT32*)vr->Data;
+#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
+					sprintf(*s, "%u", (*tuint32));
+#else //Big Endian like Apple power pc
+					sprintf(*s, "%u", SwitchEndian(*tuint32));
+#endif
+					return ( Max );
+				case	DT_FL:
+				        {
+					float f;
+#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
+					f = *(float*)vr->Data;
+#else //Big Endian like Apple power pc
+					swap((BYTE *)&f, (BYTE *)vr->Data, 4);
+#endif
+					sprintf(*s, "%.16g", f);
+					return ( Max );
+					}
+				case	DT_FD:
+				        {
+					double d;
+#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
+					d = *(double*)vr->Data;
+#else //Big Endian like Apple power pc
+					swap((BYTE *)&d, (BYTE *)vr->Data, 8);
+#endif
+					sprintf(*s, "%.16g", d);
+					return ( Max );
+					}
+				default:
+					memcpy((void*)*s, vr->Data, vr->Length); // mvh 20110105
+					return ( Max );
+				}
+			}
+	return ( Max );
+	}
+
 BOOL
 MakeSafeString (
 	VR	*vr,
 	char	*string,
-	Database *db )
+	Database *db,
+	int len)
 	{
 	unsigned int Length;
 	unsigned char	*sout;
@@ -131,7 +219,8 @@ MakeSafeString (
 	BOOL	AddEscape = FALSE;
 	BOOL	UseLike = FALSE;
 
-	s = SetString(vr, NULL, 0);
+	newSetString(vr, &s);
+	//s = SetString(vr, NULL, 0);
 	Length = strlen(s);
 	sin = (unsigned char*)s;
 	sout = (unsigned char *)string;
@@ -384,7 +473,8 @@ MakeSafeString (
 
 BOOL	DICOM2SQLQuery (
 	char	*s,
-	Database *db )
+	Database *db,
+	int len)
 	{
 	VR		vr;
 	char	*s1;
@@ -396,8 +486,8 @@ BOOL	DICOM2SQLQuery (
 		vr.Group = 0;
 		vr.Element = 0;
 		s1 = (char *)malloc(vr.Length*3 + 20);	// must allow MakeSafeString in-place (!) ?E'[_]' ESCAPE '\'
-		MakeSafeString(&vr, s1, db);
-		strcpy(s, s1);
+		MakeSafeString(&vr, s1, db, vr.Length*3 + 20);
+		if (strlen(s1)<len-1) strcpy(s, s1); else strcpy(s, "IGNOREDTOOLARGEVALUE");
 		free(s1);
 		vr.Data = NULL;
 		vr.Length = 0;
@@ -921,8 +1011,9 @@ BOOL	QueryOnPatient (
 			if(vr->Group == 0x0010)
 				if(vr->Element == 0x0010)
 					DoSort = TRUE;
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultPatient.Add ( SQLResultString );
 			EMaskPatient.Add ( vr );
 			DBQPatient.Add ( TempDBEPtr );	
@@ -1326,16 +1417,18 @@ BOOL	QueryOnStudy (
 
 		if(VerifyIsInDBE(vr, StudyDB, TempDBEPtr))
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultStudy.Add ( SQLResultString );
 			EMaskStudy.Add ( vr );
 			DBQStudy.Add ( TempDBEPtr );
 			}
 		else if(VerifyIsInDBE(vr, PatientDB, TempDBEPtr))
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultPatient.Add ( SQLResultString );
 			EMaskPatient.Add ( vr );
 			DBQPatient.Add ( TempDBEPtr );
@@ -1744,24 +1837,27 @@ BOOL	QueryOnSeries (
 
 		if(VerifyIsInDBE(vr, StudyDB, TempDBEPtr))
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultStudy.Add ( SQLResultString );
 			EMaskStudy.Add ( vr );
 			DBQStudy.Add ( TempDBEPtr );
 			}
 		else if(VerifyIsInDBE(vr, PatientDB, TempDBEPtr))
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultPatient.Add ( SQLResultString );
 			EMaskPatient.Add ( vr );
 			DBQPatient.Add ( TempDBEPtr );
 			}
 		else if(VerifyIsInDBE(vr, SeriesDB, TempDBEPtr))
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultSeries.Add ( SQLResultString );
 			EMaskSeries.Add ( vr );
 			DBQSeries.Add ( TempDBEPtr );
@@ -2219,32 +2315,36 @@ BOOL	QueryOnImage (
 
 		if(VerifyIsInDBE(vr, StudyDB, TempDBEPtr))
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultStudy.Add ( SQLResultString );
 			EMaskStudy.Add ( vr );
 			DBQStudy.Add ( TempDBEPtr );
 			}
 		else if(VerifyIsInDBE(vr, PatientDB, TempDBEPtr))
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultPatient.Add ( SQLResultString );
 			EMaskPatient.Add ( vr );
 			DBQPatient.Add ( TempDBEPtr );
 			}
 		else if(VerifyIsInDBE(vr, SeriesDB, TempDBEPtr))
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultSeries.Add ( SQLResultString );
 			EMaskSeries.Add ( vr );
 			DBQSeries.Add ( TempDBEPtr );
 			}
 		else if(VerifyIsInDBE(vr, ImageDB, TempDBEPtr))
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+			int len = newSetString(vr, &SQLResultString);
+			//SQLResultString = SetString(vr, NULL, 0);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 			SQLResultImage.Add ( SQLResultString );
 			EMaskImage.Add ( vr );
 			DBQImage.Add(TempDBEPtr);
@@ -2691,8 +2791,8 @@ static void ProcessQuery(DICOMDataObject *DDO, DBENTRY *DB, Array <VR *> *EMask,
 			}
 		else
 			{
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, dbf);
+			int len = newSetString(vr, &SQLResultString);
+			DICOM2SQLQuery(SQLResultString, dbf, len);
 
 			SQLResult->Add ( SQLResultString );				// field=value, vr, level, DBE: vr
 			EMask->Add ( vr );
@@ -2880,8 +2980,9 @@ BOOL	QueryOnModalityWorkList (
 			if(vr->Group == 0x0010)
 				if(vr->Element == 0x0010)
 					DoSort = TRUE;
-			SQLResultString = SetString(vr, NULL, 0);
-			DICOM2SQLQuery(SQLResultString, &DB);
+
+			int len = newSetString(vr, &SQLResultString);
+			DICOM2SQLQuery(SQLResultString, &DB, len);
 
 			SQLResultWorkList.Add ( SQLResultString );		// field=value, vr, 1, DBE: code VR
 			EMaskWorkList.Add ( vr );

@@ -116,6 +116,7 @@ Spectra0018 Thu, 6 Mar 2014 15:43:54 -0300: Fix mismatched new/delete in device.
 20191221        mvh     Fix MakeListOfOldestPatientsOnDevice for no device passed
 20240922	mvh	Allow xxThreshHold and xxThreshold (3 times)
 20260215	mvh	Fix parsing of tm_mon in MakeListOfSeriesOnDevice; affects selection of series by age
+20260907	mvh	Pass lenghts to DICOM2SQL functions and MakeSafe functions
 */
 
 #ifndef UNUSED_ARGUMENT
@@ -1560,9 +1561,9 @@ GetKBUsedOnDevice (char	*Device)
 // Make a SQL safe string from a character string (how about the '_' ?)
 // uses MakeSafeString from VRTOSQL.CPP (is database type dependent)
 
-BOOL MakeSafeString (VR	*vr, char *string, Database *db);
+BOOL MakeSafeString (VR	*vr, char *string, Database *db, int len);
 
-BOOL MakeSafeString (const char *in, char *string, Database *db)
+BOOL MakeSafeString (const char *in, char *string, Database *db, int len)
 	{
 	VR       vr;
 	char	*s1;
@@ -1572,7 +1573,7 @@ BOOL MakeSafeString (const char *in, char *string, Database *db)
 	vr.Length = strlen(in);
 	vr.Group = 0;
 	vr.Element = 0;
-	MakeSafeString(&vr, s, db);
+	MakeSafeString(&vr, s, db, sizeof(s));
 	vr.Data = NULL;
 	vr.Length = 0;
 
@@ -1603,8 +1604,8 @@ GetKBUsedForPatient (char *Device, char *PatientID, int ComputeSpace)
 		return -1;
 		}
 	
-	MakeSafeString(PatientID, PatientIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(PatientID, PatientIDValue, &aDB, sizeof(PatientIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.ImagePat %s and "
 				"DICOMImages.DeviceName %s",
@@ -1674,7 +1675,7 @@ GetKBUsedForSeries (char *Device, char *SeriesUID, int ComputeSpace)
 		return -1;
 		}
 	
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.SeriesInst = '%s' and "
 				"DICOMImages.DeviceName %s",
@@ -1746,8 +1747,8 @@ RecompressPatient (char *Device, char *PatientID, char *Compression, ExtendedPDU
 		return;
 		}
 	
-	MakeSafeString(PatientID, PatientIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(PatientID, PatientIDValue, &aDB, sizeof(PatientIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.ImagePat %s and "
 				"DICOMImages.DeviceName %s",
@@ -1825,8 +1826,8 @@ ProcessMoveDevicePatient (char *Device, char *PatientID)
 		return;
 		}
 	
-	MakeSafeString(PatientID, PatientIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(PatientID, PatientIDValue, &aDB, sizeof(PatientIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.ImagePat %s and "
 				"DICOMImages.DeviceName %s",
@@ -1875,8 +1876,8 @@ ProcessMoveDeviceSeries (char *Device, char *SeriesUID)
 		return;
 		}
 	
-	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB, sizeof(SeriesUIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.SeriesInst %s and "
 				"DICOMImages.DeviceName %s",
@@ -1920,8 +1921,8 @@ ModifyDeviceNameForPatient (char *Device, const char *PatientID, char *UpdateStr
 		return FALSE;
 		}
 	
-	MakeSafeString(PatientID,    PatientIDValue, &aDB);
-	MakeSafeString(Device,       DeviceValue,    &aDB);
+	MakeSafeString(PatientID,    PatientIDValue, &aDB, sizeof(PatientIDValue));
+	MakeSafeString(Device,       DeviceValue,    &aDB, sizeof(DeviceValue));
 
 
         if (strlen(PatientID))
@@ -1963,8 +1964,8 @@ ModifyDeviceNameForSeries (char *Device, const char *SeriesUID, char *UpdateStri
 		return FALSE;
 		}
 	
-	MakeSafeString(SeriesUID,  SeriesUIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,     &aDB);
+	MakeSafeString(SeriesUID,  SeriesUIDValue, &aDB, sizeof(SeriesUIDValue));
+	MakeSafeString(Device,    DeviceValue,     &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.DeviceName %s and "
 				"DICOMImages.SeriesInst %s",
@@ -2004,8 +2005,8 @@ MovePatientData (char *Device, char *PatientID, char *From, char *To)
 		return FALSE;
 		}
 	
-	MakeSafeString(PatientID, PatientIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(PatientID, PatientIDValue, &aDB, sizeof(PatientIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.ImagePat %s and "
 				"DICOMImages.DeviceName %s",
@@ -2092,8 +2093,8 @@ CopyPatientData (char *Device, char *PatientID, char *From, char *To)
 		return FALSE;
 		}
 	
-	MakeSafeString(PatientID, PatientIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(PatientID, PatientIDValue, &aDB, sizeof(PatientIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.ImagePat %s and "
 				"DICOMImages.DeviceName %s",
@@ -2169,8 +2170,8 @@ CopySeriesData (char *Device, char *SeriesUID, char *From, char *To)
 		return FALSE;
 		}
 	
-	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB, sizeof(SeriesUIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.SeriesInst %s and "
 				"DICOMImages.DeviceName %s",
@@ -2245,8 +2246,8 @@ ComparePatientData (char *Device, char *PatientID, char *From, char *To)
 		return FALSE;
 		}
 	
-	MakeSafeString(PatientID, PatientIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(PatientID, PatientIDValue, &aDB, sizeof(PatientIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.ImagePat %s and "
 				"DICOMImages.DeviceName %s",
@@ -2305,8 +2306,8 @@ CompareSeriesData (char *Device, char *SeriesUID, char *From, char *To)
 		return FALSE;
 		}
 	
-	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB, sizeof(SeriesUIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.SeriesInst %s and "
 				"DICOMImages.DeviceName %s",
@@ -2442,8 +2443,8 @@ TestPatientData (char *Device, char *PatientID, char *From)
 		return FALSE;
 		}
 	
-	MakeSafeString(PatientID, PatientIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(PatientID, PatientIDValue, &aDB, sizeof(PatientIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.ImagePat %s and "
 				"DICOMImages.DeviceName %s",
@@ -2498,8 +2499,8 @@ TestSeriesData (char *Device, char *SeriesUID, char *From)
 		return FALSE;
 		}
 	
-	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB, sizeof(SeriesUIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.SeriesInst %s and "
 				"DICOMImages.DeviceName %s",
@@ -2556,8 +2557,8 @@ DeletePatientData (char *Device, char *PatientID, char *From, char *To)
 		return FALSE;
 		}
 	
-	MakeSafeString(PatientID, PatientIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(PatientID, PatientIDValue, &aDB, sizeof(PatientIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.ImagePat %s and "
 				"DICOMImages.DeviceName %s",
@@ -2649,8 +2650,8 @@ DeleteSeriesData (char *Device, char *SeriesUID, char *From, char *To)
 		return FALSE;
 		}
 	
-	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB);
-	MakeSafeString(Device,    DeviceValue,    &aDB);
+	MakeSafeString(SeriesUID, SeriesUIDValue, &aDB, sizeof(SeriesUIDValue));
+	MakeSafeString(Device,    DeviceValue,    &aDB, sizeof(DeviceValue));
 
 	sprintf(QueryString, 	"DICOMImages.SeriesInst %s and "
 				"DICOMImages.DeviceName %s",
@@ -2889,7 +2890,7 @@ MakeListOfPatientsOnDevice(char *Device, char **PatientIDList)
 	if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
 		return -1;
 
-	MakeSafeString(Device,  DeviceValue, &DB);
+	MakeSafeString(Device,  DeviceValue, &DB, sizeof(DeviceValue));
 
 	// query is hand-written since built-in dbase driver cannot handle the original one
 
@@ -2946,7 +2947,7 @@ MakeListOfPatientsOnDevice(char *Device, char **PatientIDList)
 			if (Patients==MAXPATIENTS) 
 				break;
 
-			MakeSafeString(PatList + 68*i, s, &DB);
+			MakeSafeString(PatList + 68*i, s, &DB, 68);
 	
 			sprintf(QueryString, 	"DICOMImages.DeviceName %s and "
 						"DICOMImages.ImagePat %s",
@@ -3147,7 +3148,7 @@ MakeListOfSeriesOnDevice(char *Device, char **SeriesList, int age, int kb)
 	if (!DB.Open ( DataSource, UserName, Password, DataHost ) )
 		return -1;
 
-	MakeSafeString(Device,  DeviceValue, &DB);
+	MakeSafeString(Device,  DeviceValue, &DB, sizeof(DeviceValue));
 
 	sprintf(Tables, "%s, %s", ImageTableName, SeriesTableName);
 
@@ -4159,11 +4160,11 @@ MakeListOfOldestPatientsOnDevice(char **PatientIDList, int Max, const char *Devi
 
 	if (Device && Device[0]) 
 		{
-		MakeSafeString(Device,  DeviceValue, &DB);
+		MakeSafeString(Device,  DeviceValue, &DB, sizeof(DeviceValue));
 
 		for (i=0; i<Patients && Result<abs(Max); i++)
 			{
-			MakeSafeString(StudyList + 256*i, s, &DB);
+			MakeSafeString(StudyList + 256*i, s, &DB, 256);
 
 			sprintf(QueryString, 	"DICOMImages.DeviceName %s and "
 						"DICOMImages.ImagePat %s",

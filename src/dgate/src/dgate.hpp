@@ -55,6 +55,7 @@ mvh 20110119: Moved two functions to the correct place
 mvh 20160108: Updated ChangeUID calls to support staged anonymization
 mvh 20160219: Removed BOOL TRUE and FALSE defines
 mvh 20171122: Added DT_ISTR (case insensitive query string)
+mvh 20260907: Pass lenghts to MakeSafe functions
 */
 
 //#define bool BOOL
@@ -194,15 +195,14 @@ BOOL	BuildSearchString(Database *DB, DBENTRY	*DBE, char	*TableName, VR	*vr, char
 BOOL	SaveToDataBase (Database &DB, DICOMDataObject	*, char	*filename, const char *Device, BOOL JustAdd);
 BOOL	CheckOrMakeTable(Database	&);
 BOOL	DropTables();
-BOOL	MakeSafeString ( VR *, char	*);
-BOOL	MakeSafeDate ( VR *, char *);
+BOOL	MakeSafeString ( VR *, char	*, int len);
+BOOL	MakeSafeDate ( VR *, char *, int len);
 BOOL	RemoveDuplicates ( Database &, DBENTRY *, char	*, DICOMDataObject *, BOOL);
 BOOL	FixImage(DICOMDataObject	*);
 DBENTRY	*FindDBE(VR*);
 UINT	LastDBE(DBENTRY*);
 BOOL	VerifyIsInDBE( VR	*vr, DBENTRY	*DBE, DBENTRY	* &TempDBEPtr );
 UINT	DBEIndex(DBENTRY	*DBE, VR	*vr);
-BOOL	DICOM2SQLQuery ( char	*s );
 const char	*UniqueKey(DBENTRY*);
 const char	*UniqueLink(DBENTRY*);
 BOOL	UpdateAccessTimes(Database &, char *);

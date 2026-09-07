@@ -248,6 +248,8 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20240924	mvh     Added \n after all Progress.printf output
 20260811	mvh     md5 now has 'correct' flag; set for lua call, not for UIDs for backwards compatibility
 20260906	mvh	Use VR->GetString
+20260907	mvh	Pass lenghts to DICOM2SQL functions and MakeSafe functions
+20260907	mvh	MakeSafeStringValues no longer uses SetString and checks length, move SetString out of here
 */
 
 #define NCACHE 256
@@ -388,7 +390,7 @@ UpdateOrAddToTable(
 	BOOL			JustAdd,
 	BOOL			CheckDuplicates);
 
-BOOL MakeSafeStringValues (VR *vr, char *string);
+BOOL MakeSafeStringValues (VR *vr, char *string, int len);
 
 static
 void
@@ -954,7 +956,7 @@ void MD5_compute(char *in, unsigned char *out)
 // end of MD5 code
 	
 BOOL	DICOM2SQLValue (
-	char	*s )
+	char	*s, int len )
 	{
 	VR		vr;
 	char	*s1;
@@ -965,9 +967,9 @@ BOOL	DICOM2SQLValue (
 		vr.Length = strlen(s);
 		vr.Group = 0;
 		vr.Element = 0;
-		s1 = (char *)malloc(vr.Length*2 + 3);
-		MakeSafeStringValues(&vr, s1);
-		strcpy(s, s1);
+		s1 = (char *)malloc(vr.Length*2 + 3 + 512);
+		MakeSafeStringValues(&vr, s1, vr.Length*2 + 3 + 512);
+		if (strlen(s1)<len-1) strcpy(s, s1); else strcpy(s, "IGNOREDTOOLONGVALUE"); 
 		free(s1);
 		vr.Data = NULL;
 		vr.Length = 0;
@@ -1335,6 +1337,7 @@ SaveToDataBase(
 	else 
 		vr->GetString(LastPatid, sizeof(LastPatid));
 
+	
 	Modality[0] = 0;
 	vr = DDOPtr->GetVR(0x0008, 0x0060);
 	if(vr) vr->GetString(Modality, sizeof(Modality));
@@ -1343,7 +1346,7 @@ SaveToDataBase(
 	// FixImage(DDOPtr);
 
 	VR	*SOPInstance = DDOPtr->GetVR(0x0008, 0x0018);
-	MakeSafeStringValues(SOPInstance, s1);	// mvh 20110105
+	MakeSafeStringValues(SOPInstance, s1, sizeof(s1));	// mvh 20110105
 	AccessUpdate.printf("%s", s1);
 
 
@@ -1360,7 +1363,7 @@ SaveToDataBase(
 	{ VR	*suid = DDOPtr->GetVR(0x0020, 0x000d);
 	  SQLLEN	sdword;
 	  strcpy(s1, "StudyInsta = ");
-	  MakeSafeStringValues(suid, s1 + strlen(s1));
+	  MakeSafeStringValues(suid, s1 + strlen(s1), sizeof(s1)-strlen(s1));
 
 	  if (DB.Query(StudyTableName, "PatientID", s1, NULL))
 	  { DB.BindField (1, SQL_C_CHAR, s1, 128, &sdword);
@@ -1414,100 +1417,6 @@ static void swap(BYTE *buffer, int N)
   swap(buf, buffer, N);
 }
 #endif
-
-char *
-SetString(VR	*vr, char	*s, int	Max)
-	{
-	int		Index;
-	UINT16	*tuint16;
-	UINT32	*tuint32;
-	DBENTRY	*DBE;
-
-	// when Max = 0 passed: alloc automatically at right size; pointer returned
-
-	if (Max==0)
-		{
-		if (vr) Max = 3 * vr->Length + 20; else Max = 255;	// mvh 20110105 must allow MakeSafeString in-place (!) ?E'[_]' ESCAPE '\'
-		if (Max < 255) Max = 255;
-		s = new char[Max];
-		}
-
-	memset((void*)s, 0, Max);
-
-	if(vr)
-		if(vr->Data)
-			{
-			if (Max > vr->Length) Max = vr->Length; // mvh 20110105 - move inside if 20110326
-
-			DBE = FindDBE(vr);
-			if(!DBE)
-				{
-				memcpy((void*)s, vr->Data, Max); // mvh 20110105
-				return ( s );
-				}
-			switch(DBE->DICOMType)
-				{
-				case	DT_UI:
-				case	DT_STR:
-				case	DT_ISTR:
-				case	DT_MSTR:
-				case	DT_DATE:
-					memcpy((void*)s, vr->Data, Max); // mvh 20110105
-					Index = strlen(s);
-					if(Index)
-						{
-						if(s[Index-1]==' ')
-							{
-							s[Index-1]='\0';
-							}
-						}
-					return ( s );
-				case	DT_UINT16:
-					tuint16 = (UINT16*)vr->Data;
-#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
-					sprintf(s, "%u", (*tuint16));
-#else //Big Endian like Apple power pc
-					sprintf(s, "%u", SwitchEndian(*tuint16));
-#endif
-					return ( s );
-				case	DT_UINT32:
-					tuint32 = (UINT32*)vr->Data;
-#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
-					sprintf(s, "%u", (*tuint32));
-#else //Big Endian like Apple power pc
-					sprintf(s, "%u", SwitchEndian(*tuint32));
-#endif
-					return ( s );
-				case	DT_FL:
-				        {
-					float f;
-#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
-					f = *(float*)vr->Data;
-#else //Big Endian like Apple power pc
-					swap((BYTE *)&f, (BYTE *)vr->Data, 4);
-#endif
-					sprintf(s, "%.16g", f);
-					return ( s );
-					}
-				case	DT_FD:
-				        {
-					double d;
-#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
-					d = *(double*)vr->Data;
-#else //Big Endian like Apple power pc
-					swap((BYTE *)&d, (BYTE *)vr->Data, 8);
-#endif
-					sprintf(s, "%.16g", d);
-					return ( s );
-					}
-				default:
-					memcpy((void*)s, vr->Data, Max); // mvh 20110105
-					return ( s );
-				}
-			}
-	return ( s );
-	}
-
 
 BOOL
 AddToTable(
@@ -1568,10 +1477,10 @@ AddToTable(
 			switch(DCMGateDB[Index].SQLType)
 				{
 				case	SQL_C_CHAR:
-					MakeSafeStringValues ( vr, TempString );
+					MakeSafeStringValues ( vr, TempString, sizeof(TempString) );
 					break;
 				case	SQL_C_DATE:
-					MakeSafeDate ( vr, TempString );
+					MakeSafeDate ( vr, TempString, sizeof(TempString) );
 					break;
 				default:
 					SystemDebug.printf("Unknown SQL Type: %d\n",
@@ -1592,7 +1501,7 @@ AddToTable(
 		FakeVR.Length = strlen(ObjectFile);
 		FakeVR.Group = 0;
 		FakeVR.Element = 0;
-		MakeSafeStringValues ( &FakeVR, TempString );
+		MakeSafeStringValues ( &FakeVR, TempString, sizeof(TempString) );
 		FakeVR.Data = NULL;
 		FakeVR.Length = 0;
 		strcat ( Values, TempString );
@@ -1605,7 +1514,7 @@ AddToTable(
 		FakeVR.Length = strlen(DeviceName);
 		FakeVR.Group = 0;
 		FakeVR.Element = 0;
-		MakeSafeStringValues ( &FakeVR, TempString );
+		MakeSafeStringValues ( &FakeVR, TempString, sizeof(TempString) );
 		FakeVR.Data = NULL;
 		FakeVR.Length = 0;
 		strcat ( Values, TempString );
@@ -1734,7 +1643,7 @@ UpdateOrAddToTable(
 						int save = vr->Length;
 						char name[80];
 						vr->Length = DCMGateDB[Index].SQLLength;
-						MakeSafeStringValues ( vr, TempString );
+						MakeSafeStringValues ( vr, TempString, sizeof(TempString) );
 						vr->Length = save;
 						strcpy(name, DCMGateDB[Index].SQLColumn);
 						strcat(name, ",");
@@ -1744,7 +1653,7 @@ UpdateOrAddToTable(
 						  	OperatorConsole.printf("***Truncated %s from %d to %d chars in file: %s\n", DCMGateDB[Index].SQLColumn, save, DCMGateDB[Index].SQLLength, ObjectFile);
 						}
 					else
-						MakeSafeStringValues ( vr, TempString );
+						MakeSafeStringValues ( vr, TempString, sizeof(TempString) );
 					break;
 				case	SQL_C_DATE:
 					if (vr && DCMGateDB[Index].SQLLength < vr->Length)
@@ -1752,7 +1661,7 @@ UpdateOrAddToTable(
 						int save = vr->Length;
 						char name[80];
 						vr->Length = DCMGateDB[Index].SQLLength;
-						MakeSafeDate ( vr, TempString );
+						MakeSafeDate ( vr, TempString, sizeof(TempString) );
 						vr->Length = save;
 						strcpy(name, DCMGateDB[Index].SQLColumn);
 						strcat(name, ",");
@@ -1762,7 +1671,7 @@ UpdateOrAddToTable(
 						  	OperatorConsole.printf("***Truncated %s from %d to %d chars in file: %s\n", DCMGateDB[Index].SQLColumn, save, DCMGateDB[Index].SQLLength, ObjectFile);
 						}
 					else
-						MakeSafeDate ( vr, TempString );
+						MakeSafeDate ( vr, TempString, sizeof(TempString) );
 					break;
 				default:
 					SystemDebug.printf("Unknown SQL Type: %d\n",
@@ -1838,7 +1747,7 @@ UpdateOrAddToTable(
 		FakeVR.Length = strlen(ObjectFile);
 		FakeVR.Group = 0;
 		FakeVR.Element = 0;
-		MakeSafeStringValues ( &FakeVR, TempString );
+		MakeSafeStringValues ( &FakeVR, TempString, sizeof(TempString) );
 		FakeVR.Data = NULL;
 		FakeVR.Length = 0;
 		strcat ( Values, TempString );
@@ -1855,7 +1764,7 @@ UpdateOrAddToTable(
 		FakeVR.Length = strlen(DeviceName);
 		FakeVR.Group = 0;
 		FakeVR.Element = 0;
-		MakeSafeStringValues ( &FakeVR, TempString );
+		MakeSafeStringValues ( &FakeVR, TempString, sizeof(TempString) );
 		FakeVR.Data = NULL;
 		FakeVR.Length = 0;
 		strcat ( Values, TempString );
@@ -2015,7 +1924,7 @@ UpdateOrAddToTable(
 						FakeVR.Length = strlen(s[i-1]);
 						FakeVR.Group = 0;
 						FakeVR.Element = 0;
-						MakeSafeStringValues ( &FakeVR, temp );
+						MakeSafeStringValues ( &FakeVR, temp, sizeof(temp) );
 						FakeVR.Data = NULL;
 						FakeVR.Length = 0;
 
@@ -2209,7 +2118,7 @@ UpdateAccessTimes(
 
 	// Patient Level
 
-	DICOM2SQLValue(s);	// 20110105
+	DICOM2SQLValue(s, sizeof(s));	// 20110105
 	sprintf(s1, "%s = %s", UniqueKey(PatientDB), s);
 	sprintf(s, "AccessTime = %u", (unsigned int)CurTime);
 	if(!ConnectedDB.UpdateRecords(PatientTableName,s,s1))
@@ -2384,7 +2293,7 @@ ChangeUID(char *OldUID, const char *Type, char *NewUID, char *Stage, Database *d
 	
 	char old[512];
 	strcpy(old, OldUID);
-	DICOM2SQLValue(old);
+	DICOM2SQLValue(old, sizeof(old));
 
 	sprintf(s, "OldUID = %s", old);
 	len = strlen(s);
@@ -2533,7 +2442,7 @@ ChangeUIDTo(char *OldUID, char *Type, char *NewUID, char *Stage, Database *db)
 
 	char old[512];
 	strcpy(old, OldUID);
-	DICOM2SQLValue(old);
+	DICOM2SQLValue(old, sizeof(old));
 
 	sprintf(s, "OldUID = %s", old);
 	len = strlen(s);
@@ -2792,12 +2701,13 @@ MergeUIDs(char *OldUID[], int n, const char *Type, char *NewUID)
 BOOL
 MakeSafeStringValues (
 	VR	*vr,
-	char	*string )
+	char	*string,
+	int	len)
 	{
 	unsigned int Length;
 	unsigned char	*sout;
 	unsigned char	*sin;
-	char	*s;
+	char	s[512];
 	UINT	Index;
 
 	if (!vr || vr->Length==0 || vr->Data==NULL)
@@ -2805,8 +2715,13 @@ MakeSafeStringValues (
 		strcpy(string, "''");
 		return FALSE;
 		}
+		
+	if (!vr->GetString(s, sizeof(s)))
+		{ 
+		strcpy(string, "TOOLONGINPUT");
+		return FALSE;
+		}
 
-	s = SetString(vr, NULL, 0);
 	Length = strlen(s);
 	sin = (unsigned char *)s;
 	sout = (unsigned char *)string;
@@ -2854,6 +2769,12 @@ MakeSafeStringValues (
 			}
 		++sin;
 		++Index;
+		
+		if (sout>=(unsigned char*)string+len-4)
+			{ 
+			strcpy(string, "TOOLONGOUTPUT");
+			return FALSE;
+			}
 		}
 
 	/* new code removes all trailing spaces (no check on begin: sout always start with ') */
@@ -2864,13 +2785,12 @@ MakeSafeStringValues (
 	(*sout) = '\'';++sout;
 	(*sout) = '\0';
 	
-	delete [] s;
 	return ( TRUE );
 	}
 
 
 BOOL
-MakeSafeDate ( VR *vr, char	*string )
+MakeSafeDate ( VR *vr, char	*string, int len )
 	{
 	unsigned int Length;
 	char	*sout;
@@ -2879,7 +2799,11 @@ MakeSafeDate ( VR *vr, char	*string )
 	UINT	Index;
 
 	(*string)='\'';
-	SetString(vr, s, 256);
+	if (!vr->GetString(s, sizeof(s)))
+		{ 
+		strcpy(string, "TOOLONGINPUT");
+		return FALSE;
+		}
 	Length = strlen(s);
 	sin = (char*)s;
 	sout = string + 1;
@@ -2912,6 +2836,12 @@ MakeSafeDate ( VR *vr, char	*string )
 			++sin;
 			++Index;
 			}
+	
+			if (sout>=string+len-4)
+				{ 
+				strcpy(string, "TOOLONGOUTPUT");
+				return FALSE;
+				}
 		}
 	--sout;
 	if((*sout)==' ')
@@ -2943,13 +2873,13 @@ BOOL
 GetFileName(VR	*SOPInstance, char	*filename, char	*device, Database &ConnectedDB, BOOL UpdateLRU, char *patid, char *study, char *series)
 	{
 	SQLLEN	sdword;
-	char	s [ 256 ];
+	char	s [ 700 ];
 	char	s2 [ 256 ];
 	char	s1[70];
 	int	Index;
 
 	UNUSED_ARGUMENT(UpdateLRU);
-	MakeSafeStringValues(SOPInstance, s1); // only allow exact match
+	MakeSafeStringValues(SOPInstance, s1, sizeof(s1)); // only allow exact match
 	if (s1[0]==0) return FALSE;
 
 	sprintf(s, "SOPInstanceUID");
@@ -2968,7 +2898,7 @@ GetFileName(VR	*SOPInstance, char	*filename, char	*device, Database &ConnectedDB
 				{
 				char newpatid[128];
 				strcpy(newpatid, patid);
-				DICOM2SQLValue(newpatid); // 20110105
+				DICOM2SQLValue(newpatid, sizeof(newpatid)); // 20110105
 				sprintf(s+strlen(s), " AND ImagePat = %s", newpatid);
 				break;
 				}
@@ -3095,10 +3025,10 @@ NewDeleteFromDB(DICOMDataObject	*pDDO, Database	&aDB)
 		}
 
 	// only allow exact match (use = in sql statement) // mvh 20110105
-	MakeSafeStringValues(pDDO->GetVR(0x0010, 0x0020), pat);
-	MakeSafeStringValues(pDDO->GetVR(0x0020, 0x000d), study);
-	MakeSafeStringValues(pDDO->GetVR(0x0020, 0x000e), series);
-	MakeSafeStringValues(pDDO->GetVR(0x0008, 0x0018), sop);
+	MakeSafeStringValues(pDDO->GetVR(0x0010, 0x0020), pat, sizeof(pat));
+	MakeSafeStringValues(pDDO->GetVR(0x0020, 0x000d), study, sizeof(study));
+	MakeSafeStringValues(pDDO->GetVR(0x0020, 0x000e), series, sizeof(series));
+	MakeSafeStringValues(pDDO->GetVR(0x0008, 0x0018), sop, sizeof(sop));
 
 
 	// include patid (indexed) for speed; test for presence in database at series and image level (optional)
@@ -3202,7 +3132,7 @@ NewDeleteSopFromDB(char *pat, char *study, char *series, char *sop, Database &aD
 	SQLLEN			sdword;
 
 	strcpy(PatString, pat);
-	DICOM2SQLValue(PatString); // mvh 20110105
+	DICOM2SQLValue(PatString, sizeof(PatString)); // mvh 20110105
 
         // include patid (indexed) for speed; test for presence in database at series and image level (optional)
 	Index=0;
@@ -3635,7 +3565,7 @@ RemoveDuplicates (
 					}
 				strcat(s1, " and " );
 				}
-			MakeSafeStringValues(vr, s0); // only allow exact match // mvh 20110105
+			MakeSafeStringValues(vr, s0, sizeof(s0)); // only allow exact match // mvh 20110105
 			sprintf(s, " %s = %s ", DBE[Index].SQLColumn, s0);
 			strcat(s1, s);
 			++CIndex;
@@ -4306,8 +4236,8 @@ NewDeleteDICOM(
 				}
 			else
 				{
-				MakeSafeStringValues(qDDO->GetVR(0x0020, 0x000e), series);
-				MakeSafeStringValues(qDDO->GetVR(0x0008, 0x0018), sop);
+				MakeSafeStringValues(qDDO->GetVR(0x0020, 0x000e), series, sizeof(series));
+				MakeSafeStringValues(qDDO->GetVR(0x0008, 0x0018), sop, sizeof(sop));
 			  	sprintf(DeleteString, 	"DICOMImages.SopInstanc = %s and DICOMImages.SeriesInst = %s", sop, series);
 				DB.DeleteRecord(ImageTableName, DeleteString);
 				}

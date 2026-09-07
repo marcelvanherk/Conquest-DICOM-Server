@@ -50,6 +50,7 @@
 -- mvh 20260826 Export remote_addr; no longer export os for service mode
 -- mvh 20260826 Fix in dgatecgi passing of client to get remote_addr
 -- mvh 20260902 Export checkaccess
+-- mvh 20260907 fix remote_addr (fix from Divinus)
 
 -----------------------------------------------------
 
@@ -451,7 +452,7 @@ function luascript.genEnv(_Env, request, config, handleIt, client)
 				end
 	Env.request = request
 	Env.config = config
-	Env.remote_addr = client:getsockname()
+	Env.remote_addr = client:getpeername()
 
 	Env.include	= function (filename)
 					handleIt(Env.config.webroot .. "/" .. filename, Env)

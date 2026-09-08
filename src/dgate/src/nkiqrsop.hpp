@@ -33,6 +33,7 @@
 20181222	mvh	Added WriteGet for C-GET client; results in image information in ADDO
 20200203	mvh	Added LUA51EXTERN option for dynamic loading of lua5.1.dll
 20240617	mvh	Add PDUSize to ExtendedPDU_Service for testing
+20260908	mvh	SM1312+Claude caught that ExtendedPDU_Service CompressionTypes were uninitialized, now set to ""
 */
 
 #ifdef LUA51EXTERN
@@ -58,6 +59,8 @@ class	ExtendedPDU_Service	:
 		{ L = NULL;
 		  memset(VariableVRs, 0, sizeof(VariableVRs));
 		  ThreadNum = 0;
+		  RequestedCompressionType[0] = 0;
+		  AcceptedCompressionType[0]  = 0;
 		  
                	  char	szRootSC[64];
                	  char	szTemp[32];

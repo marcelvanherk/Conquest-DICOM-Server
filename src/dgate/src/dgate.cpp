@@ -1266,6 +1266,10 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260907	mvh	Implemented map in checkaccess (any occurance will append all non-wildcard IP addresses in acrnema.map); 
 			Fix :: and lowercase in IPv6 as reported by Divinus; 
 20260907	mvh	Gotten rid of nasty SetString function, use GetString instead
+20260908	mvh	Fix SM1312+Claude error: SetRequestedCompressionType not set when using opening ExtendedPDU_Service
+20260908	mvh	Fix SM1312+Claude error: PDU link not closed when reusing PDU in luadicomget (now configurable in forward)
+20260908	mvh	Added AllowedIPs and DeniedIPs for cverification, cmove, cstore, cfind, cget, cmovedest
+20260908	mvh	Print bit of offending server command and its originating IP; print IP of every association
 
 ENDOFUPDATEHISTORY
 */
@@ -1762,6 +1766,7 @@ BOOL checkaccess(int op, unsigned int ip, char *ip6=NULL)
     }
   }
   strcat(map, ",");
+  
   strcpy(buffer, ",");
 
   MyGetPrivateProfileString(szRootSC, "DeniedIPs", "none", buffer+1, 1024, ConfigFile);
@@ -5866,8 +5871,9 @@ BOOL CallExportConverterN(char *pszFileName, int N, char *pszModality, char *psz
 	    OperatorConsole.printf("ExportConverter%d.%d: forward association closed by %s\n", 
 	      N, part, strcmp(ForwardLastUID+part*66, szTemp)!=0?Level:"SOPCLASS");
             MyGetPrivateProfileString(szRootSC, "ForwardAssociationRelease", "1", Temp, 64, ConfigFile);
-            if (atoi(Temp)) PDU[part].Close();
-  	    else            PDU[part].Link.Close();
+            if      (atoi(Temp)==1) { PDU[part].Close(); }
+            else if (atoi(Temp)==2) { PDU[part].Close(); PDU[part].Link.Close(); } // SM1312+Claude, needs testing
+  	    else                       PDU[part].Link.Close();
           }
         }
   
@@ -11921,6 +11927,9 @@ struct conquest_queue *new_queue(int num, int size, int delay, BOOL (*process)(c
   }
 #endif
 
+  // SM1312+Claude
+  PDU->SetRequestedCompressionType("");
+
   return result;
 }
 
@@ -12504,6 +12513,9 @@ char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, in
 	uid.Set("1.2.840.10008.5.1.4.1.2.2.2");	// studyrootmove
 	PDU.AddAbstractSyntax(uid);
 
+   	// SM1312+Claude
+	PDU.SetRequestedCompressionType("");
+
 	callback = "none";
 	if (lua_isnumber(L, 5)) callback = lua_tostring(L, 5);
 	if (lua_isstring(L, 5)) callback = lua_tostring(L, 5);
@@ -12511,7 +12523,7 @@ char *DcmMove2(char* pszSourceAE, const char* pszDestinationAE, BOOL patroot, in
 
 	if (atoi(callback)) 
 	   Progress.printf("Process=%d, Type='dicommove', Active=1\n", atoi(callback));
-
+   
 	if (strcmp(pszSourceAE, (char *)MYACRNEMA)==0)
 		{
 		if(!PDU.Connect((BYTE *)"127.0.0.1", Port)) 
@@ -15944,6 +15956,9 @@ int VirtualQuery(DICOMDataObject *DDO, const char *Level, int N, Array < DICOMDa
 	else if (level==5) uid.Set("1.2.840.10008.5.1.4.31");      // WorkListQuery
 	else               uid.Set("1.2.840.10008.5.1.4.1.2.2.1"); // StudyRootQuery
 	PDU.AddAbstractSyntax(uid);
+	
+	// SM1312+Claude
+	PDU.SetRequestedCompressionType("");
 
 	PDU.SetTimeOut(TCPIPTimeOut);
 
@@ -18916,6 +18931,9 @@ BOOL VirtualServer2(struct ReadAheadThreadData *ratd, int N)
 	PDU2.ClearAbstractSyntaxs();
 	PDU2.SetLocalAddress(MYACRNEMA);
 	PDU2.SetRemoteAddress((unsigned char *)AE);
+	
+	// SM1312+Claude
+	PDU2.SetRequestedCompressionType("");
 
 	uid.Set("1.2.840.10008.3.1.1.1");	// Application context (DICOM App)
 	PDU2.SetApplicationContext(uid);
@@ -24540,7 +24558,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 	VR			*vr;
 //	VR			*vr1;
 	VR			*vrsilent;
-	UINT16			val, messageid, orgmessageid;
+	UINT16			val, messageid, orgmessageid, commandfield;
 	Database		DB1;
 	int 			socketfd = theArg;
 	char			SilentText[64000];
@@ -24690,6 +24708,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 				TimeString[strlen(TimeString)-1] = '\0';
 				OperatorConsole.printf("\n");
 				OperatorConsole.printf("UPACS THREAD %d: STARTED AT: %s\n", ThreadNum, TimeString);
+				OperatorConsole.printf("\tCalling IP: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
 				if (PDU.ValidPresContexts)
 					OperatorConsole.printf("*** connection terminated\n");
 				else
@@ -24775,12 +24794,14 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 				TimeString[strlen(TimeString)-1] = '\0';
 				OperatorConsole.printf("\n");
 				OperatorConsole.printf("UPACS THREAD %d: STARTED AT: %s\n", ThreadNum, TimeString);
+				OperatorConsole.printf("\tCalling IP: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
 
 				IARQ ( PDU, FALSE );
 				}
 			FirstTime = 0;
 			}
 
+		commandfield = DCO.GetUINT16(0x0000, 0x0100);
 		messageid    = DCO.GetUINT16(0x0000, 0x0110);
 		orgmessageid = DCO.GetUINT16(0x0000, 0x1031);
 
@@ -24809,6 +24830,20 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 			char text[256];
 			vr1->GetString(text, sizeof(text));
 			OperatorConsole.printf("\tC-Move Destination: \"%s\"\n", text);
+			
+			char RemoteIP[64], RemotePort[64], Compress[64];
+			RemoteIP[0]=0;
+			GetACRNema(text, RemoteIP, RemotePort, Compress);
+			int a, b, c, d;
+			sscanf(RemoteIP, "%d.%d.%d.%d", &a, &b, &c, &d);
+			int ip = a+(b<<8)+(c<<16)+(d<<24);
+
+			if (!checkaccess(ca_cmovedest, ip))
+				{
+				OperatorConsole.printf("\t*** C-Move Destination NOT ALLOWED: %s\n", text);
+				OperatorConsole.printf("\t*** C-Move originated from: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
+				continue;
+				}
 			}
 
 	        if (DebugLevel>=1) NonDestructiveDumpDICOMObject(&DCO);
@@ -24846,6 +24881,48 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 				}
 			}
 
+		// per IP blocking or passing of individual commands (for full block/pass use dgatesop.lst)
+		if (commandfield==0x0001) 
+			{
+			if (!checkaccess(ca_cstore, ConnectedIP))
+				{
+				OperatorConsole.printf("*** C-Store NOT ALLOWED from: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
+				continue;
+				}
+			}
+		if (commandfield==0x0030) 
+			{
+			if (!checkaccess(ca_cverification, ConnectedIP))
+				{
+				OperatorConsole.printf("*** C-Echo NOT ALLOWED from: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
+				continue;
+				}
+			}
+		if (commandfield==0x0020) 
+			{
+			if (!checkaccess(ca_cfind, ConnectedIP))
+				{
+				OperatorConsole.printf("*** C-Find NOT ALLOWED from: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
+				continue;
+				}
+			}
+		if (commandfield==0x0021) 
+			{
+			if (!checkaccess(ca_cmove, ConnectedIP))
+				{
+				OperatorConsole.printf("*** C-Move NOT ALLOWED from: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
+				continue;
+				}
+			}
+		if (commandfield==0x0110) 
+			{
+			if (!checkaccess(ca_cget, ConnectedIP))
+				{
+				OperatorConsole.printf("*** C-Get NOT ALLOWED from: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
+				continue;
+				}
+			}
+
 		if(SOPUnknownStorage.Read(&PDU, &DCO, DDO))
 			{
 			LogUser("C-Store", &PDU, &DCO);
@@ -24865,8 +24942,9 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 				}
 			delete DDO; // moved one line down: leak !!!!
 			}
-		// delete DDO; was double 20030704
 			
+		// delete DDO; was double 20030704
+
 		if (SOPVerification.ReadRequest(&PDU, &DCO))
 			{
 			char Response[5120];
@@ -24881,14 +24959,18 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 				}
 
 			if (SilentText[0])
+				{
 				if (!ServerTask(SilentText, PDU, DCO, Response, ConnectedIP, tempfile, ThreadNum))
-					OperatorConsole.printf("*** command forbidden or error\n");
-					
+					{
+					OperatorConsole.printf("*** command forbidden or error: %-.20s...\n", SilentText);
+					OperatorConsole.printf("*** command originated from: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
+					}
+				}
 			
-  		        VR *vr2 = DCO.GetVR(0x9999, 0x0403);
+			VR *vr2 = DCO.GetVR(0x9999, 0x0403);
 			if (vr2==NULL) vr2=DCO.GetVR(0x0008,0x3001);
 
-		        if (tempfile[0])
+			if (tempfile[0])
 				{
 				unsigned int len = DFileSize(tempfile);
 				if (len)
@@ -24909,7 +24991,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 					extra = strlen(txt);
 					if (extra & 1) 
 					{ strcpy(txt+extra-2, " \n\n"); // make extra length even by adding space
-				          extra++;
+					  extra++;
 					}
 					VR *vr3 = new VR(0x9999, 0x0401, len+extra, TRUE);
 
@@ -24917,23 +24999,23 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 					f = fopen(tempfile, "rb");
 					if (extra) memcpy((char *)(vr3->Data), txt, extra); 
 					fread((char*)(vr3->Data)+extra, 1, len, f);
-                                	fclose(f); 
-                                        if (len&1)
-                                                {
-                                                UINT16 oddlength = 1;	
-                                                VR *vr4 = new VR (0x9999, 0x0404, 2, &oddlength, FALSE);
-                                                DCO.Push(vr4); // requires change in dimsec.cpp
-                                                }
+					fclose(f); 
+					if (len&1)
+						{
+						UINT16 oddlength = 1;	
+						VR *vr4 = new VR (0x9999, 0x0404, 2, &oddlength, FALSE);
+						DCO.Push(vr4); // requires change in dimsec.cpp
+						}
 					SOPVerification.WriteResponse(&PDU, &DCO, vr3);
-                                        }
+					}
 				else
 					SOPVerification.WriteResponse(&PDU, &DCO, NULL);
-                                unlink(tempfile);
+				unlink(tempfile);
 				}
 			else if (Response[0]!=0 && vr2==NULL)
 				{
 				VR *vr3 = new VR(0x9999, 0x0401, strlen(Response), (void *)Response, FALSE);
-                                if (strlen(Response)&1)
+				if (strlen(Response)&1)
 					{
 					UINT16 oddlength = 1;	
 					VR *vr4 = new VR (0x9999, 0x0404, 2, &oddlength, FALSE);
@@ -24968,36 +25050,40 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 				SOPVerification.WriteResponse(&PDU, &DCO, NULL);
 			continue;
 			}
-
+			
 		if(SOPPatientRootQuery.Read (&PDU, &DCO))
 			{
-#ifdef	DEBUG_MODE
+	#ifdef	DEBUG_MODE
 			if (!vrsilent)
 				OperatorConsole.printf("C-Find (PatientRoot) located %d records\n", SOPPatientRootQuery.RecordsFound);
-#endif
+	#endif
 			C_Find_PatientRoot++;
 			continue;
 			}
+
+
 		if(SOPPatientRootRetrieveNKI.Read (&PDU, &DCO, (void *)&ratd))
 			{
-#ifdef	DEBUG_MODE
+	#ifdef	DEBUG_MODE
 			if (!vrsilent)
 				OperatorConsole.printf("C-Move (PatientRootNKI)\n");
-#endif
+	#endif
 			LogUser("C-Move ", &PDU, &DCO);
 			C_Move_PatientRootNKI++;
 			continue;
 			}
+		
 		if(SOPPatientRootRetrieveGeneric.Read (&PDU, &DCO, (void *)&ratd))
 			{
-#ifdef	DEBUG_MODE
+	#ifdef	DEBUG_MODE
 			if (!vrsilent)
 				OperatorConsole.printf("C-Move (PatientRoot)\n");
-#endif
+	#endif
 			LogUser("C-Move ", &PDU, &DCO);
 			C_Move_PatientRoot++;
 			continue;
 			}
+		
 		if(SOPPatientRootGetGeneric.Read (&PDU, &DCO, (void *)&ratd))
 			{
 #ifdef	DEBUG_MODE
@@ -25018,6 +25104,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 			C_Find_StudyRoot++;
 			continue;
 			}
+		
 		if(SOPStudyRootRetrieveNKI.Read (&PDU, &DCO, (void *)&ratd))
 			{
 #ifdef	DEBUG_MODE
@@ -25027,17 +25114,19 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 			LogUser("C-Move ", &PDU, &DCO);
 			C_Move_StudyRootNKI++;
 			continue;
-			}
+				}
+
 		if(SOPStudyRootRetrieveGeneric.Read (&PDU, &DCO, (void *)&ratd))
 			{
-#ifdef	DEBUG_MODE
+	#ifdef	DEBUG_MODE
 			if (!vrsilent)
 				OperatorConsole.printf("C-Move (StudyRoot)\n");
-#endif
+	#endif
 			LogUser("C-Move ", &PDU, &DCO);
 			C_Move_StudyRoot++;
 			continue;
 			}
+
 		if(SOPStudyRootGetGeneric.Read (&PDU, &DCO, (void *)&ratd))
 			{
 #ifdef	DEBUG_MODE
@@ -25079,6 +25168,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 			C_Move_PatientStudyOnlyNKI++;
 			continue;
 			}
+
 		if(SOPPatientStudyOnlyRetrieveGeneric.Read (&PDU, &DCO, (void *)&ratd))
 			{
 #ifdef	DEBUG_MODE
@@ -25089,6 +25179,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 			C_Move_PatientStudyOnly++;
 			continue;
 			}
+
 		if(SOPPatientStudyOnlyGetGeneric.Read (&PDU, &DCO, (void *)&ratd))
 			{
 #ifdef	DEBUG_MODE
@@ -25142,6 +25233,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 
 		//Note: Changed print val to hex, easier to read.
 		OperatorConsole.printf("\n***Client Error: command %4.4x failed **\n", val);
+		OperatorConsole.printf("*** Originated from: %d.%d.%d.%d\n", ConnectedIP&255, (ConnectedIP>>8)&255, (ConnectedIP>>16)&255, (ConnectedIP>>24)&255);
 		OperatorConsole.printf("***Connection Terminated\n");
 		UnknownRequest++;
 
@@ -28856,6 +28948,9 @@ char *heapinfo( void )
 	else if (level>=6) uid.Set("1.2.840.10008.5.1.4.1.2.3.1");      // PatientStudyOnlyQuery
 	else               uid.Set("1.2.840.10008.5.1.4.1.2.2.1"); // StudyRootQuery
 	PDU.AddAbstractSyntax(uid);
+	
+	// SM1312+Claude
+	PDU.SetRequestedCompressionType("");
 
 // alternative to above 4 lines to debug Aria connection issues
 //      uid.Set("1.2.840.10008.5.1.4.1.2.1.1");	// PatientRootQuery
@@ -29620,6 +29715,9 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
             strcpy((char *)port, "5678");
           strcpy((char *)compress, "UN");
         }
+	
+	// SM1312+Claude
+	PDU.SetRequestedCompressionType("");
 
 	// query to get list of SopClass UIDs
 
@@ -29671,6 +29769,9 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
         
 	PDU.Close();
 
+	// SM1312+Claude: make sure the link is closed before actually reusing a PDU
+	PDU.Link.Close();
+
 	// now execute the get
 
 	PDU.ClearAbstractSyntaxs();
@@ -29685,6 +29786,9 @@ static int WINAPI DcmPrintADDO(Array<DICOMDataObject*>*pADDO,
 	  SetUID ( iUID, Q->Get(i)->GetVR(0x0008, 0x0016) );
           PDU.AddAbstractSyntax ( iUID );		// adds type of this image to presentation contexts
 	}
+
+	// SM1312+Claude
+	PDU.SetRequestedCompressionType("");
 
 	// Make the association for the GET on port/ip
 	if(!PDU.Connect(ip, port))

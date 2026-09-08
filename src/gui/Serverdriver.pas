@@ -705,6 +705,7 @@ When            Who     What
 20260813        mvh     Auto configure BackupSchedule for Sqlite (required folder backup); call now require([[ladle]])()
 20260826        mvh     Make sure conquest_browser is also created during install
 20260904        mvh     Adapt hint to LadlePort; use valid scripts on starting
+20260908        mvh     Version to 1.5.0g, update build date
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -740,8 +741,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0f';
-const BUILDDATE = '20260904';
+const VERSION = '1.5.0g';
+const BUILDDATE = '20260908';
 const testmode = 0;
 
 {************************************************************************}

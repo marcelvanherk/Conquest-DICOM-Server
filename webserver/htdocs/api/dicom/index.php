@@ -1,6 +1,7 @@
 <?php
 // mvh 20260903: Use squote instead of escapeshellarg; implemented checkaccess
 // mvh 20260904: checkaccess is run remotely
+// mvh 20260909: script access control also blocks any scripts passed to commands
 
     require_once 'Router.php';
     include 'config.php';
@@ -221,6 +222,7 @@ EOD;
        if (!checkaccess('zip')) return false;
        include 'qido.php';
        $script = CGI('script', '');
+       if ($script!='') if (!checkaccess('script')) return false;
        zip($st,$se,$sop,$script);
     });
 
@@ -229,6 +231,7 @@ EOD;
        if (!checkaccess('zip')) return false;
        include 'qido.php';
        $script = CGI('script', '');
+       if ($script!='') if (!checkaccess('script')) return false;
        zip($st,$se,'',$script);
     });
 
@@ -237,6 +240,7 @@ EOD;
        if (!checkaccess('zip')) return false;
        include 'qido.php';
        $script = CGI('script', '');
+       if ($script!='') if (!checkaccess('script')) return false;
        zip($st,'','',$script);
     });
     
@@ -245,6 +249,7 @@ EOD;
        if (!checkaccess('move')) return false;
        include 'qido.php';
        $script = CGI('script', '');
+       if ($script!='') if (!checkaccess('script')) return false;
        $target = CGI('target', '');
        move(null,$target,$st,$se,$sop,$script);
     });
@@ -254,6 +259,7 @@ EOD;
        if (!checkaccess('move')) return false;
        include 'qido.php';
        $script = CGI('script', '');
+       if ($script!='') if (!checkaccess('script')) return false;
        $target = CGI('target', '');
        move(null,$target,$st,$se,'',$script);
     });
@@ -263,6 +269,7 @@ EOD;
        if (!checkaccess('move')) return false;
        include 'qido.php';
        $script = CGI('script', '');
+       if ($script!='') if (!checkaccess('script')) return false;
        $target = CGI('target', '');
        move(null,$target,$st,'','',$script);
     });
@@ -286,6 +293,7 @@ EOD;
        if (!checkaccess('store')) return false;
        include 'posters.php';
        $script = CGI('script', '');
+       if ($script!='') if (!checkaccess('script')) return false;
        attachfile($script);
     });
 
@@ -294,6 +302,7 @@ EOD;
        if (!checkaccess('store')) return false;
        include 'posters.php';
        $script = CGI('script', '');
+       if ($script!='') if (!checkaccess('script')) return false;
        attachdicomfile($script);
     });
 

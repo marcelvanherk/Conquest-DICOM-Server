@@ -53,10 +53,16 @@
 -- mvh 20260815: Use rquote throughout
 -- mvh 20260902: Use checkaccess to control access to server control channel
 -- mvh 20260904: checkaccess is run remotely
+-- mvh 20260909: Block comma's in parameters to avoid escaping into other command parts; give uploadfile script access
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
   return '[=['..str..']=]'
+end
+
+function rcomma(str)
+  if string.find(str, ',') then return 'INVALID' end
+  return str
 end
 
 function checkaccess(a, b)
@@ -548,7 +554,7 @@ if CGI('parameter')=='uploadtable' and not readOnly then
 end
 
 if CGI('parameter')=='uploadfile' and not readOnly then
-  if (not checkaccess('store', remote_addr)) then return false end
+  if (not checkaccess('script', remote_addr)) then return false end
   local fn = safetempfile(".tmp")
   local a
   if CGI('_passfile_', '')~='' then
@@ -568,6 +574,7 @@ if CGI('parameter')=='uploadfile' and not readOnly then
 end
 
 if CGI('parameter')=='downloadtable' then
+  if (not checkaccess('script', remote_addr)) then return false end
   local JSON = require('json')
   require('csv')
   local ds = '/'
@@ -601,23 +608,27 @@ if CGI('parameter')=='downloadtable' then
 end
 
 if CGI('parameter', '')=='zip' then
+  if (not checkaccess('zip', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
-  local script=string.format('%s,%s,%s,%s,cgi', items[1] or '', items[2] or '', items[3] or '', items[4] or '')
+  local script=string.format('%s,%s,%s,%s,cgi', rcomma(items[1] or ''), rcomma(items[2] or ''), rcomma(items[3] or ''), rcomma(items[4] or ''))
     servercommand([[export:]]..script, 'cgibinary')
   return
 end  
 
 if CGI('parameter', '')=='zipanonymized' then
+  if (not checkaccess('zip', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   local stage=''
   if CGI('stage')~='' then stage = stage .. '|' .. CGI('stage') end
   if CGI('newname')~='' then stage = stage .. '|' .. CGI('newname') end
-  local script=string.format('%s,%s,%s,%s,cgi,lua/anonymize_script.lua(%s%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', CGI('newid'), stage)
+  local script=string.format('%s,%s,%s,%s,cgi,lua/anonymize_script.lua(%s%s)', rcomma(items[1] or ''), rcomma(items[2] or ''), rcomma(items[3] or ''), 
+    rcomma(items[4] or ''), CGI('newid'), stage)
   servercommand([[export:]]..script, 'cgibinary')
   return
 end
 
 if CGI('parameter', '')=='storeclick' then
+  if (not checkaccess('store', remote_addr)) then return false end
   servercommand('lua:print("'..
   'series='..CGI('series')..'&slice='..CGI('slice')..'&x='..CGI('x')..'&y='..CGI('y')
   ..'")')

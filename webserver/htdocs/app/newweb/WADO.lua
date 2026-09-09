@@ -5,6 +5,7 @@
 -- mvh 20180203 Added local to f
 -- mvh 20181111 Use wadorequest for all images to fix zoom error and for convenience
 -- mvh 20220911 Read wadorequest using servercommand return value to avoid temp file
+-- mvh 20260909 Block comma's in parameters to avoid escaping into other command parts
 
 local studyUID=CGI("studyUID",    "")
 local seriesUID =CGI("seriesUID",    "")
@@ -31,10 +32,16 @@ windowWidth = math.floor(windowWidth+0.5)
 
 local obj=string.format("%s\\%s\\%s", studyUID, seriesUID, objectUID)
 
+function rcomma(str)
+  if string.find(str, ',') then return 'INVALID' end
+  return str
+end
+
 function scommand(c)
   local lwfq=string.format("%d/%d/%d/%d", windowCenter, windowWidth, tonumber(frameNumber), tonumber(imageQuality))
   local size=string.format("%d/%d", tonumber(rows), tonumber(columns))
-  local command=string.format("wadorequest:%s,%s,%s,%s,%s,%s,%s,%s,%s", obj, lwfq, size, region, contentType, transferSyntax, anonymize, annotation, bridge)
+  local command=string.format("wadorequest:%s,%s,%s,%s,%s,%s,%s,%s,%s",  rcomma(obj), rcomma(lwfq), rcomma(size), 
+    rcomma(region), rcomma(contentType), rcomma(transferSyntax), rcomma(anonymize), rcomma(annotation), rcomma(bridge))
   
   HTML('')
   local a=servercommand(command..'','binary')--,w.out')

@@ -21,10 +21,16 @@
 -- 20260823   mvh   Use rquote also for luastart: code
 -- 20260902   mvh   Use checkaccess to control access to server control channel and dropdown
 -- 20260904   mvh   checkaccess is run remotely
+-- 20260909   mvh   Block comma's in parameters to avoid escaping into other command parts
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
   return '[=['..str..']=]'
+end
+
+function rcomma(str)
+  if string.find(str, ',') then return 'INVALID' end
+  return str
 end
 
 function checkaccess(a, b)
@@ -184,7 +190,7 @@ if CGI('parameter', '')=='anonymize' then
   if (not checkaccess('change', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   local script = string.format('%s,%s,%s,%s,1,lua/anonymize_script.lua(%s)',
-    items[1],items[2] or '',items[3] or '',items[4] or '', CGI('newid'))
+    rcomma(items[1]),rcomma(items[2] or ''),rcomma(items[3] or ''),rcomma(items[4]) or '', rcomma(CGI('newid')))
   servercommand('luastart:servercommand('..rquote('modifier:'..script)..')')
   return
 end
@@ -204,9 +210,9 @@ end
 if CGI('parameter', '')=='changeid' then
   if (not checkaccess('change', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
-  local script = string.format([[%s,%s,%s,%s,1,lua "script('newuids');Data.PatientID='%s'"]],
-    items[1],items[2] or '',items[3] or '',items[4] or '',CGI('newid'))
-  servercommand('luastart:servercommand('..rquote('modifier:'..script)..')')
+  local script = string.format([[%s,%s,%s,%s,1,lua:script('newuids');Data.PatientID=%s]],
+    rcomma(items[1]),rcomma(items[2] or ''),rcomma(items[3] or ''),rcomma(items[4] or ''),rquote(CGI('newid')))
+  servercommand("luastart:servercommand('modifier:"..script)
   return
 end
 
@@ -260,7 +266,8 @@ if CGI('parameter', '')=='zipanonymized' then
   if CGI('stage')~='' then stage = '|' .. CGI('stage') end
   if write then
     local tempname = 'z.zip'
-    local script=string.format('%s,%s,%s,%s,%s,lua/anonymize_script.lua(%s%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', tempname, CGI('newid'), stage)
+    local script=string.format('%s,%s,%s,%s,%s,lua/anonymize_script.lua(%s%s)', rcomma(items[1] or ''), rcomma(items[2] or ''), rcomma(items[3] or ''), 
+       rcomma(items[4] or ''), rcomma(tempname), CGI('newid'), stage)
     newdicomobject():Script('rm '..tempname)
     servercommand([[export:]]..script)
     write('HTTP/1.1 200/OK\r\nServer: Ladle\r\nContent-type: application/zip\r\nContent-Disposition: attachment; filename="'..CGI('newid')..'.zip"\r\n\r\n')
@@ -270,7 +277,8 @@ if CGI('parameter', '')=='zipanonymized' then
       f:close()
     end
   else
-    local script=string.format('%s,%s,%s,%s,cgi,lua/anonymize_script.lua(%s%s)', items[1] or '', items[2] or '', items[3] or '', items[4] or '', CGI('newid'), stage)
+    local script=string.format('%s,%s,%s,%s,cgi,lua/anonymize_script.lua(%s%s)', rcomma(items[1] or ''), rcomma(items[2] or ''), rcomma(items[3] or ''),
+      rcomma(items[4] or ''), CGI('newid'), stage)
     servercommand([[export:]]..script, 'cgibinary')
   end
   return
@@ -292,7 +300,7 @@ if CGI('parameter', '')=='zip' then
   local items= split(CGI('item'), '|')
   if write then
     local tempname = 'z.zip'
-    local script=string.format('%s,%s,%s,%s,%s', items[1] or '', items[2] or '', items[3] or '', items[4] or '', tempname)
+    local script=string.format('%s,%s,%s,%s,%s', rcomma(items[1] or ''), rcomma(items[2] or ''), rcomma(items[3] or ''), rcomma(items[4] or ''), rcomma(tempname))
     newdicomobject():Script('rm '..tempname)
     servercommand([[export:]]..script)
     write('HTTP/1.1 200/OK\r\nServer: Ladle\r\nContent-type: application/zip\r\nContent-Disposition: attachment; filename="'..items[1]..'.zip"\r\n\r\n')
@@ -302,7 +310,7 @@ if CGI('parameter', '')=='zip' then
       f:close()
     end
   else
-    local script=string.format('%s,%s,%s,%s,cgi', items[1] or '', items[2] or '', items[3] or '', items[4] or '')
+    local script=string.format('%s,%s,%s,%s,cgi', rcomma(items[1] or ''), rcomma(items[2] or ''), rcomma(items[3] or ''), rcomma(items[4] or ''))
     servercommand([[export:]]..script, 'cgibinary')
   end
   return

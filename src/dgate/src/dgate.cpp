@@ -1270,6 +1270,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260908	mvh	Fix SM1312+Claude error: PDU link not closed when reusing PDU in luadicomget (now configurable in forward)
 20260908	mvh	Added AllowedIPs and DeniedIPs for cverification, cmove, cstore, cfind, cget, cmovedest
 20260908	mvh	Print bit of offending server command and its originating IP; print IP of every association
+20260910	mvh	Export series/series2 to web lua code, broke wadoseriesviewer from PHP
 
 ENDOFUPDATEHISTORY
 */
@@ -26735,20 +26736,20 @@ static void DgateCgi(char *ext, char *argv0, int argc, char **argv)
   for(i=0; i<strlen(study2); i++) if (study2[i]==' ') { study[j++]='%'; study[j++]='2'; study[j++]='0'; } else study[j++]=study2[i];
   study[j++]=0;
 
+  CGI(series2, "series",   "");		// patid:seriesuid for seriesviewer/move/delete
+  j = 0;
+  for(i=0; i<strlen(series2); i++) if (series2[i]==' ') { series[j++]='%'; series[j++]='2'; series[j++]='0'; } else series[j++]=series2[i];
+  series[j++]=0;
+
   BOOL EnableOLDCGI=FALSE;
 
   if (EnableOLDCGI)
   { CGI(query,   "query",    "");		// query for most db selectors
-    CGI(series2, "series",   "");		// patid:seriesuid for seriesviewer/move/delete
     CGI(db,      "db",       "");		// database to edit or list
     CGI(source,  "source",   "(local)");  // source for move
     CGI(dest,    "dest",     "");		// destination for move
     CGI(key,     "key",      "");		// key for mark
     CGI(script,  "script",   "");		// script for attachfile
-
-    j = 0;
-    for(i=0; i<strlen(series2); i++) if (series2[i]==' ') { series[j++]='%'; series[j++]='2'; series[j++]='0'; } else series[j++]=series2[i];
-    series[j++]=0;
 
     MyGetPrivateProfileString ( "webdefaults", "dsize",    "0",   dsize,    256, ConfigFile);
     MyGetPrivateProfileString ( "webdefaults", "compress", "n4",  compress, 256, ConfigFile);
@@ -28319,6 +28320,8 @@ windowname = AiViewer V1.00
       // still used in newweb
       lua_setvar(&globalPDU, "slice",           slice);
       lua_setvar(&globalPDU, "slice2",          slice2);
+      lua_setvar(&globalPDU, "series",          series);
+      lua_setvar(&globalPDU, "series2",         series2);
       lua_setvar(&globalPDU, "study",           study);
       lua_setvar(&globalPDU, "study2",          study2);
       lua_setvar(&globalPDU, "size",            size);
@@ -28339,8 +28342,6 @@ windowname = AiViewer V1.00
         lua_setvar(&globalPDU, "mode",            mode);
         lua_setvar(&globalPDU, "uploadedfile",    uploadedfile);
             
-        lua_setvar(&globalPDU, "series",          series);
-        lua_setvar(&globalPDU, "series2",         series2);
         lua_setvar(&globalPDU, "patid",           patid);
         lua_setvar(&globalPDU, "patid2",          patid2);
         lua_setvar(&globalPDU, "seruid",          seruid);

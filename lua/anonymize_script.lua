@@ -43,6 +43,7 @@
 -- 20260107	mvh	Moved reading of alternative configuration to here
 -- 20260109	mvh	Added TagsToSanitise
 -- 20260110	mvh	Made config local
+-- 20260913	mvh	Fix passing of patient ID and name from command line
 
 -- =============================================================================
 
@@ -136,10 +137,10 @@ lognames    = false
 -- get suggested patient ID, stage for staged operation and suggested patient name
 local c = split(command_line or '', '|')
 if string.find(command_line or '', '|')==1 then table.insert(c, 1, '') end
-local newid = c[1] or ''
+local newid = c[1] or (CRC32(Data.PatientID)..'.'..CRC32(Data.PatientBirthDate or ''))
 local newname = ''
 local stage = c[2] or ''
-local newname = c[3] or ''
+local newname = c[3] or ('PAT'..CRC32(Data.PatientID))
 local dateoffset = c[4] or ''
 
 -- the changes in patient ID etc can be picked up from private tag 0x9999,0x1234 (which is then deleted from the anomymized data)
@@ -147,9 +148,6 @@ if Data["9999,1234"] then
   newid = Data["9999,1234"]
   newname = Data["9999,1234"]
   Data["9999,1234"]=nil
-else
-  newid = CRC32(Data.PatientID)..'.'..CRC32(Data.PatientBirthDate or '')
-  newname = 'PAT'..CRC32(Data.PatientID)
 end
 
 if Data["9999,1235"] then

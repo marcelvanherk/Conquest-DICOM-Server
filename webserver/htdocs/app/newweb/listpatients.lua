@@ -22,6 +22,7 @@
 -- 20260902   mvh   Use checkaccess to control access to server control channel and dropdown
 -- 20260904   mvh   checkaccess is run remotely
 -- 20260909   mvh   Block comma's in parameters to avoid escaping into other command parts
+-- 20260913   mvh   Fixes in string passing for change patient ID and anonymize
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
@@ -190,7 +191,7 @@ if CGI('parameter', '')=='anonymize' then
   if (not checkaccess('change', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
   local script = string.format('%s,%s,%s,%s,1,lua/anonymize_script.lua(%s)',
-    rcomma(items[1]),rcomma(items[2] or ''),rcomma(items[3] or ''),rcomma(items[4]) or '', rcomma(CGI('newid')))
+    rcomma(items[1] or ''),rcomma(items[2] or ''),rcomma(items[3] or ''),rcomma(items[4] or ''), rcomma(CGI('newid')))
   servercommand('luastart:servercommand('..rquote('modifier:'..script)..')')
   return
 end
@@ -210,9 +211,9 @@ end
 if CGI('parameter', '')=='changeid' then
   if (not checkaccess('change', remote_addr)) then return false end
   local items= split(CGI('item'), '|')
-  local script = string.format([[%s,%s,%s,%s,1,lua:script('newuids');Data.PatientID=%s]],
+  local script = string.format([[%s,%s,%s,%s,1,lua:script([=[newuids]=]);Data.PatientID=%s]],
     rcomma(items[1]),rcomma(items[2] or ''),rcomma(items[3] or ''),rcomma(items[4] or ''),rquote(CGI('newid')))
-  servercommand("luastart:servercommand('modifier:"..script)
+  servercommand("luastart:servercommand('modifier:"..script.."')")
   return
 end
 

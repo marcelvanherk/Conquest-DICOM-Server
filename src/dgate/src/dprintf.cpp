@@ -25,6 +25,7 @@
 20150902	mvh	Added Progress socket
 20160221	mvh	Made print buffer much larger
 20181219	mvh	Added OnTCP
+20260913	mvh	If defined use vsnprintf to avoid buffer overrun
 */
 
 #	include	<stdio.h>
@@ -293,7 +294,11 @@ int Debug::printf(const char *fmt, ...)
 
   iLength = strlen(s);
   va_start(vargs, fmt);
+#ifdef vsnprintf
+  vsnprintf(s + iLength, sizeof(s)-iLength, fmt, vargs);
+#else
   vsprintf(s + iLength, fmt, vargs);
+#endif
   va_end(vargs);
 
   LeaveCriticalSection(&CriticalFile);

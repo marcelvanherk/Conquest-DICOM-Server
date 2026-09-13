@@ -22,8 +22,10 @@
 20200617        mvh     Replaced UNIX version of SendBinary with luasocket inspired waiting code
 20200618        mvh     Made send() timeout ~20s by increasingly longer nanosleep
 20220922        mvh     Host names like 2.aap.mies are looked up; 1.2.3 taken as is
-20270701	mvh	Added error messages and connection retries
-20270702	mvh	Fixed connection retry for Linux; fix small mistake
+20250701	mvh	Added error messages and connection retries
+20250702	mvh	Fixed connection retry for Linux; fix small mistake
+20260912	mvh	Corrected dates in update
+
 */
 
 /****************************************************************************

@@ -288,6 +288,8 @@
 20250216        mvh     Implement pixelRepresentation in To8bitMonochromeOrRGB
 20250218        mvh     Fixed outgoing J7: must propose lossy first, then lossless
 20260906	mvh	Use VR->GetString
+20260912	mvh	Read Level and Window and Slope and Intercept in sequence for enhanced object
+20260913	mvh	At least one CGET must be listed in dgatesop.lst before answering (grideman, nov 2021)
 */
 
 //#define bool BOOL
@@ -626,7 +628,25 @@ BOOL	StandardRetrieveNKI	::	Read (
 			}
 		}
 	else
+		{
+		// At least one CGET must be listed in dgatesop.lst before answering (grideman, nov 2021)
+		BOOL allow=FALSE;
+		iUID.Set("1.2.840.10008.5.1.4.1.2.1.3"); // PatientRootGet
+		if (PDU->IsAbstractSyntaxAccepted(iUID)) allow=TRUE;
+		iUID.Set("1.2.840.10008.5.1.4.1.2.3.3");      // PatientStudyOnlyGet
+		if (PDU->IsAbstractSyntaxAccepted(iUID)) allow=TRUE;
+		iUID.Set("1.2.840.10008.5.1.4.1.2.2.3"); // StudyRootGet
+		if (PDU->IsAbstractSyntaxAccepted(iUID)) allow=TRUE;
+		
+		if (allow==FALSE)
+			{ 
+			CGetRSP :: Write (PDU, DCO, 0xc003, 0, 0, 0, 0 );
+			SystemDebug.printf("GET: GET operation not in dgatesop.lst\n: %s", ACRNema);
+			return ( TRUE );
+			}
+
 		strcpy((char *)ACRNema, "C-GET client");
+		}
 		
 	vr = DCO->GetVR(0x9999, 0x0a00);
 	if (vr)
@@ -5324,15 +5344,15 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
   char*			pcSrc;
   unsigned char*	pcDest;
   short*		psSrc;
-//  int*			piSrc;//Anything that points to VR->Data should be the same size on all systems. BCB
-  INT32*        piSrc;
+  INT32*        	piSrc;
   int			r, g, b;
   int                   pixeloffset = 0;
   int			bitsStored;
   int			valMax = 2047;
   int			valDiv = 8;
   int			pixelRepresentation;
-  unsigned char lut[256];
+  unsigned char 	lut[256];
+  Array < DICOMDataObject  *> *pADDO;
 
   ExtractFrame(pDDO, frame);
 
@@ -5355,15 +5375,37 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
     if (pVR) {
       pVR->GetString(text, sizeof(text));
       level = (int)(atof(text)+0.5);
+      pVR=pDDO->GetVR(0x0028, 0x1051);
+      if (pVR) {
+        pVR->GetString(text, sizeof(text));
+        window = (int)(atof(text)+0.5);
+      }
     }
-    pVR=pDDO->GetVR(0x0028, 0x1051);
-    if (pVR) {
-      pVR->GetString(text, sizeof(text));
-      window = (int)(atof(text)+0.5);
-    }
-    //level = pDDO->Getatoi(0x0028, 0x1050);
-    //window = pDDO->Getatoi(0x0028, 0x1051);
-  }    
+    else {    /* May be enhanced object? */
+      pVR = pDDO->GetVR(0x5200, 0x9229);			// SharedFunctionalGroupsSequence
+      if (pVR)
+      { pADDO = (Array<DICOMDataObject*>*)pVR->SQObjectArray;
+        if (pADDO && pADDO->Get(0))
+        { pVR = (pADDO->Get(0))->GetVR(0x0028, 0x9132);	// FrameVOILUTSequence
+          if (pVR && pVR->SQObjectArray)
+          { pADDO = (Array<DICOMDataObject*>*)pVR->SQObjectArray;
+            if (pADDO && pADDO->Get(0))
+            { pVR=(pADDO->Get(0))->GetVR(0x0028, 0x1050);
+              if (pVR) 
+              { pVR->GetString(text, sizeof(text));
+                level = (int)(atof(text)+0.5);
+                pVR=(pADDO->Get(0))->GetVR(0x0028, 0x1051);
+                if (pVR)
+		{ pVR->GetString(text, sizeof(text));
+                  window = (int)(atof(text)+0.5);
+                }
+	      }
+	    }
+	  }
+        }
+      }
+    }    
+  }
 
   // lncoll get BitsStored to calculate window
   if (!window){
@@ -5405,12 +5447,39 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
     { level -= intercept;
     }
   }
-  //pVR = pDDO->GetVR(0x0028, 0x1053);	/* RescaleSlope */
-  //if ( pVR) 
-  //{ if (window && atof((const char *)pVR->Data)!=0)
-  //    window /= atof((const char *)pVR->Data);
-  //}
-  
+  else
+  { /* May be enhanced object? */
+    pVR = pDDO->GetVR(0x5200, 0x9229);			// SharedFunctionalGroupsSequence
+    if (pVR)
+    { pADDO = (Array<DICOMDataObject*>*)pVR->SQObjectArray;
+      if (pADDO && pADDO->Get(0))
+      { pVR = (pADDO->Get(0))->GetVR(0x0028, 0x9145);	// PixelValueTransformationSequence
+        if (pVR && pVR->SQObjectArray)
+        { pADDO = (Array<DICOMDataObject*>*)pVR->SQObjectArray;
+          if (pADDO && pADDO->Get(0))
+          { pVR = (pADDO->Get(0))->GetVR(0x0028, 0x1052);	/* RescaleIntercept */
+            int intercept = pVR->Getatoi();
+            float slope = 1;
+            pVR = (pADDO->Get(0))->GetVR(0x0028, 0x1053);	/* RescaleSlope */
+            if (pVR)
+            { char s[64];
+              pVR->GetString(s, sizeof(s));
+              slope = atof(s);
+            }
+            if (window==0 && slope>0.999 && slope<1.001)
+            { pVR = pDDO->GetVR(0x0008, 0x0060);		/* Modality */
+              if (pVR && pVR->Length==2 && memcmp(pVR->Data, "CT", 2)==0)
+                pixeloffset = intercept + 1024;
+            }
+            else if (slope>0.999 && slope<1.001)
+            { level -= intercept;
+            }
+	  }
+        }
+      }
+    }
+  }
+ 
   if (iRows >= iColumns)
   { iDownsizeFactor = iRows / iMaxRowsColumns;
     if (iRows % iMaxRowsColumns)
@@ -5667,7 +5736,7 @@ static BOOL To8bitMonochromeOrRGB(DICOMDataObject* pDDO, int size, int *Dimx, in
       { for (i=0; i<iNewRows; i++)
         { psSrc = (short*)pVR->Data + iDownsizeFactor * iColumns * (iNewRows-1-i);
           for (j=0; j<iNewColumns; j++)
-            {
+          {
 #if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
             r = *psSrc + pixeloffset;
 #else //Big Endian like Apple power pc

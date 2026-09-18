@@ -706,6 +706,10 @@ When            Who     What
 20260826        mvh     Make sure conquest_browser is also created during install
 20260904        mvh     Adapt hint to LadlePort; use valid scripts on starting
 20260908        mvh     Version to 1.5.0g, update build date
+20260915        mvh     Ask for MySql host(:port) on first install to allow non-standard port
+20260915        mvh     Added lua console button
+20260917        mvh     Added wait loop to kill and restart the server
+20260918        mvh     Auto hide progress bars after 5 timer ticks
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -742,7 +746,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0g';
-const BUILDDATE = '20260908';
+const BUILDDATE = '20260918';
 const testmode = 0;
 
 {************************************************************************}
@@ -825,7 +829,7 @@ type
     Button5: TButton;
     Button6: TButton;
     Button7: TButton;
-    RunInThreadedMode: TButton;
+    ButtonLuaConsole: TButton;
     KillAndRestartTheServer: TButton;
     Image1: TImage;
     PopupMenu1: TPopupMenu;
@@ -1300,6 +1304,7 @@ type
     procedure AppClick(Sender: TObject);
     procedure ButtonBugReportMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
+    procedure ButtonLuaConsoleClick(Sender: TObject);
   private
     procedure WMDropFiles(var Message: TWMDropFiles); message WM_DROPFILES;
     procedure WMQueryEndSession(var Message: TWMQueryEndSession); message WM_QUERYENDSESSION;
@@ -5529,11 +5534,14 @@ begin
   end
   else if UseMySQL then
   begin
+    server   := '127.0.0.1';
     dbase    := 'conquest';
     password := '';
-    if not InputQuery('Database Name',  'Database', dbase    ) then exit;
-    if not InputQuery('Root password',  'Password', password ) then exit;
+    if not InputQuery('Database Host',  'Host(:port)', server    ) then exit;
+    if not InputQuery('Database Name',  'Database', dbase        ) then exit;
+    if not InputQuery('Root password',  'Password', password     ) then exit;
 
+    SqlHost     := server;
     DataSource  := dbase;
     SqlPassWord := password;
     SaveConfigButtonClick(nil);
@@ -7705,6 +7713,7 @@ begin
 end;
 
 var ProgressActive: integer = 0;
+var ProgressInactive: integer=5;
 
 procedure TForm1.ProgressSocketDataAvailable(Sender: TObject;
   Error: Word);
@@ -7798,6 +7807,9 @@ begin
     s := copy(s, pos(#10, s)+1, 99999);
     //Application.ProcessMessages();
   end;
+  
+  // timeout to ensure bars are hidden when done
+  ProgressInactive := 5;
 end;
 
 // Serves Printer Queue
@@ -8098,7 +8110,7 @@ begin
     Sleep(500);
     ListenSocket.Listen;
 
-    RunInThreadedMode.Caption := 'Run in threaded mode';
+    //RunInThreadedMode.Caption := 'Run in threaded mode';
   end
   else
   // go to threaded mode
@@ -8125,8 +8137,8 @@ begin
     WriteLog('started dgate as threaded process');
 
     // failed ?
-    if ThreadedProcess<>0 then
-      RunInThreadedMode.Caption := 'Run in multi-process mode';
+    //if ThreadedProcess<>0 then
+      //RunInThreadedMode.Caption := 'Run in multi-process mode';
   end;
 
   Screen.Cursor := crDefault;
@@ -8135,6 +8147,7 @@ end;
 var killed:Boolean;
 
 procedure TForm1.KillAndRestartTheServerClick(Sender: TObject);
+var i: integer;
 begin
   if Assigned(sender) then
     if MessageDlg('Re-start the server (terminates active processes) ?', mtConfirmation,
@@ -8185,12 +8198,19 @@ begin
 
   Screen.Cursor := crDefault;
 
-  Sleep(1000);
+  Sleep(100);
 
   ServerTask('', 'log_on:'+ServerStatusSocket.Port);
-  Sleep(500);
+  Sleep(100);
 
+  for i:=1 to 12 do
+  begin
+    if TestLocalServer(false, true) then break;
+    WriteMemoSl(ServerStatusMemo, 'waiting ..', 200, 100, 'serverstatus', true, ServerStatusStringList);
+    Sleep(500);
+  end;
   TestLocalServer(false, false);
+
   CheckBoxDebugLog.Checked := false;
   CheckBoxWebServer.Checked := false;
   CheckBoxOnlyLogToFile.Checked := false;
@@ -9015,6 +9035,11 @@ begin
   memo1.Lines.AddStrings(strings);
   strings.Free;
   Memo1.Lines.Add('---------------------------------------------------------------------------------------------------------------------------------------------------------------');
+end;
+
+procedure TForm1.ButtonLuaConsoleClick(Sender: TObject);
+begin
+  ServerTask('', 'luastart:dofile([[lua/console.wlua]])');
 end;
 
 procedure TForm1.ModifyMenuClick(Sender: TObject);
@@ -10441,6 +10466,14 @@ var i, j, mb: integer;
     shouldzip : boolean;
 begin
   Timer2.Tag := Timer2.Tag + 1;
+  
+  ProgressInactive := ProgressInactive-1;
+  if ProgressInactive<0 then
+  begin
+    ProgressInactive := 0;
+    ProgressBar2.Visible := false;
+    ProgressBar3.Visible := false;
+  end;
 
   if PageControl1.ActivePage = TabSheet7 then
   begin

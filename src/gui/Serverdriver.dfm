@@ -1556,27 +1556,26 @@ object Form1: TForm1
         OnClick = KillAndRestartTheServerClick
         OnMouseDown = KillAndRestartTheServerMouseDown
       end
-      object RunInThreadedMode: TButton
+      object ButtonLuaConsole: TButton
         Left = 624
         Top = 112
         Width = 153
         Height = 25
-        Hint = 'Currently disabled'
         Anchors = [akTop, akRight]
-        Caption = 'Run in threaded mode'
-        Enabled = False
+        Caption = 'Lua console'
         ParentShowHint = False
         ShowHint = True
         TabOrder = 1
-        Visible = False
-        OnClick = RunInThreadedModeClick
+        OnClick = ButtonLuaConsoleClick
       end
       object ButtonBugReport: TButton
         Left = 624
         Top = 64
         Width = 153
         Height = 25
-        Hint = 'Zip interesting files for bug report - right click shows server folder'
+        Hint = 
+          'Zip interesting files for bug report - right click shows server ' +
+          'folder'
         Anchors = [akTop, akRight]
         Caption = 'Create bug report'
         ParentShowHint = False
@@ -1587,7 +1586,7 @@ object Form1: TForm1
       end
       object ProgressBar1: TProgressBar
         Left = 624
-        Top = 164
+        Top = 184
         Width = 153
         Height = 16
         Hint = 'Displays print server progress'
@@ -1599,7 +1598,7 @@ object Form1: TForm1
       end
       object CheckBoxDebugLog: TCheckBox
         Left = 624
-        Top = 208
+        Top = 228
         Width = 157
         Height = 17
         Hint = 
@@ -1613,8 +1612,8 @@ object Form1: TForm1
         OnClick = CheckBoxDebugLogClick
       end
       object UpDownDebugLevel: TUpDown
-        Left = 790
-        Top = 206
+        Left = 786
+        Top = 227
         Width = 15
         Height = 20
         Hint = 
@@ -1629,7 +1628,7 @@ object Form1: TForm1
       end
       object CheckBoxSmallFonts: TCheckBox
         Left = 624
-        Top = 240
+        Top = 260
         Width = 169
         Height = 17
         Hint = 'Use only if you have good eyes!'
@@ -1642,7 +1641,7 @@ object Form1: TForm1
       end
       object CheckBoxOnlyLogToFile: TCheckBox
         Left = 624
-        Top = 272
+        Top = 292
         Width = 161
         Height = 17
         Hint = 'When checked logs are only in file '#39'serverstatus.log'#39
@@ -1730,7 +1729,7 @@ object Form1: TForm1
       end
       object CheckBoxWebServer: TCheckBox
         Left = 624
-        Top = 304
+        Top = 324
         Width = 153
         Height = 17
         Hint = 

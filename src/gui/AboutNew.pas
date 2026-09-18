@@ -55,6 +55,9 @@ When            Who     What
 20100202        mvh     Default to SQLITE; version to 1.4.16alpha
 20100207        mvh     version comes from define in the serverdriver
 20160318        mvh     Added UoM to labels
+20260914        mvh     Asks libpq.dll/libmysql.dll location and copy drivers
+20260915        mvh     Added update button to update existing conquest
+20260916        mvh     Make empty folders such that is can install a minimal version
 *}
 
 unit AboutNew;
@@ -62,7 +65,7 @@ unit AboutNew;
 interface
 
 uses Windows, SysUtils, Classes, Graphics, Forms, Controls, StdCtrls,
-  Buttons, ExtCtrls, ServerDriver;
+  Buttons, ExtCtrls, ServerDriver, Dialogs;
 
 type
   TNewInstallBox = class(TForm)
@@ -78,9 +81,11 @@ type
     CancelButton: TButton;
     DefaultInstallButton: TButton;
     Label2: TLabel;
+    Button1: TButton;
     procedure FormCreate(Sender: TObject);
     procedure OKButtonClick(Sender: TObject);
     procedure DefaultInstallButtonClick(Sender: TObject);
+    procedure UpdateButtonClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -122,8 +127,9 @@ begin
 end;
 
 procedure TNewInstallBox.OKButtonClick(Sender: TObject);
-var name: string;
+var name, s, t: string;
     f: textfile;
+    sr: TSearchRec;
 begin
   if FileExists(curdir + '\USEPOSTGRES')  then DeleteFile(curdir + '\USEPOSTGRES');
   if FileExists(curdir + '\USESQLITE')    then DeleteFile(curdir + '\USESQLITE');
@@ -147,6 +153,141 @@ begin
   WriteLn(f, 'The name of this file determines the type of database');
   WriteLn(f, 'used for a new installation of the Conquest DICOM server.');
   CloseFile(f);
+
+  if (name='USEPOSTGRES') and not FileExists(curdir+ '\Install64\libpq64.dll') then
+  begin
+    Form1.OpenDialog1.Title       := 'Postgres driver (e.g. libpq.dll in C:\Program Files\PostgreSQL\xx\bin)';
+    Form1.OpenDialog1.Filename    := '*.dll';
+    Form1.OpenDialog1.Filter      := '*.dll';
+    Form1.OpenDialog1.FilterIndex := 1;
+    Form1.OpenDialog1.Options    := [];
+    if Form1.OpenDialog1.Execute then
+    begin
+      s := ExtractFileDir(Form1.OpenDialog1.Filename);
+      t := StringReplace(Form1.OpenDialog1.Filename, 'libpq.', 'lib*.', []);
+      if FindFirst(t,faAnyFile,sr) = 0 then
+      repeat
+        if (sr.Attr and faDirectory ) < $00000008 then
+          CopyFile(PChar(s+'\'+sr.Name),PChar(Curdir+'\Install64\'+sr.Name), false);
+      until findNext(sr) <> 0
+    end;
+  end;
+
+  if (name='USEMYSQL') and not FileExists(curdir+ '\Install64\libpq64.dll') then
+  begin
+    Form1.OpenDialog1.Title       := 'Mysql driver (e.g. libmysql.dll or libmariadb.dll in C:\Program Files\xx\x.x\lib)';
+    Form1.OpenDialog1.Filename    := '*.dll';
+    Form1.OpenDialog1.Filter      := '*.dll';
+    Form1.OpenDialog1.FilterIndex := 1;
+    Form1.OpenDialog1.Options    := [];
+    if Form1.OpenDialog1.Execute then
+    begin
+      s := ExtractFileDir(Form1.OpenDialog1.Filename);
+      t := StringReplace(Form1.OpenDialog1.Filename, 'libmysql.', 'lib*.', []);
+      if FindFirst(t,faAnyFile,sr) = 0 then
+      repeat
+        if (sr.Attr and faDirectory ) < $00000008 then
+          CopyFile(PChar(s+'\'+sr.Name),PChar(Curdir+'\Install64\'+sr.Name), false);
+      until findNext(sr) <> 0
+    end;
+  end;
+end;
+
+procedure TNewInstallBox.UpdateButtonClick(Sender: TObject);
+var s: string;
+    sr: TSearchRec;
+    a: integer;
+begin
+  if MessageDlg('Update/create other conquest folder with executable files from this one ?', mtConfirmation,
+    [mbYes, mbNo], 0) = mrNo then Exit;
+
+  Form1.OpenDialog1.Title       := 'Select any file in server folder to update or create';
+  Form1.OpenDialog1.Filename    := '*.*';
+  Form1.OpenDialog1.Filter      := '*.';
+  Form1.OpenDialog1.FilterIndex := 1;
+  Form1.OpenDialog1.Options    := [];
+  if Form1.OpenDialog1.Execute then
+  begin
+    s := ExtractFileDir(Form1.OpenDialog1.Filename);
+
+    if MessageDlg('This will overwrite exe, dll, php, and lua files in: '+s+'. Are you sure?', mtConfirmation,
+       [mbYes, mbNo], 0) = mrNo then Exit;
+
+    if MessageDlg('is the conquest instance in '+s+' is turned off?', mtConfirmation,
+       [mbYes, mbNo], 0) = mrNo then Exit;
+
+    try
+      // minimal exes
+      CopyFile(PChar(Curdir+'\7za.exe'),               PChar(s+'\7za.exe'), false);
+      CopyFile(PChar(Curdir+'\ConquestDICOMServer.exe'), PChar(s+'\ConquestDICOMServer.exe'), false);
+      CopyFile(PChar(Curdir+'\CqDicom.dll'),           PChar(s+'\CqDicom.dll'), false);
+      CopyFile(PChar(Curdir+'\dgate.dic'),             PChar(s+'\dgate.dic'), false);
+      CopyFile(PChar(Curdir+'\DgateServ.exe'),         PChar(s+'\DgateServ.exe'), false);
+
+      // assume 64 bits
+      CopyFile(PChar(Curdir+'\Install64\dgate64.exe'), PChar(s+'\dgate64.exe'), false);
+      CopyFile(PChar(Curdir+'\Install64\lua5.1.dll'),  PChar(s+'\lua5.1.dll'), false);
+
+      // empty data
+      ForceDirectories(s+'\data');
+      ForceDirectories(s+'\data\dbase');
+
+      // install32 and 64 folders
+      ForceDirectories(s+'\Install64');
+      CopyFile(PChar(Curdir+'\Install64\dgate64.exe'), PChar(s+'\Install64\dgate64.exe'), false);
+      CopyFile(PChar(Curdir+'\Install64\lua5.1.dll'),  PChar(s+'\Install64\lua5.1.dll'), false);
+
+      ForceDirectories(s+'\Install32');
+      CopyFile(PChar(Curdir+'\Install32\dgate.exe'), PChar(s+'\Install32\dgate.exe'), false);
+      CopyFile(PChar(Curdir+'\Install32\lua5.1.dll'),  PChar(s+'\Install32\lua5.1.dll'), false);
+
+      // clibs
+      ForceDirectories(s+'\clibs');
+      ForceDirectories(s+'\clibs\socket');
+      CopyFile(PChar(Curdir+'\clibs\iup.dll'),         PChar(s+'\clibs\iup.dll'), false);
+      CopyFile(PChar(Curdir+'\clibs\iuplua51.dll'),    PChar(s+'\clibs\iuplua51.dll'), false);
+      CopyFile(PChar(Curdir+'\clibs\socket\core.dll'), PChar(s+'\clibs\socket\core.dll'), false);
+
+      // lua
+      ForceDirectories(s+'\lua');
+      if FindFirst(Curdir+'\lua\*.lua',faAnyFile,sr) = 0 then
+      repeat
+        if (sr.Attr and faDirectory ) < $00000008 then
+          CopyFile(PChar(Curdir+'\lua\'+sr.Name),PChar(s+'\lua\'+sr.Name), false);
+      until findNext(sr) <> 0;
+
+      // webserver
+      ForceDirectories(s+'\webserver\htdocs');
+      if FindFirst(Curdir+'\webserver\htdocs\*.*',faAnyFile,sr) = 0 then
+      repeat
+        if (sr.Attr and faDirectory ) < $00000008 then
+          CopyFile(PChar(Curdir+'\webserver\htdocs\'+sr.Name),PChar(s+'\webserver\htdocs\'+sr.Name), false);
+      until findNext(sr) <> 0;
+
+      ForceDirectories(s+'\webserver\htdocs\api\dicom');
+      if FindFirst(Curdir+'\webserver\htdocs\api\dicom\*.*',faAnyFile,sr) = 0 then
+      repeat
+        if (sr.Attr and faDirectory ) < $00000008 then
+          CopyFile(PChar(Curdir+'\webserver\htdocs\api\dicom\'+sr.Name),PChar(s+'\webserver\htdocs\api\dicom\'+sr.Name), false);
+      until findNext(sr) <> 0;
+
+      ForceDirectories(s+'\webserver\htdocs\app\newweb');
+      if FindFirst(Curdir+'\webserver\htdocs\app\newweb\*.*',faAnyFile,sr) = 0 then
+      repeat
+        if (sr.Attr and faDirectory ) < $00000008 then
+          CopyFile(PChar(Curdir+'\webserver\htdocs\app\newweb\'+sr.Name),PChar(s+'\webserver\htdocs\app\newweb\'+sr.Name), false);
+      until findNext(sr) <> 0;
+
+      ForceDirectories(s+'\webserver\htdocs\app\ohif');
+      if FindFirst(Curdir+'\webserver\htdocs\app\ohif\*.*',faAnyFile,sr) = 0 then
+      repeat
+        if (sr.Attr and faDirectory ) < $00000008 then
+          CopyFile(PChar(Curdir+'\webserver\htdocs\app\ohif\'+sr.Name),PChar(s+'\webserver\htdocs\app\ohif\'+sr.Name), false);
+      until findNext(sr) <> 0;
+    except
+    end;
+    ShowMessage('Done copying files into: '+s);
+  end;
 end;
 
 procedure TNewInstallBox.DefaultInstallButtonClick(Sender: TObject);

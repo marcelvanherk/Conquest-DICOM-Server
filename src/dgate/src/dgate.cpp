@@ -1271,6 +1271,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260908	mvh	Added AllowedIPs and DeniedIPs for cverification, cmove, cstore, cfind, cget, cmovedest
 20260908	mvh	Print bit of offending server command and its originating IP; print IP of every association
 20260910	mvh	Export series/series2 to web lua code, broke wadoseriesviewer from PHP
+20260916	mvh	Remove reference to anonymize_script.cq, only use lua/anonymize_script.lua
 
 ENDOFUPDATEHISTORY
 */
@@ -22552,14 +22553,9 @@ BOOL ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 		lua_setvar(&PDU, "command_line",  SilentText+10);      
 		lua_setvar(&PDU, "version",       DGATE_VERSION);
 
-		FILE *f = fopen("anonymize_script.cq", "rt");
-		if (f) 
-		{ char anonscript2[] = "call anonymize_script.cq;";
-		  fclose(f);
-		  ModifyPATIDofImageFile(p, SilentText+10, TRUE, anonscript2, &PDU);
-		}
-		else if (f = fopen("anonymize_script.lua", "rt"))
-		{ char anonscript2[] = "anonymize_script.lua";
+		FILE *f;
+		if (f = fopen("lua/anonymize_script.lua", "rt"))
+		{ char anonscript2[] = "lua/anonymize_script.lua";
 		  fclose(f);
 		  ModifyPATIDofImageFile(p, SilentText+10, TRUE, anonscript2, &PDU);
 		}
@@ -24090,7 +24086,7 @@ BOOL ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
 				DcmConvertPixelData(pDDO, FALSE, TRUE, startx, endx, starty, endy, 0.0, 0.0, 0.0);
 				}
 			if (strcmp(r4, "yes")==0)
-				CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, "call anonymize_script.cq");
+				CallImportConverterN(NULL, pDDO, -1, NULL, NULL, NULL, NULL, &PDU, NULL, "lua/anonymize_script.lua");
 			else if (strlen(r4)>0)
 				{ 
 				char comm[512];

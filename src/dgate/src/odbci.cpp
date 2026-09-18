@@ -191,6 +191,7 @@
 20260622   mvh    Added blocks and delay parameters
 20260702   mvh    Made it compile without sqlite
 20260809   mvh    Catch errors of dbase_create (crashed server browser for mixed users)
+20260914   mvh    Also try to load libmariadb
 */
 
 /*
@@ -2534,6 +2535,7 @@ extern	char	ConfigFile[];
     hInst             = LoadLibrary("libmysql.dll");
     if (!hInst) hInst = LoadLibrary("libmysql64.dll");
     if (!hInst) hInst = LoadLibrary("x64\\libmysql.dll");
+    if (!hInst) hInst = LoadLibrary("libmariadb.dll");
     if (hInst)
     { mysql_close = (_mysql_close)GetProcAddress(hInst, "mysql_close");
       mysql_init = (_mysql_init)GetProcAddress(hInst, "mysql_init");

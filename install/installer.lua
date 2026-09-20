@@ -1406,11 +1406,12 @@ if server then
 	server = string.gsub(runquiet('cd '..servername..';pwd'), '\n', '')
 	print('[OK] Server folder: '..server)
 	if updating then
-          runquiet('sudo cp '..servername..'/_BACKUP/acrnema.map '..servername)
-          runquiet('sudo cp '..servername..'/_BACKUP/dgatesop.lst '..servername)
-          runquiet('sudo cp '..servername..'/_BACKUP/dicom.ini '..servername)
-          runquiet('sudo cp '..servername..'/_BACKUP/dicom.sql '..servername)
-          runquiet('sudo mv '..servername..'_BACKUP/data/ '..servername..'/data/')
+          runquiet('sudo cp '..servername..'_BACKUP/acrnema.map '..servername)
+          runquiet('sudo cp '..servername..'_BACKUP/dgatesop.lst '..servername)
+          runquiet('sudo cp '..servername..'_BACKUP/dicom.ini '..servername)
+          runquiet('sudo cp '..servername..'_BACKUP/dicom.sql '..servername)
+          runquiet('sudo rm -R '..servername..'/data')
+          runquiet('sudo mv '..servername..'_BACKUP/data/ '..servername..'/')
 	  print('[OK] Kept configuration acrnema.map, dgatesop.lst, dicom.ini, dicom.sql and data')
 	end
       else

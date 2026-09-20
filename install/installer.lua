@@ -1413,6 +1413,11 @@ if server then
           runquiet('sudo rm -R '..servername..'/data')
           runquiet('sudo mv '..servername..'_BACKUP/data/ '..servername..'/')
 	  print('[OK] Kept configuration acrnema.map, dgatesop.lst, dicom.ini, dicom.sql and data')
+          local y=ask('Do you want to reinstall the newweb interface and dicom api? Yes/No: ')
+	  if y=='Yes' then
+	    -- forces reinstall /var/www/html/app/newweb and /var/www/html/api/dicom
+	    runquiet('sudo -S rm /var/www/html/app/newweb/dicom.ini')
+	  end
 	end
       else
         os.exit()

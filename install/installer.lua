@@ -17,7 +17,7 @@
 -- mvh 20230916 Changed input order for linker for older gcc; add /usr/sbin to apache command paths
 -- mvh 20230919 Fixed dbaseiii config; added null database
 -- mvh 20230920 Small reconfigure of above; -r recompiles without asking
--- mvh 20250415 Irrelevant typos in defaults for updatign compression
+-- mvh 20250415 Irrelevant typos in defaults for updating compression
 -- mvh 20250911 Fallback for failed jpeg-c ./configure on debian 13
 -- mvh 20260701 Fix luasocket compile; added luabuiltin
 -- mvh 20260702 luabuiltin skips lua check; allow httpd as apache2 alternative
@@ -26,6 +26,10 @@
 -- mvh 20260703 Note: does not require unzip; update rocky doc for postgresql
 -- mvh 20260707 Remove unzip
 -- mvh 20260812 Added LadlePort and BackupSchedule; ladle is called as require([[ladle]])()
+-- mvh 20260920 Avoid copy servertask before folder exists, pass ladle port to startup line and web
+--              Show IP filter info in dicom.ini; update keeping config and data; 
+--              Remove unneeded association line; use package 7zip and link 7za to 7zz
+--              Fix backupschedule line
 
 --[[Note: auto installs packages; for Rocky Linux must do manual package install first:
 # assumes using built-in lua5.1/luasocket and built-in webserver
@@ -36,7 +40,7 @@ sudo dnf install make
 sudo dnf install g++
 sudo dnf install git
 sudo dnf install epel-release
-sudo dnf install p7zip
+sudo dnf install 7zip
 
 # for postgresql database
 sudo dnf install postgresql-server
@@ -194,7 +198,7 @@ for k, v in ipairs(arg) do
     print('  -r --recompile (needed when changing database)')
     print('  -c --configure (force reconfigure)')
     print('  -l --luabuiltin (compile lua and socket into server)')
-    print('  -w --webbuiltin port (autostart ladle webserver)')
+    print('  -w --webbuiltin port (autostart ladle webserver on port)')
     print('  -p --port port (server port)')
     print('  -s --servername name (server name)')
     print('  -r --regen y/n (force y/n dbase regen)')
@@ -476,7 +480,9 @@ function compile(param, conf, server)
     runquiet('sudo -S chcon -R -t bin_t '..server..'/dgate');
 
     compile('servertask', conf, server)
-    runquiet('sudo -S cp '..server..'/src/servertask/servertask /var/www/html/api/dicom/servertask');
+    if fileexists('/var/www/html/api/dicom/servertask') then
+      runquiet('sudo -S cp '..server..'/src/servertask/servertask /var/www/html/api/dicom/servertask');
+    end
   end
 end
 
@@ -504,7 +510,7 @@ function create_server_dicomini(conf, server)
   local wstart=''
   local ladle=''
   if webbuiltin~=0 then
-    wstart="poststartup = require('ladle')()"
+    wstart="poststartup = require('ladle')({port="..webbuiltin.."})"
     ladle = 'LadlePort                = '..webbuiltin
   end
 
@@ -524,7 +530,8 @@ TCPPort                  = ]]..(conf.PORT or CGI('PORT', '5678'))..[[
 
 ]]..ladle..[[
 
-# Host, database, username and password for database
+
+# Host, database, username and password for database (backupschedule only works for SQlite)
 SQLHost                  = ]]..(conf.SH or CGI('SH', 'localhost'))..[[
 
 SQLServer                = ]]..(conf.SE or CGI('SE', server..'/data'..sep..'dbase'..sep..'conquest.db3'))..[[
@@ -543,7 +550,7 @@ DoubleBackSlashToDB      = ]]..doublebackslashtodb..[[
 
 UseEscapeStringConstants = ]]..useescapestringconstants..[[
 
-BackupSchedule           = 'd7,w5,m@8#2048$100:' ]]..server..'/backup'..[[
+BackupSchedule           = d7,w5,m@8#2048$100:]]..server..'/backup'..[[
 
 
 # Configure server
@@ -574,8 +581,15 @@ MAGDeviceFullThreshHold  = 30
 MAGDevices               = 1
 MAGDevice0               = ]]..(conf.server or server)..[[/data]]..(conf.sep or sep)..[[
 
+# Configure IP based access control (first processes DeniedIPs than AllowedIPs)
+# default 127.0.0.1 only: Archive,Change,Move,Remote,Script,Status,Store,Wado,Zip,Stow,Delete
+# default all allowed: Cverification,Cfind,Cmove,Cget,Cstore,Cmovedest
+#AllowedIPsStore = 192.168.0.*
+#AllowedIPsMove = 192.168.0.*
+#AllowedIPsZip = 192.168.0.*
+#AllowedIPsChange = 192.168.0.*
+
 [lua]
-association = package.path=package.path..';'..Global.basedir..'lua/?.lua'
 ]]..wstart..[[
 
 ]])
@@ -1202,7 +1216,7 @@ resp = {}
 for v in io.lines('t.txt') do table.insert(resp, v) end
 if resp[2] then print('[OK] '..resp[2])
 else 
-  toinstall= toinstall..' p7zip-full'
+  toinstall= toinstall..' 7zip'
   print('[ERROR] no 7za')
 end 
 
@@ -1305,6 +1319,11 @@ if toinstall~='' then
     runquiet('sudo -S ln -s /usr/lib/x86_64-linux-gnu/liblua5.1.so.0 /usr/lib/x86_64-linux-gnu/liblua5.1.so')
   end
 
+  if not fileexists('/usr/bin/7za') then
+    print('*** Providing 7za link')
+    runquiet('sudo -S ln -s /usr/bin/7zz /usr/bin/7za')
+  end
+  
   if webbuiltin==0 then
     -- get PHP version
     runquiet('a2query -m | grep "php"  >t.txt 2>nul')
@@ -1356,6 +1375,7 @@ if pcall(function()require('wx') end) then
 end
 
 if server then 
+  local updating=false
   if fileexists(server .. '/ConquestDICOMServer.exe') then
     print('[OK] Server is located at: '..server)
   else
@@ -1369,13 +1389,30 @@ if server then
         if servername=='' then servername=ask('Give server AE (also folder name) (CONQUESTSRV1): ') end
 	if servername=='' then servername='CONQUESTSRV1' end
 	if directoryexists(servername) then
-          local y=ask('Folder exists - overwite? Yes/No: ')
+          local y=ask('Folder exists - update keeping config and data? Yes/No: ')
+	  updating = true
 	  if y~='Yes' then os.exit() end
+          runquiet('sudo -S rm -R '..servername..'_BACKUP')
+          runquiet('sudo mkdir -p '..servername..'_BACKUP')
+          runquiet('sudo cp '..servername..'/acrnema.map '..servername..'_BACKUP')
+          runquiet('sudo cp '..servername..'/dgatesop.lst '..servername..'_BACKUP')
+          runquiet('sudo cp '..servername..'/dicom.ini '..servername..'_BACKUP')
+          runquiet('sudo cp '..servername..'/dicom.sql '..servername..'_BACKUP')
+          runquiet('sudo mv '..servername..'/data/ '..servername..'_BACKUP/data/')
+	  
           runquiet('sudo -S rm -R '..servername)
 	end
         runquiet('git clone https://github.com/marcelvanherk/Conquest-DICOM-Server '..servername)
 	server = string.gsub(runquiet('cd '..servername..';pwd'), '\n', '')
 	print('[OK] Server folder: '..server)
+	if updating then
+          runquiet('sudo cp '..servername..'/_BACKUP/acrnema.map '..servername)
+          runquiet('sudo cp '..servername..'/_BACKUP/dgatesop.lst '..servername)
+          runquiet('sudo cp '..servername..'/_BACKUP/dicom.ini '..servername)
+          runquiet('sudo cp '..servername..'/_BACKUP/dicom.sql '..servername)
+          runquiet('sudo mv '..servername..'_BACKUP/data/ '..servername..'/data/')
+	  print('[OK] Kept configuration acrnema.map, dgatesop.lst, dicom.ini, dicom.sql and data')
+	end
       else
         os.exit()
       end
@@ -1572,6 +1609,10 @@ end
 if not yflag then
   local y=ask('Enter web interface? y/n: ')
   if y=='y' then
-    runquiet('sensible-browser http://localhost/app/newweb')
+    if webbuiltin~=0 then
+      runquiet('sensible-browser http://127.0.0.1:'..webbuiltin..'/app/newweb')
+    else
+      runquiet('sensible-browser http://127.0.0.1/app/newweb')
+    end
   end
 end

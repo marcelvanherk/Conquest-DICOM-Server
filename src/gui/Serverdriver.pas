@@ -710,6 +710,9 @@ When            Who     What
 20260915        mvh     Added lua console button
 20260917        mvh     Added wait loop to kill and restart the server
 20260918        mvh     Auto hide progress bars after 5 timer ticks
+20260919        mvh     Use variable amapFile, update ZeroBraneStudio files, no longer update cgi-bin files
+20260920        mvh     Optionally support acrnemamap entry in  dicom.ini, reads amapFile
+20260920        mvh     1.5.0g release
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -746,7 +749,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0g';
-const BUILDDATE = '20260918';
+const BUILDDATE = '20260920';
 const testmode = 0;
 
 {************************************************************************}
@@ -1485,6 +1488,7 @@ var NoDICOMCheck: string = '0';
 var PadAEWithZeros: string = '0';
 var RetryForwardRemoteDICOMError: string = '0';
 var LadlePort: string = '8086';
+var AmapFile: string;
 
 var CheckDays: array[1..10] of integer;
     CheckTimes: array[1..10] of string;
@@ -2427,6 +2431,8 @@ begin
   except
   end;
 
+  amapFile := Curdir + '\acrnema.map';
+
   InstallationSocket := TWSocket.Create(form1);
     InstallationSocket.LineMode := False;
     InstallationSocket.LineEnd := #13#10;
@@ -2738,8 +2744,8 @@ begin
     DataSource      := 'conquestpacs_s' + IntToStr(NumServ);
 
   // open the file into one of the pages for editing
-  if FileExists(CurDir + '\acrnema.map') then
-    DICOMMap.Lines.LoadFromFile(CurDir + '\acrnema.map');
+  if FileExists(amapFile) then
+    DICOMMap.Lines.LoadFromFile(amapFile);
   FillAELists;
 
   // make sure a dgatesop.lst exists. Default support JPEG
@@ -2771,9 +2777,9 @@ begin
   RestoreconfigButtonClick(Self);
 
   // create the default dicom providers list
-  if not FileExists(CurDir + '\acrnema.map') then
+  if not FileExists(amapFile) then
   begin
-    AssignFile(f, CurDir + '\acrnema.map');
+    AssignFile(f, amapFile);
     Rewrite(f);
     writeln(f, '/* **********************************************************');
     writeln(f, ' *                                                          *');
@@ -2805,7 +2811,7 @@ begin
     writeln(f, 'S*		        *               5678            un');
     CloseFile(f);
 
-    DICOMMap.Lines.LoadFromFile(CurDir + '\acrnema.map');
+    DICOMMap.Lines.LoadFromFile(amapFile);
     FillAELists;
   end;
 
@@ -3407,6 +3413,13 @@ begin
       ServerName.text := UpperCase(GetData(s));
     end;
 
+    if Copy(s, 0, length('acrnemamap')) = 'acrnemamap' then
+    begin
+      amapFile := GetData(s);
+      if pos('\', amapFile)=0 then
+        amapFile := Curdir + '\' + AmapFile;
+    end;
+    
     if Copy(s, 0, length('filecompressmode')) = 'filecompressmode' then
       FileCompressMode := StrToIntDef(GetData(s), 0);
 
@@ -4525,6 +4538,9 @@ begin
     writeln(f, 'AllowEmptyPatientID      = ' + AllowEmptyPatientID);
   if RetryForwardRemoteDICOMError<>'0' then 
     writeln(f, 'RetryForwardRemoteDICOMError = ' + RetryForwardRemoteDICOMError);
+  if amapFile<>Curdir + '\acrnema.map' then
+    writeln(f, 'ACRNemaMap               = ' + amapFile);
+
                                     
   writeln(f, '');
   if DCMRadioButton.Checked then
@@ -4872,7 +4888,7 @@ begin
 
   // Update ACRNEMA.map putting AE and PORT of server in first line
   amap := TStringList.Create;
-  amap.LoadFromFile(curdir+'\acrnema.map');
+  amap.LoadFromFile(amapFile);
   for i := 0 to amap.Count-1 do
   begin
     if (pos('*', amap[i])=0) and (length(amap[i])>10) then
@@ -4881,38 +4897,9 @@ begin
       break;
     end;
   end;
-  amap.SaveToFile(curdir+'\acrnema.map');
-  DICOMMap.Lines.LoadFromFile(CurDir + '\acrnema.map');
+  amap.SaveToFile(amapFile);
+  DICOMMap.Lines.LoadFromFile(amapFile);
   FillAELists;
-
-  // Update classic web interface with executables and ini file settings
-  if fileExists(curdir + '\webserver\cgi-bin\dicom.ini') then
-  begin
-    if not FileExists(curdir + '\webserver\cgi-bin\dgate.exe') then
-      CopyFile(PChar(curdir + '\install32\dgate.exe'), PChar(curdir + '\webserver\cgi-bin\dgate.exe'), false);
-    if not FileExists(curdir + '\webserver\cgi-bin\lua5.1.dll') then
-      CopyFile(PChar(curdir + '\install32\lua5.1.dll'), PChar(curdir + '\webserver\cgi-bin\lua5.1.dll'), false);
-    i_f := TIniFile.Create(curdir + '\webserver\cgi-bin\dicom.ini');
-    i_f.WriteString('sscscp', 'ACRNemaMap', ' acrnema.map');
-    i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
-    i_f.WriteString('sscscp', 'MyACRNema', ' '+trim(ServerName.Text));
-    i_f.Free;
-    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\acrnema.map'), false);
-  end;
-
-  // Update newweb cgi interface with executables and ini file settings
-  if fileExists(curdir + '\webserver\cgi-bin\newweb\dicom.ini') then
-  begin
-    if not FileExists(curdir + '\webserver\cgi-bin\newweb\dgate.exe') then
-      CopyFile(PChar(curdir + '\install32\dgate.exe'), PChar(curdir + '\webserver\cgi-bin\newweb\dgate.exe'), false);
-    if not FileExists(curdir + '\webserver\cgi-bin\newweb\lua5.1.dll') then
-      CopyFile(PChar(curdir + '\install32\lua5.1.dll'), PChar(curdir + '\webserver\cgi-bin\newweb\lua5.1.dll'), false);
-    i_f := TIniFile.Create(curdir + '\webserver\cgi-bin\newweb\dicom.ini');
-//    i_f.WriteString('sscscp', 'ACRNemaMap', ' acrnema.map');
-    i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
-    i_f.Free;
-//    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
-  end;
 
   // Update newweb app with executables and ini file settings
   if fileExists(curdir + '\webserver\htdocs\app\newweb\dicom.ini') then
@@ -4922,10 +4909,32 @@ begin
     if not FileExists(curdir + '\webserver\htdocs\app\newweb\lua5.1.dll') then
       CopyFile(PChar(curdir + '\install32\lua5.1.dll'), PChar(curdir + '\webserver\htdocs\app\newweb\lua5.1.dll'), false);
     i_f := TIniFile.Create(curdir + '\webserver\htdocs\app\newweb\dicom.ini');
-//    i_f.WriteString('sscscp', 'ACRNemaMap', ' acrnema.map');
     i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
     i_f.Free;
-//    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
+  end;
+
+  // Update TCPIP port in Zerobrane studio interpreter
+  if fileExists(curdir + '\ZeroBraneStudio\dicom.ini') then
+  begin
+    i_f := TIniFile.Create(curdir + '\ZeroBraneStudio\dicom.ini');
+    i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
+    i_f.Free;
+  end;
+
+  // Update conquest_auto.lua putting PORT of server in conquestport line
+  if FileExists(curdir+'\ZeroBraneStudio\conquest_auto.lua') then
+  begin
+    php := TStringList.Create;
+    php.LoadFromFile(curdir+'\ZeroBraneStudio\conquest_auto.lua');
+    for i := 0 to php.Count-1 do
+    begin
+      if (pos('conquestport', php[i])>1) then
+      begin
+        php[i] := 'local conquestport = "'+trim(TCPIPport.text)+'"';
+        break;
+      end;
+    end;
+    php.SaveToFile(curdir+'\ZeroBraneStudio\conquest_auto.lua');
   end;
 
   // Update config.php putting PORT of server in $exe line
@@ -6025,21 +6034,17 @@ begin
   if MessageDlg('Save and use new ACRNEMA.MAP ?', mtConfirmation,
     [mbYes, mbNo], 0) = mrYes then
   begin
-    DICOMMap.Lines.SaveToFile(CurDir + '\acrnema.map');
+    DICOMMap.Lines.SaveToFile(amapFile);
     FillAELists;
     ServerTask('Re-reading acrnema.map from GUI', 'read_amap:');
-
-    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\acrnema.map'), false);
-//    CopyFile(PChar(curdir + '\acrnema.map'), PChar(curdir + '\webserver\cgi-bin\newweb\acrnema.map'), false);
   end;
-  //KillAndRestartTheServerClick(self);
 end;
 
 // Load ACRNEMA.MAP
 
 procedure TForm1.RestoreListButtonClick(Sender: TObject);
 begin
-  DICOMMap.Lines.LoadFromFile(CurDir + '\acrnema.map');
+  DICOMMap.Lines.LoadFromFile(amapFile);
   FillAELists;
 end;
 
@@ -7419,7 +7424,6 @@ procedure TForm1.CheckBoxWebServerMouseDown(Sender: TObject;
 begin
   if not (Sender as TCheckBox).Checked then exit;
   if Button <> mbRight then exit;
-  //ShellExecute(0, 'open', PWideChar('http://127.0.0.1:'+LadlePort+'/app/newweb/dgate.exe?mode=start'), nil, nil, SW_SHOWNORMAL);
   ShowPopupMenu2(Sender, X, Y);
 end;
 

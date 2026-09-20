@@ -1272,6 +1272,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260908	mvh	Print bit of offending server command and its originating IP; print IP of every association
 20260910	mvh	Export series/series2 to web lua code, broke wadoseriesviewer from PHP
 20260916	mvh	Remove reference to anonymize_script.cq, only use lua/anonymize_script.lua
+20260919	mvh	Added nice ipv4/ipv6 matching code for checkaccess by Marcin Makalowski DivNet/MakeIT divinus
+20260919	mvh	Map lua checkaccess to servertask checkaccess:; AddImageFile runs dTestDICOM; uncompress images to print
+20260920	mvh	---- RELEASE 1.5.0g
 
 ENDOFUPDATEHISTORY
 */
@@ -1713,50 +1716,297 @@ int GetNumberOfFrames(DICOMDataObject* pDDO);
 #define ca_cstore 16
 #define ca_cmovedest 17
 
-// Allows e.g. 127.0.0.1,192.168.1.*,10.127.*.* wildcards in dicom.ini
-// when ip6 address string is passed, expand ::, lowercase and then try e.g 1:*, 1:2:*, 1:2:3:4:*, 1:2:3:4:5:6:*
-BOOL checkaccess(int op, unsigned int ip, char *ip6=NULL)
-{ char ips1[64], ips2[64], ips3[64], ips4[64], ips5[64], buffer[2048], szRootSC[64];
-  if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile)) return false;
-  
-  if (ip6) // ipv6
-  { if (strlen(ip6)>63) return FALSE;
-    int cc=0;
-    char ipv6[64];
-    for (int i=0; i<strlen(ip6); i++) if (ip6[i]==':') cc++;
-    char *p = strstr(ip6, "::");
-    if (p && cc<7) 
-    { memset(ipv6, 0, sizeof(ipv6));
-      if (p==ip6) ipv6[0]='0';
-      memcpy(ipv6+strlen(ipv6), ip6, (p-ip6));
-      for (; cc<8; cc++) strcat(ipv6, ":0");
-      strcat(ipv6, p+1);
+
+/* ca_ipmatch.c - address list matching for Conquest checkaccess()
+ *
+ * Replaces the strstr() candidate matching in checkaccess() with a parse-and-
+ * compare that handles IPv4 and IPv6 uniformly. Self-contained: no inet_pton,
+ * no platform headers, so it builds anywhere dgate builds.
+ *
+ * Every address, v4 or v6, is normalised to 16 bytes. IPv4 is stored as the
+ * IPv4-mapped form ::ffff:a.b.c.d, which makes a dual-stack client arriving as
+ * ::ffff:127.0.0.1 compare equal to a plain 127.0.0.1 in the config.
+ *
+ * List entry forms accepted:
+ *   1.2.3.4              exact IPv4
+ *   192.168.1.*          legacy IPv4 wildcard  (also 10.1.*.*, 10.*.*.*, *.*.*.*)
+ *   192.168.1.0/24       IPv4 CIDR
+ *   ::1                  exact IPv6, any notation, any case, any leading zeros
+ *   2001:db8::/32        IPv6 CIDR
+ *   2001:db8:*           IPv6 wildcard, cut on a group boundary
+ *   *                    everything
+ *   none                 nothing (kept for compatibility with the old default)
+ *
+ * Entries are separated by commas; surrounding whitespace is ignored.
+ *
+ * Code donated by Marcin Makalowski DivNet/MakeIT divinus, 20260919
+ * 
+ */
+
+#include <string.h>
+
+
+typedef struct { unsigned char b[16]; } ca_ipaddr;
+
+static int ca_isspace(char c)
+{ return c==' ' || c=='\t' || c=='\r' || c=='\n'; }
+
+static const unsigned char ca_v4pfx[12] =
+  { 0,0,0,0, 0,0,0,0, 0,0,0xff,0xff };
+
+/* --- IPv4 ---------------------------------------------------------------- */
+/* Parses a.b.c.d. Returns 1 on success. Rejects empty parts, >3 digits,
+   values over 255, wrong number of parts, and any trailing garbage. */
+static int ca_parse_v4(const char *s, const char *end, unsigned char out[4])
+{ int part = 0, digits = 0, val = 0;
+  const char *p = s;
+  for (;;)
+  { if (p == end || *p == '.')
+    { if (digits == 0 || part > 3) return 0;
+      out[part++] = (unsigned char)val;
+      val = 0; digits = 0;
+      if (p == end) break;
+      if (part == 4) return 0;          /* dot after the fourth part */
+      p++;
+      continue;
     }
-    for (int i=0; i<strlen(ipv6); i++) ipv6[i]=tolower(ipv6[i]);
-    
-    cc=0;
-    sprintf(ips1, ",%s,", ipv6);
-    for (int i=0; i<strlen(ipv6); i++)
-    { if (ipv6[i]==':') 
-      { cc++;
-        if (cc==1) sprintf(ips2, ",%-.*s*,", i+1, ipv6);
-        if (cc==2) sprintf(ips3, ",%-.*s*,", i+1, ipv6);
-        if (cc==4) sprintf(ips4, ",%-.*s*,", i+1, ipv6);
-        if (cc==6) sprintf(ips5, ",%-.*s*,", i+1, ipv6);
-      }
-    }
-    //OperatorConsole.printf("*** %s!%s!%s!%s!%s\n", ips1, ips2, ips3, ips4, ips5);
+    if (*p < '0' || *p > '9') return 0;
+    if (++digits > 3) return 0;
+    val = val * 10 + (*p - '0');
+    if (val > 255) return 0;
+    p++;
   }
-  else // ipv4
-  { sprintf(ips1, ",%d.%d.%d.%d,", ip&255, (ip>>8)&255, (ip>>16)&255, (ip>>24)&255);
-    sprintf(ips2, ",%d.%d.%d.*,", ip&255, (ip>>8)&255, (ip>>16)&255);
-    sprintf(ips3, ",%d.%d.*.*,", ip&255, (ip>>8)&255);
-    sprintf(ips4, ",%d.*.*.*,", ip&255);
-    sprintf(ips5, ",*.*.*.*,");
+  return part == 4;
+}
+
+/* --- IPv6 ---------------------------------------------------------------- */
+/* Parses an IPv6 literal, with :: compression and an optional trailing
+   IPv4 part (::ffff:1.2.3.4). Returns 1 on success. */
+static int ca_parse_v6(const char *s, const char *end, unsigned char out[16])
+{ unsigned char head[16], tail[16];
+  int nhead = 0, ntail = 0, seen_dc = 0, i;
+  const char *p = s;
+  unsigned char *cur = head;
+  int *ncur = &nhead;
+
+  if (end - s < 2) return 0;
+
+  if (p[0] == ':')                      /* must start with :: if it starts with : */
+  { if (p[1] != ':') return 0;
+    p += 2; seen_dc = 1; cur = tail; ncur = &ntail;
+    if (p == end) { memset(out, 0, 16); return 1; }   /* "::" */
   }
 
-  int Index=0;
-  char map[1024];
+  for (;;)
+  { const char *grp = p;
+    int digits = 0;
+    unsigned int val = 0;
+
+    /* an embedded IPv4 tail is allowed as the last element */
+    { const char *q = grp;
+      while (q < end && *q != ':') q++;
+      if (q < end ? 0 : 1)              /* only when it runs to the end */
+      { const char *r = grp;
+        int dots = 0;
+        while (r < end) { if (*r == '.') dots++; r++; }
+        if (dots == 3)
+        { unsigned char v4[4];
+          if (!ca_parse_v4(grp, end, v4)) return 0;
+          if (*ncur + 4 > 16) return 0;
+          for (i = 0; i < 4; i++) cur[(*ncur)++] = v4[i];
+          break;
+        }
+      }
+    }
+
+    while (p < end && *p != ':')
+    { int c = *p, d;
+      if (c >= '0' && c <= '9') d = c - '0';
+      else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+      else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+      else return 0;
+      if (++digits > 4) return 0;
+      val = (val << 4) | (unsigned int)d;
+      p++;
+    }
+    if (digits == 0) return 0;
+    if (*ncur + 2 > 16) return 0;
+    cur[(*ncur)++] = (unsigned char)(val >> 8);
+    cur[(*ncur)++] = (unsigned char)(val & 0xff);
+
+    if (p == end) break;
+    p++;                                /* step over ':' */
+    if (p < end && *p == ':')
+    { if (seen_dc) return 0;            /* only one :: allowed */
+      seen_dc = 1; p++;
+      cur = tail; ncur = &ntail;
+      if (p == end) break;
+    }
+    else if (p == end) return 0;        /* trailing single colon */
+  }
+
+  if (seen_dc)
+  { if (nhead + ntail > 14) return 0;   /* :: must stand for at least one group */
+    memset(out, 0, 16);
+    for (i = 0; i < nhead; i++) out[i] = head[i];
+    for (i = 0; i < ntail; i++) out[16 - ntail + i] = tail[i];
+  }
+  else
+  { if (nhead != 16) return 0;
+    for (i = 0; i < 16; i++) out[i] = head[i];
+  }
+  return 1;
+}
+
+/* Parses either family into the 16-byte form. */
+static int ca_parse_addr(const char *s, const char *end, ca_ipaddr *a)
+{ const char *p = s;
+  int has_colon = 0;
+  while (p < end) { if (*p == ':') { has_colon = 1; break; } p++; }
+  if (has_colon) return ca_parse_v6(s, end, a->b);
+  if (!ca_parse_v4(s, end, a->b + 12)) return 0;
+  memcpy(a->b, ca_v4pfx, 12);
+  return 1;
+}
+
+/* --- entry matching ------------------------------------------------------ */
+
+static int ca_bits_equal(const unsigned char *x, const unsigned char *y, int bits)
+{ int whole = bits / 8, rest = bits % 8;
+  if (whole && memcmp(x, y, (size_t)whole) != 0) return 0;
+  if (rest)
+  { unsigned char mask = (unsigned char)(0xff << (8 - rest));
+    if ((x[whole] & mask) != (y[whole] & mask)) return 0;
+  }
+  return 1;
+}
+
+/* Matches one list entry [s,end) against the already parsed client address. */
+static int ca_match_entry(const char *s, const char *end, const ca_ipaddr *cli)
+{ char buf[80];
+  size_t len;
+  const char *slash = 0, *p;
+  ca_ipaddr net;
+
+  while (s < end && ca_isspace(*s)) s++;
+  while (end > s && ca_isspace(end[-1])) end--;
+  len = (size_t)(end - s);
+  if (len == 0) return 0;
+  if (len >= sizeof(buf)) return 0;
+  if (len == 1 && *s == '*') return 1;
+  if (len == 4 && strncmp(s, "none", 4) == 0) return 0;
+
+  memcpy(buf, s, len); buf[len] = 0;
+
+  for (p = buf; *p; p++) if (*p == '/') { slash = p; break; }
+
+  /* explicit CIDR */
+  if (slash)
+  { int bits = 0, digits = 0;
+    for (p = slash + 1; *p; p++)
+    { if (*p < '0' || *p > '9') return 0;
+      if (++digits > 3) return 0;
+      bits = bits * 10 + (*p - '0');
+    }
+    if (digits == 0) return 0;
+    if (!ca_parse_addr(buf, slash, &net)) return 0;
+    if (net.b[10] == 0xff && net.b[11] == 0xff &&
+        memcmp(net.b, ca_v4pfx, 10) == 0)          /* v4 prefix length is on 32 bits */
+    { if (bits > 32) return 0;
+      bits += 96;
+    }
+    else if (bits > 128) return 0;
+    return ca_bits_equal(net.b, cli->b, bits);
+  }
+
+  /* wildcard forms */
+  if (buf[len - 1] == '*')
+  { char tmp[80];
+    size_t i;
+    int bits;
+    if (strchr(buf, ':'))
+    { /* IPv6: 2001:db8:*  -> prefix is the groups written before the star */
+      size_t cut = len - 1;
+      int groups;
+      if (cut == 0 || buf[cut - 1] != ':') return 0;
+      memcpy(tmp, buf, cut); tmp[cut] = 0;
+      while (cut > 0 && tmp[cut - 1] == ':') tmp[--cut] = 0;
+      if (cut == 0) return 0;
+      groups = 1;
+      for (i = 0; i < cut; i++) if (tmp[i] == ':') groups++;
+      /* complete it into a parseable address */
+      if (cut + 2 >= sizeof(tmp)) return 0;
+      strcat(tmp, "::");
+      if (!ca_parse_v6(tmp, tmp + strlen(tmp), net.b)) return 0;
+      bits = groups * 16;
+      if (bits > 128) return 0;
+      return ca_bits_equal(net.b, cli->b, bits);
+    }
+    else
+    { /* IPv4: 192.168.1.* / 10.1.*.* / 10.*.*.* / *.*.*.* */
+      int labels = 0, stars = 0;
+      size_t j = 0;
+      const char *q;
+      for (q = buf; ; q++)
+      { if (*q == '.' || *q == 0)
+        { labels++;
+          if (*q == 0) break;
+        }
+      }
+      if (labels != 4) return 0;
+      /* rebuild with stars turned into zeros, count trailing stars */
+      { const char *r = buf;
+        int idx = 0;
+        char out2[80]; size_t o = 0;
+        int seen_star = 0;
+        while (idx < 4)
+        { const char *st = r;
+          while (*r && *r != '.') r++;
+          if (r - st == 1 && *st == '*') { stars++; seen_star = 1; out2[o++] = '0'; }
+          else
+          { if (seen_star) return 0;      /* star may not be followed by a number */
+            if ((size_t)(r - st) == 0) return 0;
+            memcpy(out2 + o, st, (size_t)(r - st)); o += (size_t)(r - st);
+          }
+          idx++;
+          if (idx < 4) { out2[o++] = '.'; if (*r) r++; else return 0; }
+        }
+        out2[o] = 0;
+        j = o;
+        if (!ca_parse_addr(out2, out2 + j, &net)) return 0;
+      }
+      bits = 96 + (4 - stars) * 8;
+      return ca_bits_equal(net.b, cli->b, bits);
+    }
+  }
+
+  /* plain address */
+  if (!ca_parse_addr(buf, buf + len, &net)) return 0;
+  return memcmp(net.b, cli->b, 16) == 0;
+}
+
+/* Public: does `addr` match any entry of the comma separated `list`? */
+int ca_ipmatch(const char *list, const char *addr)
+{ ca_ipaddr cli;
+  const char *s, *p;
+  if (!list || !addr) return 0;
+  if (!ca_parse_addr(addr, addr + strlen(addr), &cli)) return 0;
+  s = list;
+  for (;;)
+  { p = s;
+    while (*p && *p != ',') p++;
+    if (ca_match_entry(s, p, &cli)) return 1;
+    if (!*p) break;
+    s = p + 1;
+  }
+  return 0;
+}
+
+// make comma separated string of all non-wildcard IP addresses in acrnema.map; dose nothing if map already non-empty
+void getmap(char *map, int size)
+{ int Index=0;
+  if (map[0]) return;
+
   map[0]=0;
   while ( Index < ACRNemaAddressArray.GetSize() )
   { ACRNemaAddress *AAPtr = ACRNemaAddressArray.Get(Index);
@@ -1767,224 +2017,48 @@ BOOL checkaccess(int op, unsigned int ip, char *ip6=NULL)
       break;
     }
   }
-  strcat(map, ",");
-  
-  strcpy(buffer, ",");
+}
 
-  MyGetPrivateProfileString(szRootSC, "DeniedIPs", "none", buffer+1, 1024, ConfigFile);
-  strcat(buffer, ",");
-  if (strstr(buffer, "map")) strcat(buffer, map);
-  if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-  
-  if (op==ca_archive)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsArchive", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
+// check access in dicom.ini of 32 bits ip address or ipv6 string; simplified code donated by Marcin
+BOOL checkaccess(int op, unsigned int ip, char *ip6=NULL)
+{ static const char *opname[] = { "", "Archive", "Change", "Move", "Remote",
+                                  "Script", "Status", "Store", "Wado", "Zip",
+				  "Stow", "Delete", 
+				  "Cverification", "Cfind", "Cmove", "Cget", "Cstore" , "Cmovedest"
+                                };
+  char addr[64], key[64], list[1026], map[1026], szRootSC[64];
+  map[0]=0;
 
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsArchive", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile)) return false;
+ 
+  if (ip6)
+  { if (strlen(ip6) > 45) return false;
+    strcpy(addr, ip6);
   }
+  else
+    sprintf(addr, "%d.%d.%d.%d", ip&255, (ip>>8)&255, (ip>>16)&255, (ip>>24)&255);
 
-  if (op==ca_change)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsChange", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsChange", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
+  MyGetPrivateProfileString(szRootSC, "DeniedIPs", "none", list, sizeof(list), ConfigFile);
+  if (ca_ipmatch(list, addr)) return false;
+  if (strstr(list, "map")) {getmap(map, sizeof(map)); if (ca_ipmatch(map, addr)) return false;}
+ 
+  if (op > 0 && op <= sizeof(opname)/sizeof(char *))
+  { sprintf(key, "DeniedIPs%s", opname[op]);
+    MyGetPrivateProfileString(szRootSC, key, "none", list, sizeof(list), ConfigFile);
+    if (ca_ipmatch(list, addr)) return false;
+    if (strstr(list, "map")) {getmap(map, sizeof(map)); if (ca_ipmatch(map, addr)) return false;}
+ 
+    sprintf(key, "AllowedIPs%s", opname[op]);
+    // default carries ::1 as well, or a dual stack host locks itself out
+    MyGetPrivateProfileString(szRootSC, key, "127.0.0.1,::1", list, sizeof(list), ConfigFile);
+    if (ca_ipmatch(list, addr)) return true;
+    if (strstr(list, "map")) {getmap(map, sizeof(map)); if (ca_ipmatch(map, addr)) return true;}
   }
-
-  if (op==ca_move)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsMove", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsMove", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_remote)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsRemote", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsRemote", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_script)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsScript", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsScript", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_status)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStatus", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsStatus", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_store)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStore", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsStore", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_wado)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsWado", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsWado", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_zip)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsZip", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsZip", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_stow)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsStow", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsStow", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_delete)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsDelete", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsDelete", "127.0.0.1", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  // regular dicom services; default to allow *.*.*.*
-  if (op==ca_cverification)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCVerification", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsCVerification", "*.*.*.*", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_cfind)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCFind", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsCFind", "*.*.*.*", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_cmove)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCMove", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsCMove", "*.*.*.*", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_cget)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCGet", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsCGet", "*.*.*.*", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_cstore)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCStore", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsCStore", "*.*.*.*", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  if (op==ca_cmovedest)
-  { MyGetPrivateProfileString(szRootSC, "DeniedIPsCMoveDest", "none", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return false;
-
-    MyGetPrivateProfileString(szRootSC, "AllowedIPsCMoveDest", "*.*.*.*", buffer+1, 1024, ConfigFile);
-    strcat(buffer, ",");
-    if (strstr(buffer, "map")) strcat(buffer, map);
-    if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-  }
-
-  MyGetPrivateProfileString(szRootSC, "AllowedIPs", "127.0.0.1", buffer+1, 1024, ConfigFile);
-  strcat(buffer, ",");
-  if (strstr(buffer, "map")) strcat(buffer, map);
-  if (strstr(buffer, ips1) || strstr(buffer, ips2) || strstr(buffer, ips3) || strstr(buffer, ips4) || strstr(buffer, ips5)) return true;
-
+ 
+  MyGetPrivateProfileString(szRootSC, "AllowedIPs", "127.0.0.1,::1", list, sizeof(list), ConfigFile);
+  if (ca_ipmatch(list, addr)) return true;
+  if (strstr(list, "map")) {getmap(map, sizeof(map)); if (ca_ipmatch(map, addr)) return true;}
+ 
   return false;
 }
 
@@ -3940,6 +4014,23 @@ BOOL LoadAndDeleteDir(char *dir, char *NewPatid, ExtendedPDU_Service *PDU, int T
 
 BOOL BackgroundExec(char *ProcessBinary, char *Args);
 
+static int 
+dTestDICOM(char *Path)
+	{
+	FILE *f;
+	int res;
+	char buffer[132];
+
+	f = fopen(Path, "rb");
+	if (f==NULL) return -1;
+
+	fread(buffer, 1, 132, f);
+  	fclose(f);
+
+	return (buffer[128]=='D' && buffer[129]=='I' && buffer[130]=='C' && buffer[131]=='M')?1:0;
+	}
+
+
 // Add image file to server (also copies file!); optional changes patient ID before entering file
 BOOL
 AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU, Database	*PDB)
@@ -4079,6 +4170,16 @@ AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU, Database	
 		return TRUE;
 		}
 
+	// test if valid dicom except for files with extension .v2 (DICOM without header)
+	p = strrchr(filename, '.');
+	int nv2 = p?strcmp(p, ".v2"):1;
+	if (nv2!=0)
+		{ if (dTestDICOM(filename)==0) 
+			{ 
+			OperatorConsole.printf("***[AddImageFile] %s -FAILED: not a DICOM file\n", filename);
+			return TRUE; // do not retry
+			}
+		}
 
 	pDDO = LoadForGUI(filename);
 	if(!pDDO)
@@ -8745,45 +8846,27 @@ static char uploadedfile[256];
     return 1;
   }
 
+  BOOL ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &DCO,
+                char *Response, unsigned int ConnectedIP, char *tempfile, int Thread);
+
   static int luacheckaccess(lua_State *L)
-  { int op=0;
-    unsigned int ip, a, b, c, d;
+  { char op[128], response[64];
+    ExtendedPDU_Service PDU;
+    DICOMCommandObject DCO;
 
     if (lua_gettop(L)!=2) 
     { lua_pushboolean(L, false);
       return 1;
     }
-    if (strcmp(lua_tostring(L,1), "archive")==0) op=ca_archive;
-    if (strcmp(lua_tostring(L,1), "change")==0) op=ca_change;
-    if (strcmp(lua_tostring(L,1), "move")==0) op=ca_move;
-    if (strcmp(lua_tostring(L,1), "remote")==0) op=ca_remote;
-    if (strcmp(lua_tostring(L,1), "script")==0) op=ca_script;
-    if (strcmp(lua_tostring(L,1), "status")==0) op=ca_status;
-    if (strcmp(lua_tostring(L,1), "store")==0) op=ca_store;
-    if (strcmp(lua_tostring(L,1), "wado")==0) op=ca_wado;
-    if (strcmp(lua_tostring(L,1), "zip")==0) op=ca_zip;
-    if (strcmp(lua_tostring(L,1), "stow")==0) op=ca_stow;
-    if (strcmp(lua_tostring(L,1), "delete")==0) op=ca_delete;
-    if (op==0)
-    { OperatorConsole.printf("*** checkaccess passed unknown item: %s\n", lua_tostring(L,1));
-      lua_pushboolean(L, false);
-      return 1;
-    }
-  
-    // ipv6 as string
-    if (strchr(lua_tostring(L,2), ':'))
-    { lua_pushboolean(L, checkaccess(op, 0, (char *)lua_tostring(L,2)));
+    
+    if (strlen(lua_tostring(L,1))>32 || strlen(lua_tostring(L,2))>64)
+    { lua_pushboolean(L, false);
       return 1;
     }
     
-    // ipv4 as integer
-    if (sscanf(lua_tostring(L,2), "%d.%d.%d.%d", &a, &b, &c, &d)!=4) 
-    { OperatorConsole.printf("*** checkaccess passed bad ip: %s\n", lua_tostring(L,2));
-      lua_pushboolean(L, false);
-      return 1;
-    }
-    ip = a+(b<<8)+(c<<16)+(d<<24);
-    lua_pushboolean(L, checkaccess(op, ip));
+    sprintf(op, "checkaccess:%s,%s", lua_tostring(L,1), lua_tostring(L,2));
+    ServerTask(op, PDU, DCO, response, 0, NULL, 0);
+    lua_pushboolean(L, atoi(response)==1);
     return 1;
   }
 
@@ -21538,6 +21621,12 @@ BOOL ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
                   else if (strcmp(SilentText+12, "zip")==0) op=ca_zip;
                   else if (strcmp(SilentText+12, "stow")==0) op=ca_stow;
                   else if (strcmp(SilentText+12, "delete")==0) op=ca_delete;
+                  else if (strcmp(SilentText+12, "cverification")==0) op=ca_cverification;
+                  else if (strcmp(SilentText+12, "cfind")==0) op=ca_cfind;
+                  else if (strcmp(SilentText+12, "cget")==0) op=ca_cget;
+                  else if (strcmp(SilentText+12, "cmove")==0) op=ca_cmove;
+                  else if (strcmp(SilentText+12, "cstore")==0) op=ca_cstore;
+                  else if (strcmp(SilentText+12, "cmovedest")==0) op=ca_cmovedest;
 		  else return true;
 
                   // ipv6
@@ -29400,8 +29489,11 @@ static int PrintGrayScaleImages (
 			else 
 				luaL_dostring(L, callback);
 			DICOMDataObject	*DDO = ADDO->Get(ImageIndex);
-			ADDO->Get(ImageIndex) = NULL;
+
+			//uncompress images to print
+			recompress(&DDO, "un", "", FALSE, NULL);
 			StripDDOForPrinting (DDO);
+			ADDO->Get(ImageIndex) = NULL;
 
 // from dicomprn
 			AbstractImageBox *aImageBox = new AbstractImageBox(aSession);

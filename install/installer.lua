@@ -30,6 +30,7 @@
 --              Show IP filter info in dicom.ini; update keeping config and data; 
 --              Remove unneeded association line; use package 7zip and link 7za to 7zz
 --              Fix backupschedule line
+-- mvh 20260920 Added -y flag to update step
 
 --[[Note: auto installs packages; for Rocky Linux must do manual package install first:
 # assumes using built-in lua5.1/luasocket and built-in webserver
@@ -1389,7 +1390,8 @@ if server then
         if servername=='' then servername=ask('Give server AE (also folder name) (CONQUESTSRV1): ') end
 	if servername=='' then servername='CONQUESTSRV1' end
 	if directoryexists(servername) then
-          local y=ask('Folder exists - update keeping config and data? Yes/No: ')
+          local y='Yes'
+          if not yflag then y=ask('Folder exists - update keeping config and data? Yes/No: ') end
 	  updating = true
 	  if y~='Yes' then os.exit() end
           runquiet('sudo -S rm -R '..servername..'_BACKUP')
@@ -1413,9 +1415,10 @@ if server then
           runquiet('sudo rm -R '..servername..'/data')
           runquiet('sudo mv '..servername..'_BACKUP/data/ '..servername..'/')
 	  print('[OK] Kept configuration acrnema.map, dgatesop.lst, dicom.ini, dicom.sql and data')
-          local y=ask('Do you want to reinstall the newweb interface and dicom api? Yes/No: ')
+          local y='Yes'
+          if not yflag then y=ask('Do you want to reinstall the newweb interface and dicom api? Yes/No: ') end
 	  if y=='Yes' then
-	    -- forces reinstall /var/www/html/app/newweb and /var/www/html/api/dicom
+	    -- This one rm forces reinstall of /var/www/html/app/newweb and /var/www/html/api/dicom
 	    runquiet('sudo -S rm /var/www/html/app/newweb/dicom.ini')
 	  end
 	end

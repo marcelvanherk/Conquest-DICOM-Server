@@ -56,6 +56,7 @@ mvh 20160108: Updated ChangeUID calls to support staged anonymization
 mvh 20160219: Removed BOOL TRUE and FALSE defines
 mvh 20171122: Added DT_ISTR (case insensitive query string)
 mvh 20260907: Pass lenghts to MakeSafe functions
+mvh 20261005: Change widths of amap fields to 32-128-64-32
 */
 
 //#define bool BOOL
@@ -95,10 +96,10 @@ typedef	struct
 
 typedef	struct	_ACRNemaAddress
 	{
-		char	Name[20];
+		char	Name[32];
 		char	IP[128];
-		char	Port[16];
-		char	Compress[16];
+		char	Port[64];
+		char	Compress[32];
 	}	ACRNemaAddress;
 
 enum

@@ -7,6 +7,7 @@
    ljz  20030709: Solved above problem; rewritten parsing of Acrnema.map
    ljz  20030711: Fixed trailing spaces in acrnema.map
    ljz  20031118: Fixed leak InitACRNemaAddressArray
+   mvh  20261005: Protect against too long passed AEs; limit reading of amap fields to 32-128-64-32
 */
    
 
@@ -171,7 +172,7 @@ InitACRNemaAddressArray(void)
 
     /* Get a line */
     *strchr(pDest, '\r') = 0;
-    sscanf(pDest, "%s %s %s %s",
+    sscanf(pDest, "%31s %127s %63s %31s",
 	pACR->Name,
 	pACR->IP,
 	pACR->Port,
@@ -225,8 +226,8 @@ GetACRNema(char* ACRNema, char* ip, char* port, char* compress)
 	// trim the ACRNema address
 
         memset(s, 0, 20);
+	strncpy(s, ACRNema, 19);
 
-	strcpy(s, ACRNema);
 	if(!strlen(s))
 		return ( FALSE );
 	while(__iswhitespacea(s[strlen(s)-1]))

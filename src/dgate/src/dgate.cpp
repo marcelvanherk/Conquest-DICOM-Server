@@ -1275,6 +1275,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260919	mvh	Added nice ipv4/ipv6 matching code for checkaccess by Marcin Makalowski DivNet/MakeIT divinus
 20260919	mvh	Map lua checkaccess to servertask checkaccess:; AddImageFile runs dTestDICOM; uncompress images to print
 20260920	mvh	---- RELEASE 1.5.0g
+20261002	mvh	Fix protection against too many amap entries in AllowIps = map
+20261002	mvh	Fix potential string overflow in luasystem
 
 ENDOFUPDATEHISTORY
 */
@@ -2012,7 +2014,7 @@ void getmap(char *map, int size)
   { ACRNemaAddress *AAPtr = ACRNemaAddressArray.Get(Index);
     if (strchr(AAPtr->IP, '*')==NULL) sprintf(map+strlen(map), ",%s", AAPtr->IP);
     ++Index;
-    if (strlen(map)>sizeof(map)-16)
+    if (strlen(map)>size-16)
     { OperatorConsole.printf("*** checkaccess: too many IP addresses in ACRNEMA.MAP\n");
       break;
     }
@@ -8679,7 +8681,9 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
     { int r;
 #ifdef WIN32
       char command[512], arg[10], *p;
-      strcpy(command, lua_tostring(L,1));
+      strncpy(command, lua_tostring(L,1), sizeof(command));
+      command[511]=0;
+
       if (command[0]=='\'' || command[0]=='"')
       { arg[0] = command[0];
         arg[1] = ' ';

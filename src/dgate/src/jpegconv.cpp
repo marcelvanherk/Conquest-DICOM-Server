@@ -28,6 +28,7 @@
 20200722 mvh Note: lossless JPEG compression converts color space to YBR_FULL which is incorrect
 20200722 mvh Note: lossless JPEG decompression ignores YBR_FULL which leads to old conquest color images to show green
 20201224 mvh Added StopOnJPEGWarnings configuration to fail decompress on corrupted images
+20261002 mvh Protect against jpeg length overflow
 */
 
 #define guard 265536
@@ -779,7 +780,10 @@ BOOL DecompressJPEGL(DICOMDataObject* pDDO)
     if(cinfo.data_precision_other > 8) outBytes = 2;
     else outBytes = 1;
     rowWidth =  cinfo.output_width * cinfo.output_components * outBytes;
-    imageData.outputImageLengthEven = (rowWidth * cinfo.output_height * imageData.frames) & (UINT32)-1;
+
+	if ((float)rowWidth * (float)cinfo.output_height * (float)imageData.frames > 4294967000.0f) return FALSE;
+
+	imageData.outputImageLengthEven = (rowWidth * cinfo.output_height * imageData.frames) & (UINT32)-1;
     if(!imageData.CreateOutputBuffer(imageData.outputImageLengthEven))
     {
         jpeg_destroy_decompress(&cinfo);

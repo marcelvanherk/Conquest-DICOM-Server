@@ -49,6 +49,7 @@
 20190318    mvh    Deal with zero returned MaxSubLength; use 8192 pdusize for Linux
 20190319    mvh    Image corruption only stops at 4096 pdusize for Linux
 20230608    mvh    Copy AAssociateRQ SCPSCURoles to AAssociateAC
+20261008    mvh    Log AE title if rejected
 */
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -386,7 +387,6 @@ BOOL	PDU_Service	::	InterogateAAssociateRQ()
 	MaximumSubLength			MaxSubLength;
 	Array<PresentationContext>	PCArray ( FALSE );
 
-
 	if(!ShouldIAcceptRemoteApTitle(AAssociateRQ :: CallingApTitle))
 		{
 		AAssociateRJ :: Reason = 3;	// Calling party not rec.
@@ -394,6 +394,7 @@ BOOL	PDU_Service	::	InterogateAAssociateRQ()
 		AAssociateRJ :: Result = 1;	// Permanent
 		AAssociateRJ :: Write ( *this );
 		DicomError(DCM_ERROR_ASSOCIATION, "Calling AE title not accepted", 0);
+		DicomError(DCM_ERROR_ASSOCIATION, (char *)(AAssociateRQ :: CallingApTitle), 0);
 		return ( FALSE );
 		}
 	if(!ShouldIAcceptLocalApTitle(AAssociateRQ :: CalledApTitle))
@@ -403,6 +404,7 @@ BOOL	PDU_Service	::	InterogateAAssociateRQ()
 		AAssociateRJ :: Result = 1;	// Permanent
 		AAssociateRJ :: Write ( *this );
 		DicomError(DCM_ERROR_ASSOCIATION, "Called AE title not accepted", 0);
+		DicomError(DCM_ERROR_ASSOCIATION, (char *)(AAssociateRQ :: CalledApTitle), 0);
 		return ( FALSE );
 		}
 	if(!ShouldIAcceptApplicationContext(AAssociateRQ :: AppContext))

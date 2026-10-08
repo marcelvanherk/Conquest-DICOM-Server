@@ -1013,6 +1013,30 @@ object Form1: TForm1
           WantTabs = True
         end
       end
+      object CheckBoxRestrictLocal: TCheckBox
+        Left = 591
+        Top = 113
+        Width = 199
+        Height = 17
+        Hint = 'One or more AEs with 127.0.0.1 and the server'#39's port'
+        Caption = 'Limit access to called AEs listed here'
+        ParentShowHint = False
+        ShowHint = True
+        TabOrder = 6
+        OnClick = CheckBoxRestrictLocalClick
+      end
+      object CheckBoxRestrictRemote: TCheckBox
+        Left = 591
+        Top = 152
+        Width = 199
+        Height = 17
+        Hint = 'Check remote systems AE against whole list minus wildcards'
+        Caption = 'Limit access to calling AEs listed here'
+        ParentShowHint = False
+        ShowHint = True
+        TabOrder = 7
+        OnClick = CheckBoxRestrictRemoteClick
+      end
     end
     object TabSheet5: TTabSheet
       Caption = 'Browse database'

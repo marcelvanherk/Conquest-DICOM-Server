@@ -713,6 +713,8 @@ When            Who     What
 20260919        mvh     Use variable amapFile, update ZeroBraneStudio files, no longer update cgi-bin files
 20260920        mvh     Optionally support acrnemamap entry in  dicom.ini, reads amapFile
 20260920        mvh     1.5.0g release
+20261008	mvh	Added CheckBoxRestrict, allowonlymapped, allowedIPs and DeniedIPs
+20261008	mvh	Write headerbmpname, footerbmpname, backgroundbmpname and ladlePort 
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -749,7 +751,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0g';
-const BUILDDATE = '20260920';
+const BUILDDATE = '20261008';
 const testmode = 0;
 
 {************************************************************************}
@@ -1145,6 +1147,8 @@ type
     NightlyStrTimeToMoveLabel: TLabel;
     NightlyStrTimeToMoveText: TMaskEdit;
     PopupMenu2: TPopupMenu;
+    CheckBoxRestrictLocal: TCheckBox;
+    CheckBoxRestrictRemote: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure RestoreconfigButtonClick(Sender: TObject);
     procedure SaveConfigButtonClick(Sender: TObject);
@@ -1308,6 +1312,8 @@ type
     procedure ButtonBugReportMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure ButtonLuaConsoleClick(Sender: TObject);
+    procedure CheckBoxRestrictLocalClick(Sender: TObject);
+    procedure CheckBoxRestrictRemoteClick(Sender: TObject);
   private
     procedure WMDropFiles(var Message: TWMDropFiles); message WM_DROPFILES;
     procedure WMQueryEndSession(var Message: TWMQueryEndSession); message WM_QUERYENDSESSION;
@@ -1489,6 +1495,14 @@ var PadAEWithZeros: string = '0';
 var RetryForwardRemoteDICOMError: string = '0';
 var LadlePort: string = '8086';
 var AmapFile: string;
+var AllowOnlyMappedLocalAE: string = '0';
+var AllowOnlyMappedRemoteAE: string = '0';
+var opnames: array of string = ['', 'Archive', 'Change', 'Move', 'Remote',
+                                  'Script', 'Status', 'Store', 'Wado', 'Zip',
+				  'Stow', 'Delete',
+				  'Cverification', 'Cfind', 'Cmove', 'Cget', 'Cstore' , 'Cmovedest'];
+var AllowedIPs: array[0..17] of string;
+var DeniedIPs: array[0..17] of string;
 
 var CheckDays: array[1..10] of integer;
     CheckTimes: array[1..10] of string;
@@ -3383,6 +3397,7 @@ begin
   Runexternalviewer1.visible := false;
   Timer4.Enabled := false;
   ZipTime := '05:';
+  CheckReading := true;
 
   AssignFile(f, //ExtractFileDir(ParamStr(0))
     CurDir + '\dicom.ini');
@@ -3870,6 +3885,20 @@ begin
 
     if Copy(s, 0, length('backgroundbmp')) = 'backgroundbmp' then
       backgroundbmpname := GetData(sorg);
+      
+    if Copy(s, 0, length('AllowOnlyMappedLocalAE')) = 'allowonlymappedlocalae' then
+      AllowOnlyMappedLocalAE := GetData(sorg);
+
+    if Copy(s, 0, length('AllowOnlyMappedRemoteAE')) = 'allowonlymappedremoteae' then
+      AllowOnlyMappedRemoteAE := GetData(sorg);
+
+    for i:=low(opnames) to high(opnames) do
+      if Copy(s, 0, length('AllowedIPs'+opnames[i])) = LowerCase('AllowedIPs'+opnames[i]) then
+        AllowedIPs[i] := GetData(sorg);
+
+    for i:=low(opnames) to high(opnames) do
+      if Copy(s, 0, length('DeniedIPs'+opnames[i])) = LowerCase('DeniedIPs'+opnames[i]) then
+        DeniedIPs[i] := GetData(sorg);
   end;
 
   if FileCompressMode=0 then
@@ -3895,6 +3924,9 @@ begin
   ModeNJRadioButton.Checked              := (IncomingCompression = 'nj') or (IncomingCompression = 'NJ');
   ModeUJRadioButton.Checked              := (IncomingCompression = 'uj') or (IncomingCompression = 'UJ');
   LabelCompression.Hint                  := 'IncomingCompression (double click to edit) = ' + IncomingCompression;
+  
+  CheckBoxRestrictLocal.checked := AllowOnlyMappedLocalAE<>'0';
+  CheckBoxRestrictRemote.checked := AllowOnlyMappedRemoteAE<>'0';
 
   i := StrtoIntDef(FileNameSyntax, 99);
   V2RadioButton.Checked              := (i in [0, 1, 2, 3, 5, 6, 7]) or (pos('.v2', LowerCase(FileNameSyntax))>0);
@@ -4103,7 +4135,6 @@ begin
   for i:=1 to 10 do CheckActions[i] := 'None';
   for i:=1 to 10 do CheckTimes[i]   := '23:00';
 //  mailer.RcptName.Clear; 1.4.17d
-  CheckReading := true;
 
   WeeklyChecksPage.TabVisible := false;
   if FileExists(//ExtractFileDir(ParamStr(0))
@@ -4540,6 +4571,14 @@ begin
     writeln(f, 'RetryForwardRemoteDICOMError = ' + RetryForwardRemoteDICOMError);
   if amapFile<>Curdir + '\acrnema.map' then
     writeln(f, 'ACRNemaMap               = ' + amapFile);
+  if LadlePort<>'8086' then
+    writeln(f, 'LadlePort                = ' + LadlePort);
+  if headerbmpname<>'print_header.bmp' then
+    writeln(f, 'headerbmpname            = ' + headerbmpname);
+  if footerbmpname<>'print_footer.bmp' then
+    writeln(f, 'footerbmpname            = ' + footerbmpname);
+  if backgroundbmpname<>'print_background.bmp' then
+    writeln(f, 'backgroundbmpname         = ' + backgroundbmpname);
 
                                     
   writeln(f, '');
@@ -4766,6 +4805,21 @@ begin
     for i:=0 to JukeBoxDevices-1 do
       writeln(f, 'JUKEBOXDevice'+IntToStr(i)+'           = ' + JukeBoxDeviceList[i]);
   end;
+  
+  if CheckBoxRestrictLocal.checked then AllowOnlyMappedLocalAE:='1' else AllowOnlyMappedLocalAE:='0';
+  if CheckBoxRestrictRemote.checked then AllowOnlyMappedRemoteAE:='1' else AllowOnlyMappedRemoteAE:='0';
+  writeln(f, '');
+  writeln(f, '# Configuration of access restrictions');
+  writeln(f, 'AllowOnlyMappedLocalAE     = ' + AllowOnlyMappedLocalAE);
+  writeln(f, 'AllowOnlyMappedRemoteAE    = ' + AllowOnlyMappedRemoteAE);
+      
+  for i:=low(opnames) to high(opnames) do
+    if AllowedIPs[i]<>'' then
+      writeln(f, 'AllowedIPs'+opnames[i] + '  = ' + AllowedIPs[i]);
+
+  for i:=low(opnames) to high(opnames) do
+    if DeniedIPs[i]<>'' then
+      writeln(f, 'DeniedIPs'+opnames[i] + '  = ' + AllowedIPs[i]);
 
   p := 0;
   for i:=0 to 9 do p := p + Length(VirtualServerForList[i]);
@@ -8403,6 +8457,20 @@ begin
     else
       ServerTask('set normal log from GUI', 'log_on:'+ServerStatusSocket.Port);
   end;
+end;
+
+procedure TForm1.CheckBoxRestrictLocalClick(Sender: TObject);
+begin
+  //SaveConfigButtonClick(self);
+  if (CheckReading) then exit;
+  ShowMessage('need to save configuration to effect this change');
+end;
+
+procedure TForm1.CheckBoxRestrictRemoteClick(Sender: TObject);
+begin
+  //SaveConfigButtonClick(self);
+  if (CheckReading) then exit;
+  ShowMessage('need to save configuration to effect this change');
 end;
 
 procedure TForm1.UpDownDebugLevelClick(Sender: TObject;

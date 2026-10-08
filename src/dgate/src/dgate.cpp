@@ -1277,6 +1277,9 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20260920	mvh	---- RELEASE 1.5.0g
 20261002	mvh	Fix protection against too many amap entries in AllowIps = map
 20261002	mvh	Fix potential string overflow in luasystem
+20261006	mvh	Fix checkaccess range check
+20261007	mvh	Restored AllowedIPs for DICOM default to all, while for control only localhost is allowed
+20261008	mvh	Implemented correct "map" max length check
 
 ENDOFUPDATEHISTORY
 */
@@ -2012,12 +2015,14 @@ void getmap(char *map, int size)
   map[0]=0;
   while ( Index < ACRNemaAddressArray.GetSize() )
   { ACRNemaAddress *AAPtr = ACRNemaAddressArray.Get(Index);
-    if (strchr(AAPtr->IP, '*')==NULL) sprintf(map+strlen(map), ",%s", AAPtr->IP);
-    ++Index;
-    if (strlen(map)>size-16)
-    { OperatorConsole.printf("*** checkaccess: too many IP addresses in ACRNEMA.MAP\n");
-      break;
+    if (strchr(AAPtr->IP, '*')==NULL) 
+    { if (strlen(map)>size-strlen(AAPtr->IP)-2)
+      { OperatorConsole.printf("*** checkaccess: too many IP addresses in ACRNEMA.MAP\n");
+        break;
+      }    
+      sprintf(map+strlen(map), ",%s", AAPtr->IP);
     }
+    ++Index;
   }
 }
 
@@ -2044,15 +2049,18 @@ BOOL checkaccess(int op, unsigned int ip, char *ip6=NULL)
   if (ca_ipmatch(list, addr)) return false;
   if (strstr(list, "map")) {getmap(map, sizeof(map)); if (ca_ipmatch(map, addr)) return false;}
  
-  if (op > 0 && op <= sizeof(opname)/sizeof(char *))
+  if (op > 0 && op < sizeof(opname)/sizeof(char *))
   { sprintf(key, "DeniedIPs%s", opname[op]);
     MyGetPrivateProfileString(szRootSC, key, "none", list, sizeof(list), ConfigFile);
     if (ca_ipmatch(list, addr)) return false;
     if (strstr(list, "map")) {getmap(map, sizeof(map)); if (ca_ipmatch(map, addr)) return false;}
  
     sprintf(key, "AllowedIPs%s", opname[op]);
-    // default carries ::1 as well, or a dual stack host locks itself out
-    MyGetPrivateProfileString(szRootSC, key, "127.0.0.1,::1", list, sizeof(list), ConfigFile);
+    // dicom comms default allowed by all, control only by localhost
+    if (op>=ca_cverification)
+      MyGetPrivateProfileString(szRootSC, key, "*", list, sizeof(list), ConfigFile);
+    else
+      MyGetPrivateProfileString(szRootSC, key, "127.0.0.1,::1", list, sizeof(list), ConfigFile);
     if (ca_ipmatch(list, addr)) return true;
     if (strstr(list, "map")) {getmap(map, sizeof(map)); if (ca_ipmatch(map, addr)) return true;}
   }

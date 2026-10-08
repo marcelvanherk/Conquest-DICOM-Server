@@ -34,6 +34,8 @@
 20200203	mvh	Added LUA51EXTERN option for dynamic loading of lua5.1.dll
 20240617	mvh	Add PDUSize to ExtendedPDU_Service for testing
 20260908	mvh	SM1312+Claude caught that ExtendedPDU_Service CompressionTypes were uninitialized, now set to ""
+20261007	mvh	Implement AllowOnlyMappedLocalAE and AllowOnlyMappedRemoteAE
+20261008	mvh	Fix above for passed *A having spaces after the AE
 */
 
 #ifdef LUA51EXTERN
@@ -44,8 +46,23 @@ extern lua_All_functions LuaFunctions;
 #else
 #include "lua.hpp"
 #endif
-	
 
+extern	Array < ACRNemaAddress * > ACRNemaAddressArray;
+
+static	BOOL
+nh_whitespace(char	ch)
+{
+	switch ( ch )
+	{
+		case	' ':
+		case	'\t':
+		case	'\n':
+		case	0:
+			return ( TRUE );
+	}
+	return ( FALSE );
+}
+	
 class	ExtendedPDU_Service	:
 	public		CheckedPDU_Service
 	{
@@ -70,6 +87,62 @@ class	ExtendedPDU_Service	:
                			szTemp, 32, ConfigFile)) return;
                	  if (szTemp[0]) pdusize = atoi(szTemp);
 		};
+
+		BOOL	ShouldIAcceptLocalMapped(BYTE	*A)
+		{ char	szRootSC[64];
+               	  char	szTemp[32];
+                  if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig,
+               			szRootSC, 64, ConfigFile)) return FALSE;
+               	  if (!MyGetPrivateProfileString(szRootSC, "AllowOnlyMappedLocalAE", "0",
+               			szTemp, 32, ConfigFile)) return TRUE;
+		  if (atoi(szTemp)==0) return TRUE;
+		  int Index=0;
+		  while ( Index < ACRNemaAddressArray.GetSize() )
+                  { ACRNemaAddress *AAPtr = ACRNemaAddressArray.Get(Index);
+                    if (strchr(AAPtr->IP, '*')==NULL) 
+		    { if (strcmp(AAPtr->IP, "127.0.0.1")==0 || strcmp(AAPtr->IP, "localhost")==0)
+			if (atoi(AAPtr->Port)==atoi((char *)Port))
+			{ BOOL eq=FALSE;
+	                  for (int i=0; i<16; i++)
+			  { if (nh_whitespace(AAPtr->Name[i]) && nh_whitespace(A[i]))
+		            { eq=TRUE; break; }
+                            if (AAPtr->Name[i]!=A[i])
+		            { eq=FALSE; break; }
+			  }
+		          if (eq) return TRUE;
+			}
+		    }
+                    ++Index;
+		  };
+		  return FALSE;
+		};
+
+		BOOL	ShouldIAcceptRemoteMapped(BYTE	*A)
+		{ char	szRootSC[64];
+               	  char	szTemp[32];
+                  if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig,
+               			szRootSC, 64, ConfigFile)) return FALSE;
+               	  if (!MyGetPrivateProfileString(szRootSC, "AllowOnlyMappedRemoteAE", "0",
+               			szTemp, 32, ConfigFile)) return TRUE;
+		  if (atoi(szTemp)==0) return TRUE;
+		  int Index=0;
+		  while ( Index < ACRNemaAddressArray.GetSize() )
+                  { ACRNemaAddress *AAPtr = ACRNemaAddressArray.Get(Index);
+                    if (strchr(AAPtr->IP, '*')==NULL) 
+		    { BOOL eq=FALSE;
+	              for (int i=0; i<16; i++)
+		      { if (nh_whitespace(AAPtr->Name[i]) && nh_whitespace(A[i]))
+			{ eq = TRUE; break; }
+                        if (AAPtr->Name[i]!=A[i])
+			{ eq = FALSE; break; }
+		      }
+		      if (eq) return TRUE;
+		    }
+                    ++Index;
+		  };
+		  return FALSE;
+		};
+
 		~ExtendedPDU_Service () 
 		{ if (L) lua_close(L);
 		  if (VariableVRs[0]) delete VariableVRs[0];

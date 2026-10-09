@@ -31,6 +31,8 @@
 --              Remove unneeded association line; use package 7zip and link 7za to 7zz
 --              Fix backupschedule line
 -- mvh 20260920 Added -y flag to update step
+-- mvh 20261009 Set MyACRNema in webserver/dicom.ini and in config.php; required when filtering on AE
+--              Added samples for AllowedIPs and AllowOnlyMapped configuration
 
 --[[Note: auto installs packages; for Rocky Linux must do manual package install first:
 # assumes using built-in lua5.1/luasocket and built-in webserver
@@ -585,10 +587,17 @@ MAGDevice0               = ]]..(conf.server or server)..[[/data]]..(conf.sep or 
 # Configure IP based access control (first processes DeniedIPs than AllowedIPs)
 # default 127.0.0.1 only: Archive,Change,Move,Remote,Script,Status,Store,Wado,Zip,Stow,Delete
 # default all allowed: Cverification,Cfind,Cmove,Cget,Cstore,Cmovedest
+# Use entry map to list all non-wildcard IP addressed in acrnema.map
 #AllowedIPsStore = 192.168.0.*
 #AllowedIPsMove = 192.168.0.*
 #AllowedIPsZip = 192.168.0.*
 #AllowedIPsChange = 192.168.0.*
+#AllowedIPsCStore = 192.168.0.*
+#AllowedIPsCFind = map
+
+# Configure AE-name based access control; if set only items in acrnema.map can access the system
+AllowOnlyMappedLocalAE = 0
+AllowOnlyMappedRemoteAE = 0
 
 [lua]
 ]]..wstart..[[
@@ -642,7 +651,7 @@ function create_newweb_app(conf, server)
     create_server_file(source..'config.php', [[
 <?php
   $folder = '.';				// where are the newweb files
-  $exe    = 'dgate -p]]..(conf.PORT or CGI('PORT', '5678'))..[[ -q127.0.0.1';
+  $exe    = 'dgate -p]]..(conf.PORT or CGI('PORT', '5678'))..[[ -q127.0.0.1 -h]]..(conf.AE or CGI('AE', 'CONQUESTSRV1'))..[[';
   $quote  = '""';				// quotes in command line
 
   if (PHP_OS_FAMILY != 'Windows') {		// On Linux:
@@ -664,6 +673,8 @@ ACRNemaMap               = acrnema.map
 Dictionary               = dgate.dic
 WebServerFor             = 127.0.0.1
 TCPPort                  = ]]..(conf.PORT or CGI('PORT', '5678'))..[[
+
+MyACRNema                = ]]..(conf.AE or CGI('AE', 'CONQUESTSRV1'))..[[
 
 WebScriptAddress         = /app/newweb/
 WebCodeBase              = /
@@ -722,7 +733,7 @@ function create_dicom_api(conf, server)
 
   create_server_file(source..'config.php', [[
 <?php
-  $exe    = 'servertask -p]]..(conf.PORT or CGI('PORT', '5678'))..[[ -q127.0.0.1';
+  $exe    = 'servertask -p]]..(conf.PORT or CGI('PORT', '5678'))..[[ -q127.0.0.1 -h]]..(conf.AE or CGI('AE', 'CONQUESTSRV1'))..[[';
   $quote  = '""';				// quotes in command line
 
   if (PHP_OS_FAMILY != 'Windows') {		// On Linux:

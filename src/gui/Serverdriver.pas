@@ -715,6 +715,7 @@ When            Who     What
 20260920        mvh     1.5.0g release
 20261008	mvh	Added CheckBoxRestrict, allowonlymapped, allowedIPs and DeniedIPs
 20261008	mvh	Write headerbmpname, footerbmpname, backgroundbmpname and ladlePort 
+20261009	mvh	Write MyACRNema to webserver and zbs dicom.ini and -h to config.php files
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -4964,6 +4965,7 @@ begin
       CopyFile(PChar(curdir + '\install32\lua5.1.dll'), PChar(curdir + '\webserver\htdocs\app\newweb\lua5.1.dll'), false);
     i_f := TIniFile.Create(curdir + '\webserver\htdocs\app\newweb\dicom.ini');
     i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
+    i_f.WriteString('sscscp', 'MyACRNema', ' '+trim(ServerName.text));
     i_f.Free;
   end;
 
@@ -4972,6 +4974,7 @@ begin
   begin
     i_f := TIniFile.Create(curdir + '\ZeroBraneStudio\dicom.ini');
     i_f.WriteString('sscscp', 'TCPPort', ' '+trim(TCPIPport.text));
+    i_f.WriteString('sscscp', 'MyACRNema', ' '+trim(ServerName.text));
     i_f.Free;
   end;
 
@@ -5001,7 +5004,7 @@ begin
       if (pos('$exe', php[i])>1) and (pos('-p', php[i])>1) then
       begin
         j := pos('-p', php[i]);
-        php[i] := copy(php[i], 1, j+1)+trim(TCPIPport.text)+' -q127.0.0.1'';';
+        php[i] := copy(php[i], 1, j+1)+trim(TCPIPport.text)+' -q127.0.0.1 -h'+trim(ServerName.text)+''';';
         break;
       end;
     end;
@@ -5018,7 +5021,7 @@ begin
       if (pos('$exe', php[i])>1) and (pos('-p', php[i])>1) then
       begin
         j := pos('-p', php[i]);
-        php[i] := copy(php[i], 1, j+1)+trim(TCPIPport.text)+' -q127.0.0.1'';';
+        php[i] := copy(php[i], 1, j+1)+trim(TCPIPport.text)+' -q127.0.0.1 -h'+trim(ServerName.text)+''';';
         break;
       end;
     end;
@@ -5035,7 +5038,7 @@ begin
       if (pos('$exe', php[i])>1) and (pos('-p', php[i])>1) then
       begin
         j := pos('-p', php[i]);
-        php[i] := copy(php[i], 1, j+1)+trim(TCPIPport.text)+' -q127.0.0.1'';';
+        php[i] := copy(php[i], 1, j+1)+trim(TCPIPport.text)+' -q127.0.0.1 -h'+trim(ServerName.text)+''';';
         break;
       end;
     end;

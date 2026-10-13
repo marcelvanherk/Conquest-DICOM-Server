@@ -77,6 +77,7 @@
 20220227	mvh	Added RenameOnRewrite flag: will force rename of any object rewritten 
 20240522	mvh	Fix lua: FilenameSyntax (998), incorrectly replaced .lua with .dcm
 20260906	mvh	Use VR->GetString
+20261013	mvh	%sopuid was trunctated due to typo
 */
 
 #ifndef	WHEDGE
@@ -434,7 +435,7 @@ GenerateFileName(
 		//if (!AcceptError) return ( FALSE );
 		}
 	else
-		SOPUID->GetString(CSOPUID, sizeof(SOPUID));
+		SOPUID->GetString(CSOPUID, sizeof(CSOPUID));
 
 	PatientID = DDOPtr->GetVR(0x0010, 0x0020);
 	if(!PatientID)

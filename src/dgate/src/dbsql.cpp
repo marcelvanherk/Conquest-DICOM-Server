@@ -250,6 +250,7 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20260906	mvh	Use VR->GetString
 20260907	mvh	Pass lenghts to DICOM2SQL functions and MakeSafe functions
 20260907	mvh	MakeSafeStringValues no longer uses SetString and checks length, move SetString out of here
+20261012	mvh	The above change lost handling of binary tag values, reintroduced  (SM1312, Mahesh)
 */
 
 #define NCACHE 256
@@ -2715,6 +2716,51 @@ MakeSafeStringValues (
 		strcpy(string, "''");
 		return FALSE;
 		}
+
+	DBENTRY *DBE = FindDBE(vr);
+	if (DBE) switch(DBE->DICOMType)
+		{
+
+		case	DT_UINT16:
+			{
+			UINT16 *tuint16 = (UINT16*)vr->Data;
+#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
+			sprintf(string, "%u", (*tuint16));
+#else //Big Endian like Apple power pc
+			sprintf(string, "%u", SwitchEndian(*tuint16));
+#endif
+			return ( TRUE );
+			}
+		case	DT_UINT32:
+			{
+			UINT32 *tuint32 = (UINT32*)vr->Data;
+#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
+			sprintf(string, "%u", (*tuint32));
+#else //Big Endian like Apple power pc
+			sprintf(string, "%u", SwitchEndian(*tuint32));
+#endif
+			return ( TRUE );
+			}
+		case	DT_FL:
+			float f;
+#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
+			f = *(float*)vr->Data;
+#else //Big Endian like Apple power pc
+			swap((BYTE *)&f, (BYTE *)vr->Data, 4);
+#endif
+			sprintf(string, "%.16g", f);
+			return ( TRUE );
+		case	DT_FD:
+			double d;
+#if NATIVE_ENDIAN == LITTLE_ENDIAN //Little Endian
+			d = *(double*)vr->Data;
+#else //Big Endian like Apple power pc
+			swap((BYTE *)&d, (BYTE *)vr->Data, 8);
+#endif
+			sprintf(string, "%.16g", d);
+			return ( TRUE );
+		}
+				
 		
 	if (!vr->GetString(s, sizeof(s)))
 		{ 

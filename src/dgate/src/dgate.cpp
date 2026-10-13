@@ -1280,11 +1280,12 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20261006	mvh	Fix checkaccess range check
 20261007	mvh	Restored AllowedIPs for DICOM default to all, while for control only localhost is allowed
 20261008	mvh	Implemented correct "map" max length check
+20261012	mvh	Version to 1.5.0g3 update related to dbsql update
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0g"
+#define DGATE_VERSION "1.5.0g3"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1

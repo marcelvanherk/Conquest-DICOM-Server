@@ -37,6 +37,7 @@
 20140528    lsp    Kept member initialization only in constructors: not GNUC specific
 20200203    mvh	   lsp removed DataPointer stuff to support lsp array change
 20260905    mvh    VR.GetString(buf, max), fills buf returns FALSE if truncated at max-1
+20261012    mvh    Fixed one character buffer overun in GetString (SM1312, Mahesh)
 */
 
 
@@ -1219,8 +1220,8 @@ VR	::	Getatoi()
 BOOL		
 VR	::	GetString(char *buf, size_t max)
 {	if (Length>max-1) 
-	{	strncpy(buf, (const char*)Data, max);
-		buf[max]=0;
+	{	strncpy(buf, (const char*)Data, max-1);
+		buf[max-1]=0;
 		if (max>1) 
 			if (buf[max-1]==' ') buf[max-1]=0;
 		return FALSE;

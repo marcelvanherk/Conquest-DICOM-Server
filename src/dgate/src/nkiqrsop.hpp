@@ -36,6 +36,8 @@
 20260908	mvh	SM1312+Claude caught that ExtendedPDU_Service CompressionTypes were uninitialized, now set to ""
 20261007	mvh	Implement AllowOnlyMappedLocalAE and AllowOnlyMappedRemoteAE
 20261008	mvh	Fix above for passed *A having spaces after the AE
+20261010	mvh	Call now with IP passed and *A without spaces
+20261010	mvh	Added CheckIPofRemoteAE; for now only works for numeric IP4 address in acrnema.map
 */
 
 #ifdef LUA51EXTERN
@@ -48,20 +50,6 @@ extern lua_All_functions LuaFunctions;
 #endif
 
 extern	Array < ACRNemaAddress * > ACRNemaAddressArray;
-
-static	BOOL
-nh_whitespace(char	ch)
-{
-	switch ( ch )
-	{
-		case	' ':
-		case	'\t':
-		case	'\n':
-		case	0:
-			return ( TRUE );
-	}
-	return ( FALSE );
-}
 	
 class	ExtendedPDU_Service	:
 	public		CheckedPDU_Service
@@ -88,7 +76,7 @@ class	ExtendedPDU_Service	:
                	  if (szTemp[0]) pdusize = atoi(szTemp);
 		};
 
-		BOOL	ShouldIAcceptLocalMapped(BYTE	*A)
+		BOOL	ShouldIAcceptLocalMapped(BYTE	*A, int ip)
 		{ char	szRootSC[64];
                	  char	szTemp[32];
                   if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig,
@@ -102,26 +90,21 @@ class	ExtendedPDU_Service	:
                     if (strchr(AAPtr->IP, '*')==NULL) 
 		    { if (strcmp(AAPtr->IP, "127.0.0.1")==0 || strcmp(AAPtr->IP, "localhost")==0)
 			if (atoi(AAPtr->Port)==atoi((char *)Port))
-			{ BOOL eq=FALSE;
-	                  for (int i=0; i<16; i++)
-			  { if (nh_whitespace(AAPtr->Name[i]) && nh_whitespace(A[i]))
-		            { eq=TRUE; break; }
-                            if (AAPtr->Name[i]!=A[i])
-		            { eq=FALSE; break; }
-			  }
-		          if (eq) return TRUE;
-			}
+			  if (strcmp((char *)A, AAPtr->Name)==0) return TRUE;
 		    }
                     ++Index;
 		  };
 		  return FALSE;
 		};
 
-		BOOL	ShouldIAcceptRemoteMapped(BYTE	*A)
+		BOOL	ShouldIAcceptRemoteMapped(BYTE	*A, int ip)
 		{ char	szRootSC[64];
                	  char	szTemp[32];
                   if (!MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig,
                			szRootSC, 64, ConfigFile)) return FALSE;
+               	  if (!MyGetPrivateProfileString(szRootSC, "CheckIPofRemoteAE", "0",
+               			szTemp, 32, ConfigFile)) return FALSE;
+		  int CheckIP = atoi(szTemp);
                	  if (!MyGetPrivateProfileString(szRootSC, "AllowOnlyMappedRemoteAE", "0",
                			szTemp, 32, ConfigFile)) return TRUE;
 		  if (atoi(szTemp)==0) return TRUE;
@@ -129,14 +112,14 @@ class	ExtendedPDU_Service	:
 		  while ( Index < ACRNemaAddressArray.GetSize() )
                   { ACRNemaAddress *AAPtr = ACRNemaAddressArray.Get(Index);
                     if (strchr(AAPtr->IP, '*')==NULL) 
-		    { BOOL eq=FALSE;
-	              for (int i=0; i<16; i++)
-		      { if (nh_whitespace(AAPtr->Name[i]) && nh_whitespace(A[i]))
-			{ eq = TRUE; break; }
-                        if (AAPtr->Name[i]!=A[i])
-			{ eq = FALSE; break; }
+		    { if (strcmp((char *)A, AAPtr->Name)==0) 
+		      { if (CheckIP)
+			{ char addr[32];
+		          sprintf(addr, "%d.%d.%d.%d", ip&255, (ip>>8)&255, (ip>>16)&255, (ip>>24)&255);
+			  if (strcmp(addr, AAPtr->IP)!=0) return FALSE;
+			}
+	                return TRUE;
 		      }
-		      if (eq) return TRUE;
 		    }
                     ++Index;
 		  };

@@ -1281,11 +1281,12 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20261007	mvh	Restored AllowedIPs for DICOM default to all, while for control only localhost is allowed
 20261008	mvh	Implemented correct "map" max length check
 20261012	mvh	Version to 1.5.0g3 update related to dbsql update
+20261025	mvh	Version to 1.5.0g4; doc update
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0g3"
+#define DGATE_VERSION "1.5.0g4"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -14123,7 +14124,7 @@ PrintOptions ()
 	fprintf(stderr, "    --changeuidback:UID            Give old UID from one generated above\n" );
 	fprintf(stderr, "    --checksum:string              Give checksum of string\n" );
 	fprintf(stderr, "    --testcompress:file            Enter file in server with many compressions\n" );
-	fprintf(stderr, "    --clonedb:AE                   Clone db from server for testing\n" );
+	fprintf(stderr, "    --clonedb:AE                   Clone db from virtual server AE for testing\n" );
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Conversion options:\n");
         fprintf(stderr, "    --convert_to_gif:file,size,out,l/w/f Downsize and convert to mono GIF\n");

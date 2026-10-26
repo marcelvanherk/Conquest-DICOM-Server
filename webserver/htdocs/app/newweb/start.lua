@@ -54,6 +54,7 @@
 -- mvh 20260902: Use checkaccess to control access to server control channel
 -- mvh 20260904: checkaccess is run remotely
 -- mvh 20260909: Block comma's in parameters to avoid escaping into other command parts; give uploadfile script access
+-- 20261026 mvh Reject call to dbquery with ; in arguments
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
@@ -275,6 +276,9 @@ end
 
 if CGI('parameter')=='dbquery' then
   if (not checkaccess('script', remote_addr)) then return false end
+  if string.find(CGI('table'), ';') then return false end
+  if string.find(CGI('fields'), ';') then return false end
+  if string.find(CGI('query'), ';') then return false end
   HTML('Content-type: application/json\n\n')
   local maxresult=tonumber(CGI('maxresults', '9999999'))
   local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
@@ -289,6 +293,9 @@ if CGI('parameter')=='dbquery' then
 end
 if CGI('parameter')=='dbqueryluaformat' then
   if (not checkaccess('script', remote_addr)) then return false end
+  if string.find(CGI('table'), ';') then return false end
+  if string.find(CGI('fields'), ';') then return false end
+  if string.find(CGI('query'), ';') then return false end
   HTML('Content-type: application/text\n\n')
   local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))
   io.write(table_print(r))
@@ -296,6 +303,9 @@ if CGI('parameter')=='dbqueryluaformat' then
 end
 if CGI('parameter')=='dbquerysqldownload' then
   if (not checkaccess('script', remote_addr)) then return false end
+  if string.find(CGI('table'), ';') then return false end
+  if string.find(CGI('fields'), ';') then return false end
+  if string.find(CGI('query'), ';') then return false end
   io.write('Content-type: application/text\nContent-Disposition: attachment;filename="'..
     CGI('filename', 'dbquery.sql')..'"\n\n');
   local r=remotedbquery(CGI('table'),CGI('fields'),CGI('query'))

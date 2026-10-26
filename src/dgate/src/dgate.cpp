@@ -1282,6 +1282,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20261008	mvh	Implemented correct "map" max length check
 20261012	mvh	Version to 1.5.0g3 update related to dbsql update
 20261025	mvh	Version to 1.5.0g4; doc update
+20261026	mvh	Ignore extra pars for lua functions like crc, md5
+20261026	mvh	Reject 7za with filenames containing " to escape into shell
 
 ENDOFUPDATEHISTORY
 */
@@ -4157,10 +4159,11 @@ AddImageFile(char *filename, char *NewPatid, ExtendedPDU_Service *PDU, Database	
 
 	char *p = strrchr(filename, '.');
 	char *q = p?(char *)strstr(".gz.GZ.zip.ZIP.tar.TAR.7z.7Z.", p):NULL;
+	char *s = strchr(filename, '"');
 	int L=p?strlen(p):0;
 
 	// compressed file support using 7za.exe
-	if (p && q && q[L]=='.')
+	if (p && q && q[L]=='.' && s==NULL)
 		{ 
 		char line[1000], dir[512];
 
@@ -4531,8 +4534,9 @@ BOOL AttachFile(char *filename, char *script, char *rFilename, ExtendedPDU_Servi
 	p = strrchr(filename, '.');
 	char *q = p?(char *)strstr(".gz.GZ.zip.ZIP.tar.TAR.7z.7Z.", p):NULL;
 	int L=p?strlen(p):0;
+	char *s = strchr(filename, '"');
 
-	if (p && q && q[L]=='.')
+	if (p && q && q[L]=='.' && s==NULL)
 		{ 
 		char line[1000], dir[512];
 
@@ -7000,7 +7004,7 @@ int console;
   }
 
   static int luadictionary(lua_State *L)
-  { if (lua_gettop(L)==2)
+  { if (lua_gettop(L)>=2)
     { int g = lua_tointeger(L,1);
       int e = lua_tointeger(L,2);
       char s[256]; s[0] = '\0';
@@ -7074,7 +7078,7 @@ int console;
         return 1;
       }
     }
-    if (lua_gettop(L)==3)
+    if (lua_gettop(L)>=3)
     { char from[256], to [256], stage[256], type[256];
       strcpy(from, lua_tostring(L, 1));
       strcpy(stage, lua_tostring(L, 2));
@@ -7088,7 +7092,7 @@ int console;
     return 1;
   }
   static int luacrc(lua_State *L)
-  { if (lua_gettop(L)==1)
+  { if (lua_gettop(L)>=1)
     { char from[256];
       strcpy(from, lua_tostring(L, 1));
       unsigned int crc = ComputeCRC(from, strlen(from));
@@ -7101,7 +7105,7 @@ int console;
   }
   //extern void MD5_compute(char *in, char *out);
   static int luamd5(lua_State *L)
-  { if (lua_gettop(L)==1)
+  { if (lua_gettop(L)>=1)
     { unsigned char result[16];
       char s[33];
       MD5_compute((char *)lua_tostring(L, 1), result);

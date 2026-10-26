@@ -2,6 +2,7 @@
 -- 20220827   mvh   Made dgate extension more generic, allows deployment as app
 -- 20230625   mvh   Made all links relative
 -- 20260815 mvh Use rquote throughout
+-- 20261026 mvh Reject call to dbquery with ; in arguments
 
 function rquote(str)
   if string.find(str, ']=]') then return 'INVALID' end
@@ -29,6 +30,7 @@ end
 
 function querytrialpatients()
   local list = {}
+  if string.find(CGI('trial'), ';') then return list end
   for i=1, 1000 do
     local name = 
       servercommand('lua:'..
@@ -48,6 +50,7 @@ end;
 
 function counttrialstudies(pat, stage)
   local list = {}
+  if string.find(changeuidback_(pat, stage, 'PatientID'), ';') return 0 end
   local count = 
       servercommand('lua:'..
 	  [[
@@ -60,6 +63,7 @@ end;
 
 function counttrialseries(pat, stage)
   local list = {}
+  if string.find(changeuidback_(pat, stage, 'PatientID'), ';') return 0 end
   local count = 
       servercommand('lua:'..
 	  [[
@@ -72,6 +76,7 @@ end;
 
 function counttrialobjects(pat, stage)
   local list = {}
+  if string.find(changeuidback_(pat, stage, 'PatientID'), ';') return 0 end
   local count = 
       servercommand('lua:'..
 	  [[

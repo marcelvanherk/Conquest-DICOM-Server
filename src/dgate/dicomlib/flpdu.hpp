@@ -6,6 +6,7 @@
 20110118	mvh	Added unchecked CheckedPDU_Service () using NULL default
 20140528        lsp     Private copy constructor of CheckedPDU_Service not GNUC specific
 20261005	mvh	Added virtual ShouldIAcceptLocalMapped, ShouldIAcceptRemoteMapped
+20261010	mvh	These pass the connected IP address for further checks
 */
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -51,9 +52,9 @@ class	CheckedPDU_Service	:
 		BOOL	ShouldIAcceptApplicationContext(ApplicationContext &);
 		BOOL	ShouldIAcceptAbstractSyntax(AbstractSyntax &);
 		
-		virtual	BOOL	ShouldIAcceptLocalMapped(BYTE	*)
+		virtual	BOOL	ShouldIAcceptLocalMapped(BYTE	*, int)
 			{ return ( TRUE ); };
-		virtual	BOOL	ShouldIAcceptRemoteMapped(BYTE	*)
+		virtual	BOOL	ShouldIAcceptRemoteMapped(BYTE	*, int)
 			{ return ( TRUE ); };
 
 	public:

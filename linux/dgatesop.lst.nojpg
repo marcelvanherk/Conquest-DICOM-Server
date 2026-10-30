@@ -14,6 +14,7 @@
 # Revision 6: X-RayRadiationDoseSR, BreastTomosynthesisImageStorage and others
 # Revision 7: JpegLS and BigEndianExplicit enabled
 # Revision 8: Added C-GET
+# Revision 9: Added StorageCommitmentPushModel
 #
 #None				none				RemoteAE
 #None				none				LocalAE
@@ -171,6 +172,7 @@ BasicFilmBox                                         1.2.840.10008.5.1.1.2			sop
 BasicGrayscaleImageBox                               1.2.840.10008.5.1.1.4			sop
 BasicColorImageBox                                   1.2.840.10008.5.1.1.4.1			sop
 BasicPrinter                                         1.2.840.10008.5.1.1.16			sop
+StorageCommitmentPushModel                           1.2.840.10008.1.20.1                       sop
 LittleEndianImplicit                                 1.2.840.10008.1.2	transfer
 #LittleEndianExplicit                                 1.2.840.10008.1.2.1	transfer
 #BigEndianExplicit                                    1.2.840.10008.1.2.2	transfer

@@ -1284,11 +1284,19 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20261025	mvh	Version to 1.5.0g4; doc update
 20261026	mvh	Ignore extra pars for lua functions like crc, md5
 20261026	mvh	Reject 7za with filenames containing " to escape into shell
+20261019	mmd	Re-enabled StorageCommitment behind dicom.ini EnableStorageCommitment (default 0 = as before);
+			check each SOPInstance (database record and non-empty file), failures go to 0008,1198 with
+			reason 0x0112 and give event type 2 (also on new association); refuse request without
+			instance list (0x0120); do not send event if action could not be read; SOP class only
+			accepted when enabled; event on new association was sent without data (writing empties 
+			the object: now a copy is written first) and now proposes the SCP role
+20261019	mmd	StorageCommitment: refuse N-ACTION (0x0124) from a calling AE that is not in acrnema.map
+20261030	mvh	Merged mmd incoming StorageCommitment; version 1.5.0g5
 
 ENDOFUPDATEHISTORY
 */
 
-#define DGATE_VERSION "1.5.0g4"
+#define DGATE_VERSION "1.5.0g5"
 
 //#define DO_LEAK_DETECTION	1
 //#define DO_VIOLATION_DETECTION	1
@@ -1446,6 +1454,7 @@ int	ForwardCollectDelay = 600;			// delay for forward patient to etc ....
 char	VirtualServerFor[11][48];			// AE's of servers providing data for this one (cache function) + parameters
 BOOL	VirtualServerPerSeries[11];			// If set, get images at SERIES level instead of at IMAGE level
 int	CacheVirtualData=1;				// if set, keep (cache) passed through data
+int	EnableStorageCommitment=0;			// if set, accept and process storage commitment (N-ACTION, N-EVENT-REPORT)
 
 // jpeg, jpeg2k global stuff
 int	gJpegQuality=95;				// The quality of the lossy jpeg or j2k image
@@ -1654,6 +1663,7 @@ def(RetryDelay)
 def(QueueSize)
 def(ForwardCollectDelay)
 def(CacheVirtualData)
+def(EnableStorageCommitment)
 
 def(gJpegQuality)
 def(gUseOpenJpeg)
@@ -21336,6 +21346,78 @@ class ESCPRSP : public NEventReportRSP
 	public:	BOOL	GetUID ( UID &theUID ) { theUID.Set("1.2.840.10008.1.20.1"); return TRUE; }
 	};
 
+// Count items in the failed SOP sequence 0008,1198 of a storage commitment result
+
+static int StorageCommitmentFailures(DICOMDataObject *CommitData)
+	{
+	VR *vr = CommitData->GetVR(0x0008, 0x1198);
+	if (!vr || !vr->SQObjectArray) return 0;
+	return ((Array<DICOMDataObject*>*) vr->SQObjectArray)->GetSize();
+	}
+
+// Check presence of each SOPInstance 0008,1155 in sequence 0008,1199: it must be in the
+// database and its file must exist and be non-empty. Failures are moved to sequence
+// 0008,1198 with failure reason 0x0112 (no such object instance). Returns number of
+// failures, or -1 if there is no list of instances to check (nothing can be committed)
+
+static int CheckStorageCommitment(DICOMDataObject *CommitData)
+	{
+	VR *vr, *vrs, *vrf;
+	char Filename[1024], FullFilename[1024], Device[32];
+	int i, nfail=0;
+	BOOL present;
+	Array < DICOMDataObject * > *ADDO, *SQF;
+	DICOMDataObject *dd;
+
+	vr = CommitData->GetVR(0x0008, 0x1199);
+	if (!vr || !vr->SQObjectArray) return -1;
+	ADDO = (Array<DICOMDataObject*>*) vr->SQObjectArray;
+	if (ADDO->GetSize()==0) return -1;
+
+	SQF = new Array <DICOMDataObject *>;
+	for (i=ADDO->GetSize()-1; i>=0; i--)
+		{
+		dd = ADDO->Get(i);
+		present = FALSE;
+
+		vrs = dd->GetVR(0x0008, 0x1155);
+		if (vrs && vrs->Length)
+			if (GetFileName(vrs, Filename, Device, FALSE))
+				if (FindPhysicalDevice(Device, FullFilename, Filename))
+					{
+					strcat(FullFilename, Filename);
+					present = DFileSize(FullFilename)>0;
+					}
+
+		if (!present)
+			{
+			dd->ChangeVR(0x0008, 0x1197, (UINT16) 0x0112, 0);
+			SQF->Add(dd);
+			ADDO->RemoveAt(i);
+			nfail++;
+			}
+		}
+
+	if (nfail==0)
+		{
+		delete SQF;
+		return 0;
+		}
+
+	vrf = new VR(0x0008, 0x1198, 0, (void *) NULL, FALSE);
+	vrf->SQObjectArray = (void*) SQF;
+	CommitData->Push(vrf);
+
+	// no instance left: the (then empty) referenced SOP sequence may not be sent
+	if (ADDO->GetSize()==0) CommitData->DeleteVR(vr);
+
+	return nfail;
+	}
+
+// Known limitation: the result is reported once on the same association and, if that fails,
+// once on a new association. Nothing is stored: if the requester cannot be reached then, the
+// event is lost (it gets no confirmation, so it should keep its images); there are no retries
+
 BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject **CommitData)
 	{
 	VR *vr;
@@ -21361,6 +21443,16 @@ BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMComma
 		PDU_Service PDU2;
 		UID uid;
 
+		// failures were found in the first call: they are kept in the result
+		nfail = StorageCommitmentFailures(*CommitData);
+
+		// never report success for a result that lists no instances at all
+		if (!(*CommitData)->GetVR(0x0008, 0x1199) && nfail==0)
+			{
+			OperatorConsole.printf("*** Storage commitment - empty result, no N-EVENT sent\n");
+			return FALSE;
+			}
+
 		memset(Calling, 0, 20);
 		strcpy(Calling, (char *)(((AAssociateAC *)PDU)->CallingApTitle));
 	        if (Calling[0]>32)
@@ -21382,6 +21474,13 @@ BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMComma
 
 		uid.Set("1.2.840.10008.1.20.1");
 		PDU2.AddAbstractSyntax(uid);
+
+		// we open the association but remain SCP of storage commitment: propose that role
+		SCPSCURoleSelect role;
+		role.uid = uid;
+		role.SCURole = 0;
+		role.SCPRole = 1;
+		PDU2.AAssociateRQ :: UserInfo.AddSCPSCURole(role);
 
 		PDU2.SetTimeOut(TCPIPTimeOut);
 
@@ -21434,9 +21533,47 @@ BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMComma
 	if (ActionStorageCommitmentPushRequest.Read(DCO, PDU, *CommitData))
 		{
 		OperatorConsole.printf("Storage commitment request recieved\n");
- 		if (!ActionStorageCommitmentPushResponse.Write(PDU, DCO, &StorageCommitmentPushModelInstanceUID, 1, 0, NULL)) 
+
+		// only a calling AE known in acrnema.map may ask: the answer tells which instances
+		// exist here, and the event has to be sent back to an address taken from that map
+		memset(Calling, 0, 20);
+		strcpy(Calling, (char *)(((AAssociateAC *)PDU)->CallingApTitle));
+		if (Calling[0]>32)
+		  while (strlen(Calling) && Calling[strlen(Calling)-1]==' ') Calling[strlen(Calling)-1] = 0;
+		if (!GetACRNema(Calling, (char *)ip, (char *)port, (char *)compress))
+			{
+			OperatorConsole.printf("*** Storage commitment - refused, calling AE not in acrnema.map: %s\n", Calling);
+	 		ActionStorageCommitmentPushResponse.Write(PDU, DCO, &StorageCommitmentPushModelInstanceUID, 1, 0x0124, NULL);
+			delete *CommitData;
+			*CommitData = NULL;
+			return TRUE;
+			}
+
+		// only instances with a database record and a non-empty file stay in 0008,1199;
+		// the others are moved to 0008,1198 and counted in nfail
+
+		nfail = CheckStorageCommitment(*CommitData);
+
+		// without a list of instances nothing can be committed: refuse (missing attribute)
+		if (nfail<0)
+			{
+			OperatorConsole.printf("*** Storage commitment - request without referenced SOP sequence\n");
+	 		ActionStorageCommitmentPushResponse.Write(PDU, DCO, &StorageCommitmentPushModelInstanceUID, 1, 0x0120, NULL);
+			delete *CommitData;
+			*CommitData = NULL;
+			return TRUE;
+			}
+
+ 		if (!ActionStorageCommitmentPushResponse.Write(PDU, DCO, &StorageCommitmentPushModelInstanceUID, 1, 0, NULL))
+			{
+			delete *CommitData;
+			*CommitData = NULL;
 			return FALSE;
+			}
 	
+
+		if (nfail) OperatorConsole.printf("*** Storage commitment - %d instance(s) not present\n", nfail);
+
 		// delete retired study component sequence if there
 
 		vr = (*CommitData)->GetVR(0x0008, 0x1111);
@@ -21444,19 +21581,17 @@ BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMComma
 
 		// add AE title
 
-		SetStringVR(&vr, 0x0008, 0x0054, (char*)MYACRNEMA); 
+		SetStringVR(&vr, 0x0008, 0x0054, (char*)MYACRNEMA);
 		(*CommitData)->Push(vr);
-
-		// todo:
-		// check presence of each SOPInstance 0008,1155 in sequence 0008,1199 
-		// move failures from sequence 0008,1199 to sequence 0008,1198
-		// count failures in nfail
 
 		// write an event (on same association) with results
 
 		Sleep(200);
 
-		status = EventStorageCommitmentPushRequest.Write(PDU, *CommitData, &StorageCommitmentPushModelInstanceUID, nfail==0 ? 1 : 2);
+		// writing empties the object: send a copy, keep the result for a new association
+		DICOMDataObject *EventData = MakeCopy(*CommitData);
+		status = EventStorageCommitmentPushRequest.Write(PDU, EventData, &StorageCommitmentPushModelInstanceUID, nfail==0 ? 1 : 2);
+		delete EventData;
 
 		if (status)
 			{
@@ -21474,6 +21609,9 @@ BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMComma
 		return FALSE;
 		}
 
+	// the action could not be read: there is no result to report on a new link
+	delete *CommitData;
+	*CommitData = NULL;
 	return FALSE;
 	}
 
@@ -24683,6 +24821,12 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 
 	PDU.AttachRTC(&VRType);
 	PDU.SetTimeOut(TCPIPTimeOut);
+	
+	// do not accept storage commitment (if listed in dgatesop.lst) unless it is processed
+	if (!EnableStorageCommitment)
+		for (UINT i=0; i<PDU.SOPUIDListCount; i++)
+			if (strcmp(PDU.SOPUIDList[i], "1.2.840.10008.1.20.1")==0)
+				PDU.SOPUIDList[i][0] = 0;
 
 	// defined here to make thread safe: multiple instances of SOPUnknownStorage.DB required
 	MyUnknownStorage	SOPUnknownStorage;
@@ -25321,19 +25465,23 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 			}
 
 		
-//		DICOMDataObject *CommitData = NULL;
-//		if(StorageCommitmentSupport (&PDU, &DCO, &CommitData))
-//			{
-//			continue;
-//			}
+		if (EnableStorageCommitment)
+			{
+			DICOMDataObject *CommitData = NULL;
+			if(StorageCommitmentSupport (&PDU, &DCO, &CommitData))
+				{
+				continue;
+				}
 
-//		if (CommitData)
-//			{
-//			PDU.Close();
-//OperatorConsole.printf("hi\n");
-//			StorageCommitmentSupport (&PDU, &DCO, &CommitData);
-//			break;
-//			}
+			// event not accepted on this association: report on a new one
+			if (CommitData)
+				{
+				PDU.Close();
+				StorageCommitmentSupport (&PDU, &DCO, &CommitData);
+				delete CommitData;
+				break;
+				}
+			}
 
 		//Note: Changed print val to hex, easier to read.
 		OperatorConsole.printf("\n***Client Error: command %4.4x failed **\n", val);
@@ -25516,6 +25664,9 @@ void ConfigDgate(void)
 
 	MyGetPrivateProfileString(szRootSC, "CacheVirtualData", "1", szTemp, 32, ConfigFile);
 	CacheVirtualData = atoi(szTemp);
+
+	MyGetPrivateProfileString(szRootSC, "EnableStorageCommitment", "0", szTemp, 32, ConfigFile);
+	EnableStorageCommitment = atoi(szTemp);
 
 	MyGetPrivateProfileString(szRootSC, "PadAEWithZeros", "0", szTemp, 32, ConfigFile);
         ConfigPadAEWithZeros = atoi(szTemp);

@@ -718,6 +718,7 @@ When            Who     What
 20261009	mvh	Write MyACRNema to webserver and zbs dicom.ini and -h to config.php files
 20261027	mvh     Keep SC lines in dicom.ini to prepare for Storage Commitment by mmd
 20261027	mvh     Added StorageCommitmentPushModel in dgatesop.lst, but blocked out by default
+20261030	mvh     1.5.0g5 release; enabled StorageCommitmentPushModel
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -753,8 +754,8 @@ uses
 {*                              CONSTANTS                               *}
 {************************************************************************}
 
-const VERSION = '1.5.0g';
-const BUILDDATE = '20261008';
+const VERSION = '1.5.0g5';
+const BUILDDATE = '20261030';
 const testmode = 0;
 
 {************************************************************************}
@@ -1932,6 +1933,8 @@ begin
   writeln(f, '# Revision 6: X-RayRadiationDoseSR, BreastTomosynthesisImageStorage and others');
   writeln(f, '# Revision 7: JpegLS and BigEndianExplicit enabled');
   writeln(f, '# Revision 8: Added C-GET');
+  writeln(f, '# Revision 9: Added StorageCommitmentPushModel');
+
   writeln(f, '#');
   writeln(f, '#None				none				RemoteAE');
   writeln(f, '#None				none				LocalAE');
@@ -2093,7 +2096,7 @@ begin
   writeln(f, 'BasicGrayscaleImageBox                               1.2.840.10008.5.1.1.4			sop');
   writeln(f, 'BasicColorImageBox                                   1.2.840.10008.5.1.1.4.1			sop');
   writeln(f, 'BasicPrinter                                         1.2.840.10008.5.1.1.16			sop');
-  writeln(f, '#StorageCommitmentPushModel                          1.2.840.10008.1.20.1                         sop');
+  writeln(f, 'StorageCommitmentPushModel                          1.2.840.10008.1.20.1                         sop');
   writeln(f,  'LittleEndianImplicit                                 1.2.840.10008.1.2	transfer');
   writeln(f,s+'LittleEndianExplicit                                 1.2.840.10008.1.2.1	transfer');
   writeln(f,s+'BigEndianExplicit                                    1.2.840.10008.1.2.2	transfer');

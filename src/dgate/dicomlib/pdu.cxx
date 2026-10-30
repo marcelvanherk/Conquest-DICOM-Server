@@ -50,6 +50,8 @@
 20190319    mvh    Image corruption only stops at 4096 pdusize for Linux
 20230608    mvh    Copy AAssociateRQ SCPSCURoles to AAssociateAC
 20261008    mvh    Log AE title if rejected
+20261019    mmd    Connect keeps SCPSCURoles proposed by caller (for storage commitment event)
+20261019    mvh    Merged mmd StorageCommitment change; although this code is also in InterogateAAssociateRQ
 */
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -1046,6 +1048,10 @@ BOOL	PDU_Service	::	Connect ( BYTE *ip, BYTE *port )
 	GetImplementationClass(UserInfo.ImpClass);
 	GetImplementationVersion(UserInfo.ImpVersion);
 	UserInfo.SetMax(MaxSubLength);
+	
+	// keep SCP/SCU roles proposed by the caller
+        for (int i=0; i<AAssociateRQ :: UserInfo.SCPSCURole.GetSize(); i++)
+		UserInfo.AddSCPSCURole(AAssociateRQ :: UserInfo.SCPSCURole.Get(i));
 
 	AAssociateRQ :: SetUserInformation ( UserInfo );
 

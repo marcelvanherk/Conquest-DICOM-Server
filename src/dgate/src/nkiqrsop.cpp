@@ -290,6 +290,7 @@
 20260906	mvh	Use VR->GetString
 20260912	mvh	Read Level and Window and Slope and Intercept in sequence for enhanced object
 20260913	mvh	At least one CGET must be listed in dgatesop.lst before answering (grideman, nov 2021)
+20261030	mvh	Luca found that GetVR(0x7fe0, 0x0010) can be NULL before DePlane or DeYBRFULL; now tested
 */
 
 //#define bool BOOL
@@ -4433,7 +4434,7 @@ DecompressImage(DICOMDataObject **pDDO, int *Changed)
 		  if((*pDDO)->GetBYTE(0x0028, 0x0002)==3)
 			{
 			pVR = (*pDDO)->GetVR(0x7fe0, 0x0010);
-			if(pVR->Length) noPlane = DePlane((char *)pVR->Data, pVR->Length);
+			if(pVR && pVR->Length) noPlane = DePlane((char *)pVR->Data, pVR->Length);
 			if(noPlane)
 				{
 				free(pVR->Data);
@@ -4449,10 +4450,13 @@ DecompressImage(DICOMDataObject **pDDO, int *Changed)
 		if(pVR && pVR->Length == 8 && strncmp( (char *)pVR->Data, "YBR_FULL", 8) == 0)
 			{
 			pVR = (*pDDO)->GetVR(0x7fe0, 0x0010);
-			if(pVR->Length) DeYBRFULL((char *)pVR->Data, pVR->Length);
-			(*pDDO)->ChangeVR( 0x0028, 0x0004, "RGB\0", 'CS');
-			DePaletted++;
-			*Changed = 1;
+			if(pVR && pVR->Length) 
+				{
+				DeYBRFULL((char *)pVR->Data, pVR->Length);
+				(*pDDO)->ChangeVR( 0x0028, 0x0004, "RGB\0", 'CS');
+				DePaletted++;
+				*Changed = 1;
+				}
 			}
 
 		return TRUE;

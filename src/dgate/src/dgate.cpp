@@ -1292,6 +1292,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			the object: now a copy is written first) and now proposes the SCP role
 20261019	mmd	StorageCommitment: refuse N-ACTION (0x0124) from a calling AE that is not in acrnema.map
 20261030	mvh	Merged mmd incoming StorageCommitment; version 1.5.0g5
+20261031	mvh	Made EnableStorageCommitment default 1; prevent multiple triggers of backupschedule
 
 ENDOFUPDATEHISTORY
 */
@@ -1454,7 +1455,7 @@ int	ForwardCollectDelay = 600;			// delay for forward patient to etc ....
 char	VirtualServerFor[11][48];			// AE's of servers providing data for this one (cache function) + parameters
 BOOL	VirtualServerPerSeries[11];			// If set, get images at SERIES level instead of at IMAGE level
 int	CacheVirtualData=1;				// if set, keep (cache) passed through data
-int	EnableStorageCommitment=0;			// if set, accept and process storage commitment (N-ACTION, N-EVENT-REPORT)
+int	EnableStorageCommitment=1;			// if set, accept and process storage commitment (N-ACTION, N-EVENT-REPORT)
 
 // jpeg, jpeg2k global stuff
 int	gJpegQuality=95;				// The quality of the lossy jpeg or j2k image
@@ -13953,7 +13954,7 @@ static BOOL WINAPI timerthread(int ms)
 	}
 #endif
       }
-      if (method)
+      if (method && !BackupTriggered)
       { char Filename[128];
         sprintf(Filename, "backupdatabase:%s%c%s_%c_%04d%02d%02d_%02d%02d.bak,%d,%d", fn, PATHSEPCHAR, MYACRNEMA, 
 	method, tmbuf.tm_year+1900, tmbuf.tm_mon+1, tmbuf.tm_mday, tmbuf.tm_hour, tmbuf.tm_min, blocks, delay);
@@ -25665,7 +25666,7 @@ void ConfigDgate(void)
 	MyGetPrivateProfileString(szRootSC, "CacheVirtualData", "1", szTemp, 32, ConfigFile);
 	CacheVirtualData = atoi(szTemp);
 
-	MyGetPrivateProfileString(szRootSC, "EnableStorageCommitment", "0", szTemp, 32, ConfigFile);
+	MyGetPrivateProfileString(szRootSC, "EnableStorageCommitment", "1", szTemp, 32, ConfigFile);
 	EnableStorageCommitment = atoi(szTemp);
 
 	MyGetPrivateProfileString(szRootSC, "PadAEWithZeros", "0", szTemp, 32, ConfigFile);

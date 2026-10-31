@@ -718,7 +718,8 @@ When            Who     What
 20261009	mvh	Write MyACRNema to webserver and zbs dicom.ini and -h to config.php files
 20261027	mvh     Keep SC lines in dicom.ini to prepare for Storage Commitment by mmd
 20261027	mvh     Added StorageCommitmentPushModel in dgatesop.lst, but blocked out by default
-20261030	mvh     1.5.0g5 release; enabled StorageCommitmentPushModel
+20261030	mvh     version to 1.5.0g5; enabled StorageCommitmentPushModel
+20261031        mvh     Alt-drop suggests patientID from directory name if one directory is dropped; added CheckIPofRemoteAE
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -1153,6 +1154,7 @@ type
     PopupMenu2: TPopupMenu;
     CheckBoxRestrictLocal: TCheckBox;
     CheckBoxRestrictRemote: TCheckBox;
+    CheckBox71: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure RestoreconfigButtonClick(Sender: TObject);
     procedure SaveConfigButtonClick(Sender: TObject);
@@ -1501,6 +1503,7 @@ var LadlePort: string = '8086';
 var AmapFile: string;
 var AllowOnlyMappedLocalAE: string = '0';
 var AllowOnlyMappedRemoteAE: string = '0';
+var CheckIPOfRemoteAE: string = '0';
 var opnames: array of string = ['', 'Archive', 'Change', 'Move', 'Remote',
                                   'Script', 'Status', 'Store', 'Wado', 'Zip',
 				  'Stow', 'Delete',
@@ -3934,6 +3937,7 @@ begin
   
   CheckBoxRestrictLocal.checked := AllowOnlyMappedLocalAE<>'0';
   CheckBoxRestrictRemote.checked := AllowOnlyMappedRemoteAE<>'0';
+  CheckBox71.checked := CheckIPofRemoteAE<>'0';
 
   i := StrtoIntDef(FileNameSyntax, 99);
   V2RadioButton.Checked              := (i in [0, 1, 2, 3, 5, 6, 7]) or (pos('.v2', LowerCase(FileNameSyntax))>0);
@@ -4855,10 +4859,12 @@ begin
   
   if CheckBoxRestrictLocal.checked then AllowOnlyMappedLocalAE:='1' else AllowOnlyMappedLocalAE:='0';
   if CheckBoxRestrictRemote.checked then AllowOnlyMappedRemoteAE:='1' else AllowOnlyMappedRemoteAE:='0';
+  if CheckBox71.checked then CheckIPofRemoteAE:='1' else CheckIPofRemoteAE:='0';
   writeln(f, '');
   writeln(f, '# Configuration of access restrictions');
   writeln(f, 'AllowOnlyMappedLocalAE     = ' + AllowOnlyMappedLocalAE);
   writeln(f, 'AllowOnlyMappedRemoteAE    = ' + AllowOnlyMappedRemoteAE);
+  writeln(f, 'CheckIPofRemoteAE          = ' + CheckIPofRemoteAE);
       
   for i:=low(opnames) to high(opnames) do
     if AllowedIPs[i]<>'' then
@@ -11517,6 +11523,13 @@ begin
 
   if (GetKeyState(VK_LMENU) and $80000000)<>0 then
   begin
+    if num=1 then 
+    begin
+      DragQueryFile(Message.Drop, i, aFileName, 1024);
+      if SysUtils.DirectoryExists(aFileName) then 
+        newpatid := aFileName;
+    end;
+  
     ok := InputQuery('Enter '+IntToStr(num)+' files and/or directories with new patient ID ?', 'New patient ID:', newpatid);
     newpatid := ',' + newpatid;
     if ok and (newpatid[2]='$') then

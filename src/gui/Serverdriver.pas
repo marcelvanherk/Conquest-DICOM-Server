@@ -720,6 +720,7 @@ When            Who     What
 20261027	mvh     Added StorageCommitmentPushModel in dgatesop.lst, but blocked out by default
 20261030	mvh     version to 1.5.0g5; enabled StorageCommitmentPushModel
 20261031        mvh     Alt-drop suggests patientID from directory name if one directory is dropped; added CheckIPofRemoteAE
+20261101        mvh     allowonlymapped checkbox hint shows it disables wildcard AEs
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command

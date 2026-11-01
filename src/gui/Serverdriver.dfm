@@ -28,7 +28,7 @@ object Form1: TForm1
     Top = 0
     Width = 818
     Height = 554
-    ActivePage = TabSheet6
+    ActivePage = TabSheet4
     Align = alClient
     ParentShowHint = False
     ShowHint = False
@@ -36,10 +36,6 @@ object Form1: TForm1
     OnChange = PageControl1Change
     object TabSheet1: TTabSheet
       Caption = 'Configuration'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -574,10 +570,6 @@ object Form1: TForm1
     end
     object TabSheet2: TTabSheet
       Caption = 'Installation'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -727,10 +719,6 @@ object Form1: TForm1
     end
     object TabSheet3: TTabSheet
       Caption = 'Maintenance'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -919,10 +907,6 @@ object Form1: TForm1
     end
     object TabSheet4: TTabSheet
       Caption = 'Known DICOM providers'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -1046,7 +1030,7 @@ object Form1: TForm1
         Top = 152
         Width = 199
         Height = 17
-        Hint = 'Check remote systems AE against whole list minus wildcards'
+        Hint = 'Only allow remote AEs in list (disables wildcards)'
         Caption = 'Limit access to calling AEs listed here'
         ParentShowHint = False
         ShowHint = True
@@ -1059,7 +1043,7 @@ object Form1: TForm1
         Width = 199
         Height = 17
         Hint = 'Check if remote systems IP4 address matches the one listed here'
-        Caption = 'Also check IP address of AEs listed here'
+        Caption = 'Also check IP address matches list'
         ParentShowHint = False
         ShowHint = True
         TabOrder = 8
@@ -1068,10 +1052,6 @@ object Form1: TForm1
     end
     object TabSheet5: TTabSheet
       Caption = 'Browse database'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object Panel5: TPanel
         Left = 0
         Top = 0
@@ -1782,10 +1762,6 @@ object Form1: TForm1
     end
     object TabSheet7: TTabSheet
       Caption = 'Query / Move'
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -2103,10 +2079,6 @@ object Form1: TForm1
     object TabSheet8: TTabSheet
       Caption = 'Archiving'
       ImageIndex = 7
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -2447,10 +2419,6 @@ object Form1: TForm1
     object TapeBackupPage: TTabSheet
       Caption = 'Tape backup'
       ImageIndex = 8
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)
@@ -2571,10 +2539,6 @@ object Form1: TForm1
       Tag = 9999
       Caption = 'Weekly Checks'
       ImageIndex = 9
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         810
         526)

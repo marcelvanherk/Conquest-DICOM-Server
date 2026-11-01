@@ -14,6 +14,7 @@
 -- mvh 20170524 Note: readCSV(file, false) does not return unstructured table
 -- mvh 20180105 Fix reading unstructured CSV file
 -- mvh+amw 20180209 Fix reading structured CSV file
+-- mvh 20261028 readCSV on non-existing filename returns {}
 
 function escapeCSV (s)
   if s==nil or s=='nil' then
@@ -78,6 +79,7 @@ function readCSV(filename, itemnames)
   local t = {}
   local heads
   local f = io.open(filename, 'rt')
+  if f==nil then return {} end
   for s in f:lines() do 
     if itemnames==true then
       heads = fromCSV (s)

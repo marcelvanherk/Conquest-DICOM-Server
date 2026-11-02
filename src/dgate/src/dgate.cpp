@@ -1292,7 +1292,8 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 			the object: now a copy is written first) and now proposes the SCP role
 20261019	mmd	StorageCommitment: refuse N-ACTION (0x0124) from a calling AE that is not in acrnema.map
 20261030	mvh	Merged mmd incoming StorageCommitment; version 1.5.0g5
-20261031	mvh	Made EnableStorageCommitment default 1; prevent multiple triggers of backupschedule
+20261031	mvh	Made EnableStorageCommitment default 1
+20261102	mvh	Now really prevent multiple triggers of backupschedule
 
 ENDOFUPDATEHISTORY
 */
@@ -13854,7 +13855,7 @@ static BOOL WINAPI timerthread(int ms)
     MyGetPrivateProfileString(RootConfig, "MicroPACS", RootConfig, szRootSC, 64, ConfigFile);
     backupschedule[0]=' ';
     MyGetPrivateProfileString(szRootSC, "backupschedule", "", backupschedule+1, 128, ConfigFile);
-    static BOOL BackupTriggered=FALSE;
+    static BOOL BackupTriggered=FALSE, PrevBackupMethod=0;
 
     if (strlen(backupschedule) && !BackupTriggered)
     { struct tm tmbuf;
@@ -13919,7 +13920,7 @@ static BOOL WINAPI timerthread(int ms)
 	}
       }
       
-      if (method && keep)
+      if (method && keep && PrevBackupMethod==0)
       { // remove all but keep of the selected files
         char Folder[128], TempPath[128], sortName[128];
         sprintf(Folder, "%s%c%s_%c_*.bak", fn, PATHSEPCHAR, MYACRNEMA, method);
@@ -13954,7 +13955,7 @@ static BOOL WINAPI timerthread(int ms)
 	}
 #endif
       }
-      if (method && !BackupTriggered)
+      if (method  && PrevBackupMethod==0)
       { char Filename[128];
         sprintf(Filename, "backupdatabase:%s%c%s_%c_%04d%02d%02d_%02d%02d.bak,%d,%d", fn, PATHSEPCHAR, MYACRNEMA, 
 	method, tmbuf.tm_year+1900, tmbuf.tm_mon+1, tmbuf.tm_mday, tmbuf.tm_hour, tmbuf.tm_min, blocks, delay);
@@ -13964,6 +13965,7 @@ static BOOL WINAPI timerthread(int ms)
         SendServerCommand("", Filename, console);
         BackupTriggered = FALSE;
       }
+      PrevBackupMethod = method;
     }
   }
 

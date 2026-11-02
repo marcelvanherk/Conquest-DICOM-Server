@@ -721,6 +721,7 @@ When            Who     What
 20261030	mvh     version to 1.5.0g5; enabled StorageCommitmentPushModel
 20261031        mvh     Alt-drop suggests patientID from directory name if one directory is dropped; added CheckIPofRemoteAE
 20261101        mvh     allowonlymapped checkbox hint shows it disables wildcard AEs
+20261102        mvh     Fix alt-drop put folder name into suggested patientID; build date
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -757,7 +758,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0g5';
-const BUILDDATE = '20261030';
+const BUILDDATE = '20261102';
 const testmode = 0;
 
 {************************************************************************}
@@ -11517,7 +11518,7 @@ var
   i, num: integer;
   aFileName: array[0..1024] of char;
   ok: boolean;
-  newpatid: string;
+  fil, newpatid: string;
 begin
   num := DragQueryFile(Message.Drop, $FFFFFFFF, aFileName, 0);
   if num < 1 then Exit;
@@ -11526,9 +11527,16 @@ begin
   begin
     if num=1 then 
     begin
-      DragQueryFile(Message.Drop, i, aFileName, 1024);
+      DragQueryFile(Message.Drop, 0, aFileName, 1024);
       if SysUtils.DirectoryExists(aFileName) then 
-        newpatid := aFileName;
+      begin
+        fil := string(aFileName);
+        for i:=1 to length(fil) do
+	begin
+	  if fil[i]='\' then
+            newpatid := copy(fil,i+1, 999);
+	end;
+      end;
     end;
   
     ok := InputQuery('Enter '+IntToStr(num)+' files and/or directories with new patient ID ?', 'New patient ID:', newpatid);

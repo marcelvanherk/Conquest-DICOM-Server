@@ -291,6 +291,7 @@
 20260912	mvh	Read Level and Window and Slope and Intercept in sequence for enhanced object
 20260913	mvh	At least one CGET must be listed in dgatesop.lst before answering (grideman, nov 2021)
 20261030	mvh	Luca found that GetVR(0x7fe0, 0x0010) can be NULL before DePlane or DeYBRFULL; now tested
+20261104	mvh     Avoid out of bound copy into s[64] (Marek Figielski, vanilla pl)
 */
 
 //#define bool BOOL
@@ -4793,7 +4794,7 @@ BOOL recompress(DICOMDataObject **pDDO, const char *Compression, const char *Fil
 		VR *vr = (*pDDO)->GetVR(0x0002, 0x0010);
 		if (vr && vr->Data)
 			{
-			strncpy(s, (char*)vr->Data, vr->Length); s[vr->Length] = 0;
+			vr->GetString(s, sizeof(s));	// was unbounded strncpy into s[64], Marek
 
 			// leave JPEG as is
 			if ((strcmp(s, "1.2.840.10008.1.2.4.70")==0) ||

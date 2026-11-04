@@ -29,6 +29,7 @@
  mvh 20160619: bcb added sgnd flag
  mvh 20161204: mvh catch imageVR not present
  mvh 20190602: mvh Fix conversion, reload after To8BitGray and To16BitGray
+ mvh 20261104: Check for invalid image data size (Marek Figielski, vanilla pl)
 */
 
 #ifdef _WIN32
@@ -119,6 +120,15 @@ BOOL ImageData   ::   AddToOutputArray(UINT32 size)
 BOOL ImageData   ::   CalculateImageLengths()
 {
     // Set the size of each image
+    // reject bad frame count / 32-bit overflow (Marek Figielski, vanilla pl)
+    if (frames < 1 ||
+        (double)width * (double)height * (double)byteWidth * (double)components * (double)frames > 4294967000.0)
+    {  
+        OperatorConsole.printf("***[%s]: Rejected image: invalid size (w=%u h=%u comp=%u byteWidth=%u frames=%d).\n",
+                               who, width, height, components, byteWidth, frames);
+        return FALSE;
+    }
+
     singleColorFrameSize = width * height * byteWidth;
     frameSize = singleColorFrameSize * components;
     outputImageLengthEven = frameSize * frames;

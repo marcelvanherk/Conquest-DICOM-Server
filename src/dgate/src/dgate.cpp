@@ -1294,6 +1294,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20261030	mvh	Merged mmd incoming StorageCommitment; version 1.5.0g5
 20261031	mvh	Made EnableStorageCommitment default 1
 20261102	mvh	Now really prevent multiple triggers of backupschedule
+20261104        mvh     Cap lua system call in Linux to 512(Marek Figielski, vanilla pl)
 
 ENDOFUPDATEHISTORY
 */
@@ -8732,7 +8733,9 @@ static ExtendedPDU_Service ScriptForwardPDU[1][MAXExportConverters];	// max 20*2
           r = (int)BackgroundExec(command, "");
       }
 #else
-      r = system((char *)lua_tostring(L,1));
+       /* cap len like WIN32 (512), reject */
+       if (strlen(lua_tostring(L,1)) >= 512) r = -1;
+       else r = system((char *)lua_tostring(L,1));
 #endif
       lua_pushinteger(L, r);
       return 1;

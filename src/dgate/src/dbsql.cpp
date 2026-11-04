@@ -251,6 +251,7 @@ Spectra0015: Thu, 6 Mar 2014 15:34:35 -0300: Fix mismatched new/delete in dbsql.
 20260907	mvh	Pass lenghts to DICOM2SQL functions and MakeSafe functions
 20260907	mvh	MakeSafeStringValues no longer uses SetString and checks length, move SetString out of here
 20261012	mvh	The above change lost handling of binary tag values, reintroduced  (SM1312, Mahesh)
+20261104	mvh	Limit potential LastPatid out of bound copy (Marek Figielski, vanilla pl)
 */
 
 #define NCACHE 256
@@ -1302,7 +1303,8 @@ SaveToDataBase(
 			if(vr1->Length != 0)
 				{
 				vr1->GetString(LastPatid, sizeof(LastPatid));
-				PIDcnt = vr1->Length;
+				PIDcnt = (int)strlen(LastPatid);	// clamp, was unbounded
+				if (PIDcnt > 62) PIDcnt = 62;
 				}
 			}
 		vr1 = DDOPtr->GetVR(0x0008, 0x0012);//Date

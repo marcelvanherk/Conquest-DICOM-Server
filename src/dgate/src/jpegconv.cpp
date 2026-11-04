@@ -29,6 +29,7 @@
 20200722 mvh Note: lossless JPEG decompression ignores YBR_FULL which leads to old conquest color images to show green
 20201224 mvh Added StopOnJPEGWarnings configuration to fail decompress on corrupted images
 20261002 mvh Protect against jpeg length overflow
+20261104 mvh Check for invalid image data size (Marek Figielski, vanilla pl)
 */
 
 #define guard 265536
@@ -1868,6 +1869,20 @@ BOOL DecompressJPEG2Ko(DICOMDataObject* pDDO)
         }
     //Close the byte stream
         opj_cio_close(cio);
+	
+    // frame must match header (buffer sized from frame 0), Marek
+        for (cnt = 0; cnt < imageData.components; cnt++)
+            if (cnt >= (unsigned int)decompImage->numcomps ||
+                (UINT)decompImage->comps[cnt].w != imageData.width ||
+                (UINT)decompImage->comps[cnt].h != imageData.height) break;
+        if (cnt < imageData.components)
+        { 
+            OperatorConsole.printf("***[J2K decompress]: frame %d does not match header (%ux%u, %d components).\n",
+                                   imageData.currFrame, imageData.width, imageData.height, imageData.components);
+            opj_image_destroy(decompImage);
+            return ( FALSE );
+        }
+
     //Do this the first time only
         if(!imageData.currFrame)
         {//Make the buffer.
@@ -1886,6 +1901,15 @@ BOOL DecompressJPEG2Ko(DICOMDataObject* pDDO)
             prec_jpc = decompImage->comps[0].prec;//Need it at the end
             bytes_jpc = ((prec_jpc -1) / 8) + 1;// Bytes or words.
             stream_len = (decompImage->comps[0].w * decompImage->comps[0].h);
+            
+	    // bytes_jpc from codestream, check 32-bit product, Marek
+            if ((double)stream_len * (double)bytes_jpc * (double)imageData.components * (double)imageData.frames > 4294967000.0)
+            {   
+                OperatorConsole.printf("***[J2K decompress]: Rejected image: invalid size.\n");
+                opj_image_destroy(decompImage);
+                return ( FALSE );
+            }
+
             if(!imageData.CreateOutputBuffer(stream_len * bytes_jpc * imageData.components * imageData.frames))
             {
                 opj_image_destroy(decompImage);
@@ -2560,7 +2584,22 @@ BOOL DecompressJPEG2Ko(DICOMDataObject* pDDO)
 			opj_image_destroy(decompImage);
 			return FALSE;
 		}
-    //Do this the first time only
+		
+         // frame must match header (buffer sized from frame 0), Marek
+         for (cnt = 0; cnt < imageData.components; cnt++)
+             if (cnt >= (unsigned int)decompImage->numcomps ||
+                 (UINT)decompImage->comps[cnt].w != imageData.width ||
+                 (UINT)decompImage->comps[cnt].h != imageData.height) break;
+         if (cnt < imageData.components)
+         {
+             OperatorConsole.printf("***[J2K decompress]: frame %d does not match header (%ux%u, %d components).\n",
+                                    imageData.currFrame, imageData.width, imageData.height, imageData.components);
+             opj_image_destroy(decompImage);
+             return ( FALSE );
+         }
+		
+
+	//Do this the first time only
         if(!imageData.currFrame)
         {//Make the buffer.
         //Check for color.
@@ -2578,6 +2617,15 @@ BOOL DecompressJPEG2Ko(DICOMDataObject* pDDO)
             prec_jpc = decompImage->comps[0].prec;//Need it at the end
             bytes_jpc = ((prec_jpc -1) / 8) + 1;// Bytes or words.
             stream_len = (decompImage->comps[0].w * decompImage->comps[0].h);
+
+            // bytes_jpc from codestream, check 32-bit product, Marek
+            if ((double)stream_len * (double)bytes_jpc * (double)imageData.components * (double)imageData.frames > 4294967000.0)
+            {
+                OperatorConsole.printf("***[J2K decompress]: Rejected image: invalid size.\n");
+                opj_image_destroy(decompImage);
+                return ( FALSE );
+            }
+	    
             if(!imageData.CreateOutputBuffer(stream_len * bytes_jpc * imageData.components * imageData.frames))
             {
                 opj_image_destroy(decompImage);

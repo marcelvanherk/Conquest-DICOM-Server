@@ -3,9 +3,10 @@
 -- 20230625   mvh   Made all links relative
 -- 20260815 mvh Use rquote throughout
 -- 20261026 mvh Reject call to dbquery with ; in arguments
+-- 20261104 mvh block " escape; syntax errors (Marek Figielski, vanilla pl)
 
 function rquote(str)
-  if string.find(str, ']=]') then return 'INVALID' end
+  if string.find(str, ']=]') or string.find(str, '"') then return 'INVALID' end
   return '[=['..str..']=]'
 end
 
@@ -50,7 +51,7 @@ end;
 
 function counttrialstudies(pat, stage)
   local list = {}
-  if string.find(changeuidback_(pat, stage, 'PatientID'), ';') return 0 end
+  if string.find(changeuidback_(pat, stage, 'PatientID'), ';') then return 0 end
   local count = 
       servercommand('lua:'..
 	  [[
@@ -63,7 +64,7 @@ end;
 
 function counttrialseries(pat, stage)
   local list = {}
-  if string.find(changeuidback_(pat, stage, 'PatientID'), ';') return 0 end
+  if string.find(changeuidback_(pat, stage, 'PatientID'), ';') then return 0 end
   local count = 
       servercommand('lua:'..
 	  [[
@@ -76,7 +77,7 @@ end;
 
 function counttrialobjects(pat, stage)
   local list = {}
-  if string.find(changeuidback_(pat, stage, 'PatientID'), ';') return 0 end
+  if string.find(changeuidback_(pat, stage, 'PatientID'), ';') then return 0 end
   local count = 
       servercommand('lua:'..
 	  [[

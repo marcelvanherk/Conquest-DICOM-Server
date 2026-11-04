@@ -4,9 +4,10 @@
 -- 20230625   mvh   Made all links relative
 -- 20260815 mvh Use rquote throughout
 -- 20261026 mvh Reject call to dbquery with ; in arguments
+-- 20261104 mvh block " escape (Marek Figielski, vanilla pl)
 
 function rquote(str)
-  if string.find(str, ']=]') then return 'INVALID' end
+  if string.find(str, ']=]') or string.find(str, '"') then return 'INVALID' end
   return '[=['..str..']=]'
 end
 

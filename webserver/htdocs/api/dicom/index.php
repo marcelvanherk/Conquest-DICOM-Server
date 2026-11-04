@@ -2,12 +2,15 @@
 // mvh 20260903: Use squote instead of escapeshellarg; implemented checkaccess
 // mvh 20260904: checkaccess is run remotely
 // mvh 20260909: script access control also blocks any scripts passed to commands
+// mvh 20261104: escapeshellarg for Linux; wado access controls DicomWeb read (Marek Figielski, vanilla pl)
 
     require_once 'Router.php';
     include 'config.php';
 
     function squote($val) {
       include 'config.php';
+      // sh expands $() `` \ in ""; single-quote
+      if (PHP_OS_FAMILY != 'Windows') return escapeshellarg($val);
       $t = str_replace('"', $quote, $val);    
       return '"' . $t . '"';
     }
@@ -330,5 +333,13 @@ EOD;
        else
          readprogress($uid);
     });
+
+    // require wado access on reads; decoded URI (no %-bypass), HEAD==GET
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' || $_SERVER['REQUEST_METHOD'] === 'HEAD') {
+      $p = $router->getCurrentUri();
+      if ($p === '/wadouri' || strncmp($p, '/rs/', 4) === 0) {
+        if (!checkaccess('wado')) { http_response_code(403); header('Content-Type: text/plain'); echo 'Forbidden: DICOMweb read access denied'; exit; }
+      }
+    }
 
     $router->run();

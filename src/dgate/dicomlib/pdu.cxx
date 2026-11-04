@@ -52,6 +52,7 @@
 20261008    mvh    Log AE title if rejected
 20261019    mmd    Connect keeps SCPSCURoles proposed by caller (for storage commitment event)
 20261019    mvh    Merged mmd StorageCommitment change; although this code is also in InterogateAAssociateRQ
+20261104    mvh    Pass IP address into multiplex; fix by Marcin Makalowski DivNet/MakeIT divinus
 */
 /****************************************************************************
           Copyright (C) 1995, University of California, Davis
@@ -694,6 +695,15 @@ BOOL	PDU_Service	::	Multiplex(int	Socketfd)
 	if (!AAssociateRQ :: Read( *this ))
 		DicomError(DCM_ERROR_DEBUG, "Invalid message in PDU:Multiplex", 0);
 
+	// fix by Marcin
+	memset(&Link.sa, 0, sizeof(Link.sa));
+#ifdef UNIX
+	socklen_t salen = sizeof(Link.sa);
+#else
+	int salen = sizeof(Link.sa);
+#endif
+	getpeername(Socketfd, (struct sockaddr *)&Link.sa, &salen);
+	
 	if(!InterogateAAssociateRQ())
 		{
 		DicomError(DCM_ERROR_DEBUG, "no transfer syntax could be negotiated", 0);

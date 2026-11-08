@@ -722,6 +722,7 @@ When            Who     What
 20261031        mvh     Alt-drop suggests patientID from directory name if one directory is dropped; added CheckIPofRemoteAE
 20261101        mvh     allowonlymapped checkbox hint shows it disables wildcard AEs
 20261102        mvh     Fix alt-drop put folder name into suggested patientID; build date
+20261108        mvh     Forget to read CheckIPofRemoteAE from dicom.ini into gui
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -3903,6 +3904,9 @@ begin
 
     if Copy(s, 0, length('AllowOnlyMappedRemoteAE')) = 'allowonlymappedremoteae' then
       AllowOnlyMappedRemoteAE := GetData(sorg);
+
+    if Copy(s, 0, length('CheckIPofRemoteAE')) = 'checkipofremoteae' then
+      CheckIPofRemoteAE := GetData(sorg);
 
     for i:=low(opnames) to high(opnames) do
       if Copy(s, 0, length('AllowedIPs'+opnames[i])) = LowerCase('AllowedIPs'+opnames[i]) then

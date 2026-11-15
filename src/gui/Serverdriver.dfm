@@ -28,7 +28,7 @@ object Form1: TForm1
     Top = 0
     Width = 818
     Height = 554
-    ActivePage = TabSheet4
+    ActivePage = TabSheet9
     Align = alClient
     ParentShowHint = False
     ShowHint = False
@@ -910,6 +910,30 @@ object Form1: TForm1
       DesignSize = (
         810
         526)
+      object LabelWildcardWarning: TLabel
+        Left = 591
+        Top = 228
+        Width = 5
+        Height = 13
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clRed
+        Font.Height = -11
+        Font.Name = 'MS Sans Serif'
+        Font.Style = [fsBold, fsUnderline]
+        ParentFont = False
+      end
+      object LabelWildCardWarning2: TLabel
+        Left = 591
+        Top = 250
+        Width = 5
+        Height = 13
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clRed
+        Font.Height = -11
+        Font.Name = 'MS Sans Serif'
+        Font.Style = [fsBold, fsUnderline]
+        ParentFont = False
+      end
       object Button1: TButton
         Left = 624
         Top = 16
@@ -1048,6 +1072,78 @@ object Form1: TForm1
         ShowHint = True
         TabOrder = 8
         OnClick = CheckBoxRestrictRemoteClick
+      end
+    end
+    object TabSheet9: TTabSheet
+      Caption = 'Access control'
+      ImageIndex = 10
+      DesignSize = (
+        810
+        526)
+      object Comments: TLabel
+        Left = 616
+        Top = 380
+        Width = 180
+        Height = 143
+        Alignment = taCenter
+        AutoSize = False
+        Caption = 
+          'This page provides fine control of which computers can access va' +
+          'rious aspects of the server. * be careful not to lock this GUI (' +
+          '127.0.0.1) out of controlling the server. Items are comma separa' +
+          'ted lists of IP addresses, e.g. 192.168.0.0/24, *, none, 192.168' +
+          '.0.*. Entry "map" lists all non-wildcard addresses from ACRNEMA.' +
+          'MAP'
+        Layout = tlCenter
+        WordWrap = True
+        IsControl = True
+      end
+      object StringGrid1: TStringGrid
+        Left = 0
+        Top = 0
+        Width = 610
+        Height = 526
+        Align = alLeft
+        Anchors = [akLeft, akTop, akRight, akBottom]
+        ColCount = 3
+        DefaultColWidth = 200
+        DrawingStyle = gdsClassic
+        FixedColor = clMoneyGreen
+        RowCount = 19
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWindowText
+        Font.Height = -11
+        Font.Name = 'MS Sans Serif'
+        Font.Style = [fsBold]
+        GridLineWidth = 2
+        Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goColSizing, goEditing]
+        ParentFont = False
+        TabOrder = 0
+        OnSetEditText = StringGrid1SetEditText
+      end
+      object Button15: TButton
+        Left = 632
+        Top = 28
+        Width = 153
+        Height = 25
+        Hint = 
+          'Stores the information on this page. Unstored changes are not fu' +
+          'nctional'
+        Anchors = [akTop, akRight]
+        Caption = 'Save configuration'
+        ParentShowHint = False
+        ShowHint = True
+        TabOrder = 1
+        OnClick = SaveConfigButtonClick
+      end
+      object ButtonSetdefaults: TButton
+        Left = 632
+        Top = 72
+        Width = 153
+        Height = 25
+        Caption = 'Set access to default values'
+        TabOrder = 2
+        OnClick = ButtonSetdefaultsClick
       end
     end
     object TabSheet5: TTabSheet

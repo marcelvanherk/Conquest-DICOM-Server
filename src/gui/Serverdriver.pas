@@ -723,6 +723,7 @@ When            Who     What
 20261101        mvh     allowonlymapped checkbox hint shows it disables wildcard AEs
 20261102        mvh     Fix alt-drop put folder name into suggested patientID; build date
 20261108        mvh     Forget to read CheckIPofRemoteAE from dicom.ini into gui
+20261115        mvh     Fixed forgotten write of DeniedIPs; Added wildcard warnings; access control page
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -1158,6 +1159,13 @@ type
     CheckBoxRestrictLocal: TCheckBox;
     CheckBoxRestrictRemote: TCheckBox;
     CheckBox71: TCheckBox;
+    TabSheet9: TTabSheet;
+    StringGrid1: TStringGrid;
+    LabelWildcardWarning: TLabel;
+    LabelWildCardWarning2: TLabel;
+    Button15: TButton;
+    ButtonSetdefaults: TButton;
+    Comments: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure RestoreconfigButtonClick(Sender: TObject);
     procedure SaveConfigButtonClick(Sender: TObject);
@@ -1323,6 +1331,9 @@ type
     procedure ButtonLuaConsoleClick(Sender: TObject);
     procedure CheckBoxRestrictLocalClick(Sender: TObject);
     procedure CheckBoxRestrictRemoteClick(Sender: TObject);
+    procedure StringGrid1SetEditText(Sender: TObject; ACol, ARow: Integer;
+      const Value: string);
+    procedure ButtonSetdefaultsClick(Sender: TObject);
   private
     procedure WMDropFiles(var Message: TWMDropFiles); message WM_DROPFILES;
     procedure WMQueryEndSession(var Message: TWMQueryEndSession); message WM_QUERYENDSESSION;
@@ -1511,6 +1522,11 @@ var opnames: array of string = ['', 'Archive', 'Change', 'Move', 'Remote',
                                   'Script', 'Status', 'Store', 'Wado', 'Zip',
 				  'Stow', 'Delete',
 				  'Cverification', 'Cfind', 'Cmove', 'Cget', 'Cstore' , 'Cmovedest'];
+var opinfo: array of string = ['All (overrules below items *)', '(Moving data)', '(Modify data)', '(Web)', '(Web)',
+                                  '(Management *)', '(Web)', '(Web)', '(View from Web)', '(Web)',
+				  '(Web)', '(Web)',
+				  '(DICOM Echo *)', '(DICOM query)', '(DICOM Move)',
+                                  '(DICOM Get)', '(DICOM Store)' , '(Move destination)'];
 var AllowedIPs: array[0..17] of string;
 var DeniedIPs: array[0..17] of string;
 
@@ -3909,13 +3925,47 @@ begin
       CheckIPofRemoteAE := GetData(sorg);
 
     for i:=low(opnames) to high(opnames) do
+    begin
+      StringGrid1.Cells[0, 0] := 'Item';
+      StringGrid1.Cells[2, 0] := 'Allowed';
+      StringGrid1.Cells[0, i+1] := opnames[i] + ' ' + opinfo[i];
       if Copy(s, 0, length('AllowedIPs'+opnames[i])) = LowerCase('AllowedIPs'+opnames[i]) then
+      begin
         AllowedIPs[i] := GetData(sorg);
+        StringGrid1.Cells[2, i+1] := AllowedIPs[i];
+      end;
+    end;
 
     for i:=low(opnames) to high(opnames) do
+    begin
+      StringGrid1.Cells[1, 0] := 'Denied (tested first)';
       if Copy(s, 0, length('DeniedIPs'+opnames[i])) = LowerCase('DeniedIPs'+opnames[i]) then
+      begin
         DeniedIPs[i] := GetData(sorg);
+        StringGrid1.Cells[1, i+1] := DeniedIPs[i];
+      end;
+    end;
   end;
+
+  for i:=low(opnames) to high(opnames) do
+  begin
+    if (StringGrid1.Cells[1, i+1]='') then
+    begin
+      if i<12 then
+        StringGrid1.Cells[1,i+1]:='none'
+      else
+        StringGrid1.Cells[1,i+1]:='none';
+    end;
+    if (StringGrid1.Cells[2, i+1]='') then
+    begin
+      if i<12 then
+        StringGrid1.Cells[2,i+1]:='127.0.0.1,::1'
+      else
+        StringGrid1.Cells[2,i+1]:='*';
+    end;
+  end;
+
+  FillAELists;
 
   if FileCompressMode=0 then
   begin
@@ -4878,7 +4928,7 @@ begin
 
   for i:=low(opnames) to high(opnames) do
     if DeniedIPs[i]<>'' then
-      writeln(f, 'DeniedIPs'+opnames[i] + '  = ' + AllowedIPs[i]);
+      writeln(f, 'DeniedIPs'+opnames[i] + '  = ' + DeniedIPs[i]);
 
   p := 0;
   for i:=0 to 9 do p := p + Length(VirtualServerForList[i]);
@@ -6144,6 +6194,42 @@ begin
       end;
       CloseFile(f);
       RegenFolderRunning := false;
+    end;
+  end;
+end;
+
+procedure TForm1.ButtonSetdefaultsClick(Sender: TObject);
+var i: integer;
+begin
+  for i:=low(opnames) to high(opnames) do
+  begin
+    AllowedIPs[i] := '';
+    DeniedIPs[i] := '';
+  end;
+  for i:=low(opnames) to high(opnames) do
+  begin
+    StringGrid1.Cells[2, i+1] := AllowedIPs[i];
+  end;
+
+  for i:=low(opnames) to high(opnames) do
+  begin
+    StringGrid1.Cells[1, i+1] := DeniedIPs[i];
+  end;
+  for i:=low(opnames) to high(opnames) do
+  begin
+    if (StringGrid1.Cells[1, i+1]='') then
+    begin
+      if i<12 then
+        StringGrid1.Cells[1,i+1]:='none'
+      else
+        StringGrid1.Cells[1,i+1]:='none';
+    end;
+    if (StringGrid1.Cells[2, i+1]='') then
+    begin
+      if i<12 then
+        StringGrid1.Cells[2,i+1]:='127.0.0.1,::1'
+      else
+        StringGrid1.Cells[2,i+1]:='*';
     end;
   end;
 end;
@@ -8882,13 +8968,17 @@ var i, j: integer;
     s, t: string;
     inspace: boolean;
     incomment: boolean;
+    haswildcard: boolean;
     regex: TRegEx;
 begin
   Form1.DicomSystem.Items.Clear;
   Form1.TargetSystem.Items.Clear;
   incomment := False;
+  haswildcard := false;
   Form1.DICOMMap.WordWrap := False;
   regex.Create('\/\*.*\*\/');
+  Form1.LabelWildCardWarning.Caption := '';
+  Form1.LabelWildCardWarning2.Caption := '';
 
   for i:=0 to Form1.DicomMap.Lines.Count-1 do
   begin
@@ -8905,7 +8995,17 @@ begin
         continue;
       end;
     end;
-    // Pos('*', s)>0 then continue;
+
+    if Pos('*', s)>0 then
+    begin
+      haswildcard := true;
+      if CheckIPOfRemoteAE<>'0' then
+        Form1.LabelWildCardWarning.Caption := 'Wildcards are ignored in this mode';
+      if AllowOnlyMappedRemoteAE<>'0' then
+        Form1.LabelWildCardWarning.Caption := 'Wildcards are ignored in this mode';
+      continue; //********
+    end;
+
     if Length(s)<>0 then
     begin
       c := s[1];
@@ -8933,6 +9033,8 @@ begin
 
         Form1.DicomSystem.Items.Add(t);
         Form1.TargetSystem.Items.Add(t);
+        if haswildcard then
+          Form1.LabelWildCardWarning2.Caption := 'Check entries below wildcards';
       end;
     end;
   end;
@@ -9534,6 +9636,15 @@ begin
      ServerTask('Export from GUI: ', 'luastart:servercommand[[export:'+
      Table1.FieldByName('PATIENTID').AsString+
      ',,,,'+GuiToServerFilename(SaveDialog1.Filename)+',compression UN]]');
+end;
+
+procedure TForm1.StringGrid1SetEditText(Sender: TObject; ACol, ARow: Integer;
+  const Value: string);
+begin
+  if ACol=1 then
+    DeniedIPs[ARow-1] := Value;
+  if ACol=2 then
+    AllowedIPs[ARow-1] := Value;
 end;
 
 procedure TForm1.Study1Click(Sender: TObject);

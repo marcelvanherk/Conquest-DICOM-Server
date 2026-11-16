@@ -724,6 +724,7 @@ When            Who     What
 20261102        mvh     Fix alt-drop put folder name into suggested patientID; build date
 20261108        mvh     Forget to read CheckIPofRemoteAE from dicom.ini into gui
 20261115        mvh     Fixed forgotten write of DeniedIPs; Added wildcard warnings; access control page
+20261116        mvh     Added nprint and ncommit
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -1521,12 +1522,13 @@ var CheckIPOfRemoteAE: string = '0';
 var opnames: array of string = ['', 'Archive', 'Change', 'Move', 'Remote',
                                   'Script', 'Status', 'Store', 'Wado', 'Zip',
 				  'Stow', 'Delete',
-				  'Cverification', 'Cfind', 'Cmove', 'Cget', 'Cstore' , 'Cmovedest'];
+				  'Cverification', 'Cfind', 'Cmove', 'Cget', 'Cstore' , 'Cmovedest', 'Nprint', 'NCommit'];
 var opinfo: array of string = ['All (overrules below items *)', '(Moving data)', '(Modify data)', '(Web)', '(Web)',
                                   '(Management *)', '(Web)', '(Web)', '(View from Web)', '(Web)',
 				  '(Web)', '(Web)',
 				  '(DICOM Echo *)', '(DICOM query)', '(DICOM Move)',
-                                  '(DICOM Get)', '(DICOM Store)' , '(Move destination)'];
+                                  '(DICOM Get)', '(DICOM Store)' , '(Move destination)',
+                                  '(DICOM print)', '(Storage commitment)'];
 var AllowedIPs: array[0..17] of string;
 var DeniedIPs: array[0..17] of string;
 

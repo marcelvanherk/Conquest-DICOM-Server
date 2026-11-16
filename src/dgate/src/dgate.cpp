@@ -1295,6 +1295,7 @@ Spectra0013 Wed, 5 Feb 2014 16:57:49 -0200: Fix cppcheck bugs #8 e #9
 20261031	mvh	Made EnableStorageCommitment default 1
 20261102	mvh	Now really prevent multiple triggers of backupschedule
 20261104        mvh     Cap lua system call in Linux to 512(Marek Figielski, vanilla pl)
+20261116        mvh     Added checkaccess items ca_nprint and ca_ncommit
 
 ENDOFUPDATEHISTORY
 */
@@ -1737,6 +1738,8 @@ int GetNumberOfFrames(DICOMDataObject* pDDO);
 #define ca_cget 15
 #define ca_cstore 16
 #define ca_cmovedest 17
+#define ca_nprint 18
+#define ca_ncommit 19
 
 
 /* ca_ipmatch.c - address list matching for Conquest checkaccess()
@@ -15690,8 +15693,8 @@ class	StorageApp	:
 	public:
 		BOOL	ServerChild ( int, unsigned int );
 		void FailSafeStorage(CheckedPDU_Service *PDU);
-		BOOL PrinterSupport( ExtendedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *PrintData[], int Thread, char *lua);
-		BOOL StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject **CommitData);
+		BOOL PrinterSupport( ExtendedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *PrintData[], int Thread, char *lua, unsigned int ConnectedIP);
+		BOOL StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject **CommitData, unsigned int ConnectedIP);
 	};
 
 // from dbsql.cpp
@@ -20820,7 +20823,7 @@ void lua_printserver(ExtendedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDat
 	}
 	
 
-BOOL StorageApp ::	PrinterSupport( ExtendedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *PrintData[], int Thread, char *lua)
+BOOL StorageApp ::	PrinterSupport( ExtendedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject *PrintData[], int Thread, char *lua, int unsigned ConnectedIP)
 	{
 	DICOMDataObject		*DDO;
 	char			uid[65], Filename[1024];
@@ -20879,6 +20882,7 @@ EPRSP	EventReportPrinterResponse;
 
 		if (strcmp(szPrintSOP, "1.2.840.10008.5.1.1.16") == 0)
 			{
+			if (!checkaccess(ca_nprint, ConnectedIP)) return false;
 			if (GetPrinterRequest.Read(DCO, PDU, DDO))
 				{
 				if (lua[0]) 
@@ -20940,6 +20944,7 @@ EPRSP	EventReportPrinterResponse;
 
 		else if (strcmp(szPrintSOP, "1.2.840.10008.5.1.1.1") == 0)
 			{
+			if (!checkaccess(ca_nprint, ConnectedIP)) return false;
 			if (CreateBasicFilmSessionRequest.Read(DCO, PDU, DDO))
 				{
 				GenUID(uid); 
@@ -21028,6 +21033,7 @@ EPRSP	EventReportPrinterResponse;
 
 		else if (strcmp(szPrintSOP, "1.2.840.10008.5.1.1.2") == 0)
 			{
+			if (!checkaccess(ca_nprint, ConnectedIP)) return false;
 			if (CreateBasicFilmBoxRequest.Read(DCO, PDU, DDO))
 				{
 				int n=1, rows=1, cols=1;
@@ -21146,6 +21152,7 @@ EPRSP	EventReportPrinterResponse;
 
 		else if (strcmp(szPrintSOP, "1.2.840.10008.5.1.1.4") == 0)
 			{
+			if (!checkaccess(ca_nprint, ConnectedIP)) return false;
 			if (SetBasicGrayScaleImageBoxRequest.Read(DCO, PDU, DDO))
 				{
 				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
@@ -21190,6 +21197,7 @@ EPRSP	EventReportPrinterResponse;
 
 		else if (strcmp(szPrintSOP, "1.2.840.10008.5.1.1.4.1") == 0)
 			{
+			if (!checkaccess(ca_nprint, ConnectedIP)) return false;
 			if (SetBasicColorImageBoxRequest.Read(DCO, PDU, DDO))
 				{
 				if (DebugLevel>=3) NonDestructiveDumpDICOMObject(DDO);
@@ -21424,7 +21432,7 @@ static int CheckStorageCommitment(DICOMDataObject *CommitData)
 // once on a new association. Nothing is stored: if the requester cannot be reached then, the
 // event is lost (it gets no confirmation, so it should keep its images); there are no retries
 
-BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject **CommitData)
+BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMCommandObject *DCO, DICOMDataObject **CommitData, unsigned int ConnectedIP)
 	{
 	VR *vr;
 	DICOMCommandObject DCOR;
@@ -21532,6 +21540,8 @@ BOOL StorageApp ::	StorageCommitmentSupport( CheckedPDU_Service *PDU, DICOMComma
 #else //Big Endian like Apple power pc
 	if ((int)SwitchEndian(*((unsigned short*)vr->Data))!=1) return FALSE;
 #endif
+
+	if (!checkaccess(ca_ncommit, ConnectedIP)) return false;
 
 	// read and acknowledge the action
 
@@ -21789,6 +21799,8 @@ BOOL ServerTask(char *SilentText, ExtendedPDU_Service &PDU, DICOMCommandObject &
                   else if (strcmp(SilentText+12, "cmove")==0) op=ca_cmove;
                   else if (strcmp(SilentText+12, "cstore")==0) op=ca_cstore;
                   else if (strcmp(SilentText+12, "cmovedest")==0) op=ca_cmovedest;
+                  else if (strcmp(SilentText+12, "nprint")==0) op=ca_nprint;
+                  else if (strcmp(SilentText+12, "ncommit")==0) op=ca_ncommit;
 		  else return true;
 
                   // ipv6
@@ -25465,7 +25477,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 			continue;
 			}
 
-		if(PrinterSupport (&PDU, &DCO, PrintData, ThreadNum, lua_printserver))
+		if(PrinterSupport (&PDU, &DCO, PrintData, ThreadNum, lua_printserver, ConnectedIP))
 			{
 			continue;
 			}
@@ -25474,7 +25486,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 		if (EnableStorageCommitment)
 			{
 			DICOMDataObject *CommitData = NULL;
-			if(StorageCommitmentSupport (&PDU, &DCO, &CommitData))
+			if(StorageCommitmentSupport (&PDU, &DCO, &CommitData, ConnectedIP))
 				{
 				continue;
 				}
@@ -25483,7 +25495,7 @@ BOOL StorageApp	::	ServerChild (int theArg, unsigned int ConnectedIP )
 			if (CommitData)
 				{
 				PDU.Close();
-				StorageCommitmentSupport (&PDU, &DCO, &CommitData);
+				StorageCommitmentSupport (&PDU, &DCO, &CommitData, ConnectedIP);
 				delete CommitData;
 				break;
 				}

@@ -14,6 +14,7 @@
 -- mvh 20260812 Divinus fixed formatting of frame
 -- mvh 20260813 Modified documentation a bit
 -- mvh 20260902 Added checkaccess to control access by ip through dicom.ini
+-- mvh 20261116 checkaccess also controls wado
 
 ---------------------------------------------
 --preflight
@@ -128,86 +129,103 @@ end )
 
 -- wado though uri: wadouri
 routes:get('/api/dicom/wadouri/', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    redirect('/app/newweb/dgate.exe')
 end )
 
 -- query all studies
 routes:get('/api/dicom/rs/studies', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    querystudies(request.query)
 end )
 
 -- query series of a study
 routes:get('/api/dicom/rs/studies/:suid/series', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    queryseries(request.query, params.suid)
 end )
 
 -- query all series
 routes:get('/api/dicom/rs/series', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    queryseries(request.query, '')
 end )
 
 -- query instances of series
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    queryinstances(request.query, params.suid, params.euid)
 end )
 
 -- query all instances
 routes:get('/api/dicom/rs/instances', function ()
+  if (not checkaccess('wado', remote_addr)) then return false end
    queryinstances(request.query, '', '')
 end )
 
 -- metadata of a study
 routes:get('/api/dicom/rs/studies/:suid/metadata', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    metadata(request.query,params.suid,'','')
 end )
 
 -- metadata of a series
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/metadata', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    metadata(request.query, params.suid,params.euid,'')
 end )
 
 -- metadata of an instance
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/metadata', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    metadata(request.query, params.suid,params.euid,params.ouid)
 end )
 
 -- single frame (binary pixel data)
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/frames/:frame', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    frame(request.query, params.suid,params.euid,params.ouid,params.frame)
 end )
 
 -- dicom instance
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    instances(request.query, params.suid,params.euid,params.ouid)
 end )
 
 -- dicom instances of series
 routes:get('/api/dicom/rs/studies/:suid/series/:euid', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    return instances(request.query, params.suid,params.euid,'')
 end )
 
 -- dicom instances of study
 routes:get('/api/dicom/rs/studies/:suid', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    return instances(request.query, params.suid,'','')
 end )
 
 -- thumbnail of a frame
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/thumbnail/frames/:frame', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    thumbnail(request.query, params.suid,params.euid,params.ouid,params.frame,128)
 end )
 
 -- thumbnail of an image
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/instances/:ouid/thumbnail', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    thumbnail(request.query, params.suid,params.euid,params.ouid,0,128)
 end )
 
 -- thumbnail for series (middle one)
 routes:get('/api/dicom/rs/studies/:suid/series/:euid/thumbnail', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    thumbnail(request.query, params.suid,params.euid,'',0,128)
 end )
 
 -- thumbnail for study (middle one)
 routes:get('/api/dicom/rs/studies/:suid/thumbnail', function (params)
+  if (not checkaccess('wado', remote_addr)) then return false end
    thumbnail(request.query, params.suid,'','',0,128)
 end );
 

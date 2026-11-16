@@ -28,7 +28,7 @@ object Form1: TForm1
     Top = 0
     Width = 818
     Height = 554
-    ActivePage = TabSheet9
+    ActivePage = TabSheet6
     Align = alClient
     ParentShowHint = False
     ShowHint = False
@@ -1106,10 +1106,11 @@ object Form1: TForm1
         Align = alLeft
         Anchors = [akLeft, akTop, akRight, akBottom]
         ColCount = 3
-        DefaultColWidth = 200
+        DefaultColWidth = 194
+        DefaultRowHeight = 23
         DrawingStyle = gdsClassic
         FixedColor = clMoneyGreen
-        RowCount = 19
+        RowCount = 21
         Font.Charset = DEFAULT_CHARSET
         Font.Color = clWindowText
         Font.Height = -11

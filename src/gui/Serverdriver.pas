@@ -725,6 +725,7 @@ When            Who     What
 20261108        mvh     Forget to read CheckIPofRemoteAE from dicom.ini into gui
 20261115        mvh     Fixed forgotten write of DeniedIPs; Added wildcard warnings; access control page
 20261116        mvh     Added nprint and ncommit
+20261117        mvh     IPs array size, build date
 
 Todo for odbc: dgate64 -v "-sSQL Server;DSN=conquest;Description=bla;Server=.\SQLEXPRESS;Database=conquest;Trusted_Connection=Yes"
 Update -e command
@@ -761,7 +762,7 @@ uses
 {************************************************************************}
 
 const VERSION = '1.5.0g5';
-const BUILDDATE = '20261102';
+const BUILDDATE = '20261117';
 const testmode = 0;
 
 {************************************************************************}
@@ -1523,14 +1524,14 @@ var opnames: array of string = ['', 'Archive', 'Change', 'Move', 'Remote',
                                   'Script', 'Status', 'Store', 'Wado', 'Zip',
 				  'Stow', 'Delete',
 				  'Cverification', 'Cfind', 'Cmove', 'Cget', 'Cstore' , 'Cmovedest', 'Nprint', 'NCommit'];
-var opinfo: array of string = ['All (overrules below items *)', '(Moving data)', '(Modify data)', '(Web)', '(Web)',
-                                  '(Management *)', '(Web)', '(Web)', '(View from Web)', '(Web)',
+var opinfo: array of string = ['All (overrules below items +)', '(Moving data)', '(Modify data)', '(Web)', '(Web)',
+                                  '(Management +)', '(Web)', '(Web)', '(View from Web)', '(Web)',
 				  '(Web)', '(Web)',
-				  '(DICOM Echo *)', '(DICOM query)', '(DICOM Move)',
+				  '(DICOM Echo +)', '(DICOM query)', '(DICOM Move)',
                                   '(DICOM Get)', '(DICOM Store)' , '(Move destination)',
                                   '(DICOM print)', '(Storage commitment)'];
-var AllowedIPs: array[0..17] of string;
-var DeniedIPs: array[0..17] of string;
+var AllowedIPs: array[0..19] of string;
+var DeniedIPs: array[0..19] of string;
 
 var CheckDays: array[1..10] of integer;
     CheckTimes: array[1..10] of string;

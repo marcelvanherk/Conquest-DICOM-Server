@@ -28,7 +28,7 @@ object Form1: TForm1
     Top = 0
     Width = 818
     Height = 554
-    ActivePage = TabSheet6
+    ActivePage = TabSheet9
     Align = alClient
     ParentShowHint = False
     ShowHint = False
@@ -1089,7 +1089,7 @@ object Form1: TForm1
         AutoSize = False
         Caption = 
           'This page provides fine control of which computers can access va' +
-          'rious aspects of the server. * be careful not to lock this GUI (' +
+          'rious aspects of the server. + be careful not to lock this GUI (' +
           '127.0.0.1) out of controlling the server. Items are comma separa' +
           'ted lists of IP addresses, e.g. 192.168.0.0/24, *, none, 192.168' +
           '.0.*. Entry "map" lists all non-wildcard addresses from ACRNEMA.' +

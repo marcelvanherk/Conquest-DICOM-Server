@@ -29,11 +29,13 @@
 // 20220823  mvh  Added optional CORS headers
 // 20220827  mvh  Use configuration, stopped supporting old cgi interface
 // 20260903  mvh  Pass REMOTE_ADDR; use squote (not escapeshellarg)
+// 20261117  mvh  escapeshellarg for Linux
 
 include 'config.php';
 
 function squote($val) {
   include 'config.php';
+  if (PHP_OS_FAMILY != 'Windows') return escapeshellarg($val);
   $t = str_replace('"', $quote, $val);    
   return '"' . $t . '"';
 }
